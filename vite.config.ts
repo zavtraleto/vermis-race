@@ -5,5 +5,5 @@ export default defineConfig({
   base: './',
   server: { host: true },
   preview: { host: true },
-  test: { include: ['tests/sim/**/*.test.ts'] },
+  test: { include: ['tests/{sim,app}/**/*.test.ts'] },
 });
