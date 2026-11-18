@@ -30,6 +30,6 @@ TypeScript (strict) + three.js (exact version pinned in package.json) + Vite. Mo
 - three.js: only the pinned version's API (see `.claude/rules/render.md`).
 - Failing test first. Never modify a test to make it pass — if a test looks wrong, stop and ask.
 - Minimal diff. No new dependencies or abstractions without asking the author.
-- Never commit to `main` directly (hook enforces); short branches, small vertical slices.
+- Never commit to `main` or push it (hook enforces); short branches, small vertical slices. The author merges. Only when he asks in chat for a specific merge/push of `main` may the director do it, marking the command with `AUTHOR_APPROVED` (e.g. `$env:AUTHOR_APPROVED=1; git push origin main`). One request = one action; subagents and feature sessions never use the marker.
 - Done = `check` + `test` green, `smoke` clean, screenshot or metric checked against a criterion named in advance, `docs/progress.md` updated.
 - Green tests do not mean a playable game: feel, touch ergonomics and fun are judged by the author on a phone. A stage is closed only by him.
