@@ -22,6 +22,8 @@
 | Трасса | `Track` | лента сегментов |
 | Сегмент | `Segment` | `{ curve, y, width, props }` |
 | Кривизна | `curve` | знак: + вправо |
+| Класс крутизны поворота | `curveClass: 'easy' \| 'medium' \| 'hard'` | значения в `src/data/tracks/curves.json` |
+| Секция трассы | `TrackSection` | `{ enter, hold, leave, curve }` в сегментах |
 | Объект у дороги | `Prop` | поле `layer` 2 или 3, класс коллизии |
 | Класс коллизии | `collision: 'solid' \| 'destructible' \| 'none'` | |
 | Поток (слипстрим) | `draft` | заряд 0…1 |
