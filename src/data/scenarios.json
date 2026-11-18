@@ -1,0 +1,5 @@
+{
+  "trackLength": 200,
+  "straight": { "z": 0, "x": 0 },
+  "cruiseSegmentsPerFrame": 0.25
+}
