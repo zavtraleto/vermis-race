@@ -20,6 +20,9 @@ export interface RoadConfig {
 
 export interface Projection {
   count: number; // lines written by the last project() call
+  base: number; // wrapped track segment of line 0 (the segment the camera is in)
+  frac: number; // camera position inside the base segment, 0..1
+  length: number; // track length in segments at the last project() call
   x: Float32Array; // screen x of road centre, px
   y: Float32Array; // screen y, px, origin top-left, y down
   w: Float32Array; // road half-width on screen, px
@@ -47,6 +50,9 @@ export function createProjection(camera: CameraConfig, road: RoadConfig): Projec
   const n = camera.drawDistance + 1;
   return {
     count: 0,
+    base: 0,
+    frac: 0,
+    length: 1,
     x: new Float32Array(n),
     y: new Float32Array(n),
     w: new Float32Array(n),
@@ -91,4 +97,7 @@ export function project(
     dx += segs[seg]!.curve;
   }
   out.count = count;
+  out.base = base;
+  out.frac = frac;
+  out.length = len;
 }

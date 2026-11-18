@@ -27,7 +27,7 @@ const VERGE_LIGHT = 12;
 const VERGE_DARK = 15;
 const LANE = 18;
 
-function writeHex(out: Float32Array, at: number, hex: string): void {
+export function writeHex(out: Float32Array, at: number, hex: string): void {
   const v = parseInt(hex.slice(1), 16);
   out[at] = ((v >> 16) & 0xff) / 255;
   out[at + 1] = ((v >> 8) & 0xff) / 255;

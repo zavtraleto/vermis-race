@@ -1,7 +1,9 @@
 import type { CameraConfig, RoadConfig } from '../render/projection';
+import type { SpritesConfig } from '../render/worldSprites';
 import camera from './camera.json';
 import palette from './palette.json';
 import road from './road.json';
+import sprites from './sprites.json';
 
 // Palette entries are sRGB hex strings; [light, dark] pairs alternate by stripe.
 export interface Palette {
@@ -10,8 +12,16 @@ export interface Palette {
   rumble: string[];
   lane: string;
   verge: string[];
+  player: string;
+  carShadow: string;
+  carWheel: string;
+  carGlass: string;
+  carLamp: string;
+  post: string;
+  postCap: string;
 }
 
 export const cameraConfig: CameraConfig = camera;
 export const roadConfig: RoadConfig = road;
 export const paletteConfig: Palette = palette;
+export const spritesConfig: SpritesConfig = sprites;
