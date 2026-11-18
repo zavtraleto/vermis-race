@@ -10,5 +10,11 @@
   "carGlass": "#0c0c12",
   "carLamp": "#c0283c",
   "post": "#5a5a5e",
-  "postCap": "#d8d8d8"
+  "postCap": "#d8d8d8",
+  "mapBacking": "#16161d",
+  "mapStraight": "#6a6a72",
+  "mapEasy": "#6a6a72",
+  "mapMedium": "#ffe14a",
+  "mapHard": "#c0283c",
+  "mapMarker": "#cfd0d6"
 }

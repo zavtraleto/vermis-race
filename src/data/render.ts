@@ -1,7 +1,9 @@
 import type { CameraConfig, RoadConfig } from '../render/projection';
+import type { RibbonMapRenderConfig } from '../render/ribbonMapMesh';
 import type { SpritesConfig } from '../render/worldSprites';
 import camera from './camera.json';
 import palette from './palette.json';
+import ribbonMap from './ribbonMap.json';
 import road from './road.json';
 import sprites from './sprites.json';
 
@@ -19,9 +21,16 @@ export interface Palette {
   carLamp: string;
   post: string;
   postCap: string;
+  mapBacking: string;
+  mapStraight: string;
+  mapEasy: string;
+  mapMedium: string;
+  mapHard: string;
+  mapMarker: string;
 }
 
 export const cameraConfig: CameraConfig = camera;
 export const roadConfig: RoadConfig = road;
 export const paletteConfig: Palette = palette;
 export const spritesConfig: SpritesConfig = sprites;
+export const ribbonMapConfig: RibbonMapRenderConfig = ribbonMap;
