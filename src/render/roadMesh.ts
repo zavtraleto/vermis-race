@@ -51,12 +51,12 @@ export class RoadMesh {
   private readonly screenW: number;
   private readonly invW: number;
   private readonly invH: number;
-  private readonly horizonY: number;
   private readonly strips: number;
   private quads = 0;
 
   constructor(
-    camera: CameraConfig,
+    // horizon is read live in update() (dev tuning panel); drawDistance sizes the buffers here.
+    private readonly camera: CameraConfig,
     private readonly road: RoadConfig,
     palette: Palette,
   ) {
@@ -66,7 +66,6 @@ export class RoadMesh {
     this.screenW = camera.screenWidth;
     this.invW = 1 / camera.screenWidth;
     this.invH = 1 / camera.screenHeight;
-    this.horizonY = camera.horizon * camera.screenHeight;
 
     writeHex(this.rgb, ASPHALT_LIGHT, palette.asphalt[0]!);
     writeHex(this.rgb, ASPHALT_DARK, palette.asphalt[1]!);
@@ -106,6 +105,7 @@ export class RoadMesh {
 
   update(proj: Projection): void {
     const road = this.road;
+    const horizonY = this.camera.horizon * this.camera.screenHeight;
     const step = 2 / this.strips;
     const last = Math.min(proj.count - 1, this.strips);
     this.quads = 0;
@@ -113,7 +113,7 @@ export class RoadMesh {
       const y0 = proj.y[n]!;
       const y1 = proj.y[n + 1]!;
       // Skip strips at/above the horizon or with no height (y grows downwards).
-      if (y0 <= this.horizonY || y1 >= y0) continue;
+      if (y0 <= horizonY || y1 >= y0) continue;
       const x0 = proj.x[n]!;
       const x1 = proj.x[n + 1]!;
       const w0 = proj.w[n]!;
