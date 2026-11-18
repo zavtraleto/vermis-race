@@ -13,12 +13,14 @@ export interface MeasureConfig {
   saturationSteer: number; // |steer| above this counts as saturated
   deadSteer: number; // |steer| below this on a straight without brake counts as dead time
   straightCurveMax: number; // |curve| at or below this is a straight
+  longHoldSeconds: number; // a section whose hold lasts at least this long at vmax is a long corner
 }
 
 export interface CornerRun {
   /** Speed (fraction of vmax) when the car reaches the start of the section's hold part, per lap. */
   entrySpeed: number[];
   maxAbsX: number;
+  minSpeed: number; // lowest speed/vmax inside the section (flying laps 2..N)
   offroadEvents: number;
 }
 
@@ -76,6 +78,7 @@ export function runBot(
   const corners: CornerRun[] = sections.map(() => ({
     entrySpeed: [],
     maxAbsX: 0,
+    minSpeed: Infinity,
     offroadEvents: 0,
   }));
   const r: RunResult = {
@@ -140,6 +143,7 @@ export function runBot(
     const corner = corners[si]!;
     const ax = x < 0 ? -x : x;
     if (ax > corner.maxAbsX) corner.maxAbsX = ax;
+    if (car.z >= n && sp < corner.minSpeed) corner.minSpeed = sp;
     const off = ax > 1; // R15 asphalt is |x| <= 1
     if (off) r.offroadTicks++;
     if (off && !wasOff) {

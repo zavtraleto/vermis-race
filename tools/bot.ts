@@ -20,7 +20,7 @@ export function main(io: Io): number {
   for (const t of tracks) {
     for (const bot of BOT_NAMES) {
       const runs = seeds.map((s) => runOne(bot, t, s, m));
-      const e = summarize(bot, t, runs, m.laps);
+      const e = summarize(bot, t, runs, m);
       entries.push(e);
       io.log(
         `${t.name.padEnd(12)} ${bot.padEnd(8)} lap ${e.lapTime.mean.toFixed(2)} s ` +

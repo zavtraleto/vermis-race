@@ -36,6 +36,10 @@ function bounds(min: number | undefined, max: number | undefined): string {
   return '-';
 }
 
+function boundsOf(r: BoundRule): string {
+  return r.above !== undefined ? `> ${r.above}` : bounds(r.min, r.max);
+}
+
 function within(v: number, min: number | undefined, max: number | undefined): boolean {
   return (min === undefined || v >= min) && (max === undefined || v <= max);
 }
@@ -156,7 +160,7 @@ function corridor(res: Results, cfg: GateConfig, out: Check[]): void {
             id: r.id,
             scope,
             value: 'missing',
-            bound: bounds(r.min, r.max),
+            bound: boundsOf(r),
             status: 'FAIL',
           });
           continue;
@@ -166,8 +170,11 @@ function corridor(res: Results, cfg: GateConfig, out: Check[]): void {
           id: r.id,
           scope,
           value: f2(v),
-          bound: bounds(r.min, r.max),
-          status: within(v, r.min, r.max) ? 'PASS' : fail(r.severity),
+          bound: boundsOf(r),
+          status:
+            within(v, r.min, r.max) && (r.above === undefined || v > r.above)
+              ? 'PASS'
+              : fail(r.severity),
         });
       }
     }

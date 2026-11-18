@@ -9,6 +9,7 @@ export interface BoundRule {
   metric: string;
   min?: number;
   max?: number;
+  above?: number; // strict lower bound: value must be > above
   severity: Severity;
   note?: string;
 }

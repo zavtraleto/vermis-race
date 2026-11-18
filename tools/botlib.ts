@@ -9,6 +9,7 @@ import {
   type ClassedSection,
   type CurveClass,
 } from '../src/data/tracks';
+import { SEG_PER_UNIT } from '../src/sim/constants';
 import { buildTrack } from '../src/sim/track';
 import type { Track } from '../src/sim/types';
 import type { Io } from './io';
@@ -51,6 +52,8 @@ export interface CornerSummary {
   side: -1 | 1;
   entrySpeed: { mean: number; min: number };
   maxAbsX: number;
+  minSpeed: number; // min speed/vmax inside the section over flying laps of all seeds
+  long: boolean; // hold >= measure.longHoldSeconds at vmax
   offroadEventsPerLap: number;
 }
 
@@ -71,7 +74,9 @@ export interface Entry {
     easyMedium: number;
   };
   steerSaturation: number;
-  speed: { mean: number; min: number }; // fraction of vmax; min over flying laps
+  // fraction of vmax; min over flying laps; longHardMin = the highest of the per-corner minimum
+  // speeds over long hard corners (each long hard must be slowed below a bound), null if none
+  speed: { mean: number; min: number; longHardMin: number | null };
   brakeFraction: number;
   deadTimeFraction: number;
   straightFraction: number;
@@ -105,7 +110,13 @@ function stat(v: readonly number[]): Stat {
   return { mean, stdev: v.length > 1 ? Math.sqrt(q / (v.length - 1)) : 0, best };
 }
 
-export function summarize(bot: BotName, t: LoadedTrack, runs: RunResult[], laps: number): Entry {
+export function summarize(
+  bot: BotName,
+  t: LoadedTrack,
+  runs: RunResult[],
+  m: MeasureConfig,
+): Entry {
+  const laps = m.laps;
   let ticks = 0;
   let off = 0;
   let sat = 0;
@@ -150,8 +161,10 @@ export function summarize(bot: BotName, t: LoadedTrack, runs: RunResult[], laps:
     const speeds: number[] = [];
     let maxX = 0;
     let ce = 0;
+    let minSp = Infinity;
     for (const r of runs) {
       const c = r.corners[i]!;
+      if (c.minSpeed < minSp) minSp = c.minSpeed;
       speeds.push(...c.entrySpeed);
       if (c.maxAbsX > maxX) maxX = c.maxAbsX;
       ce += c.offroadEvents;
@@ -163,9 +176,16 @@ export function summarize(bot: BotName, t: LoadedTrack, runs: RunResult[], laps:
       side: s.side,
       entrySpeed: { mean: st.mean, min: speeds.length ? Math.min(...speeds) : NaN },
       maxAbsX: maxX,
+      minSpeed: minSp,
+      long: s.hold / SEG_PER_UNIT >= m.longHoldSeconds,
       offroadEventsPerLap: ce / lapCount,
     };
   });
+  let longHardMin: number | null = null;
+  for (const c of corners) {
+    if (c.curveClass !== 'hard' || !c.long) continue;
+    if (longHardMin === null || c.minSpeed > longHardMin) longHardMin = c.minSpeed;
+  }
   return {
     bot,
     track: t.name,
@@ -183,7 +203,7 @@ export function summarize(bot: BotName, t: LoadedTrack, runs: RunResult[], laps:
       easyMedium: (ev.easy + ev.medium) / lapCount,
     },
     steerSaturation: sat / ticks,
-    speed: { mean: speedSum / ticks, min: minSpeed },
+    speed: { mean: speedSum / ticks, min: minSpeed, longHardMin },
     brakeFraction: brake / ticks,
     deadTimeFraction: dead / ticks,
     straightFraction: straight / ticks,

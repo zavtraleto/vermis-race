@@ -1,11 +1,12 @@
 {
-  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md.",
+  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rules novice-not-faster, expert-brakes, expert-long-hard-slows: director 2026-11-18 (T16).",
   "measure": {
     "laps": 3,
     "maxSecondsPerLap": 180,
     "saturationSteer": 0.95,
     "deadSteer": 0.05,
-    "straightCurveMax": 0.1
+    "straightCurveMax": 0.1,
+    "longHoldSeconds": 3
   },
   "defaultSeeds": 20,
   "determinismSeed": 1,
@@ -54,6 +55,32 @@
       "note": "expert 3-15% faster than average: a skill ceiling exists but is not absurd"
     },
     {
+      "id": "novice-not-faster",
+      "type": "gap",
+      "fast": "average",
+      "slow": "novice",
+      "metric": "lapTime.mean",
+      "min": 0,
+      "severity": "no-go",
+      "note": "novice lap >= average lap: leaving the road costs more than braking (pillar 3)"
+    },
+    {
+      "id": "expert-brakes",
+      "bot": "expert",
+      "metric": "brakeFraction",
+      "above": 0,
+      "severity": "no-go",
+      "note": "a hard corner needs a lift even for the expert"
+    },
+    {
+      "id": "expert-long-hard-slows",
+      "bot": "expert",
+      "metric": "speed.longHardMin",
+      "max": 0.9,
+      "severity": "no-go",
+      "note": "every hard corner with hold >= measure.longHoldSeconds forces the expert below 0.9 vmax; missing = no such corner on the track"
+    },
+    {
       "id": "average-saturation",
       "bot": "average",
       "metric": "steerSaturation",
@@ -91,12 +118,36 @@
     "noGoWorseBy": 0.5,
     "conditionalWorseBy": 0.25,
     "metrics": [
-      { "metric": "lapTime.mean", "better": "lower", "floor": 1 },
-      { "metric": "offroadFraction", "better": "lower", "floor": 0.01 },
-      { "metric": "offroadEventsPerLap.total", "better": "lower", "floor": 0.5 },
-      { "metric": "wallHits.perLap", "better": "lower", "floor": 0.1 },
-      { "metric": "deadTimeFraction", "better": "lower", "floor": 0.02 },
-      { "metric": "speed.mean", "better": "higher", "floor": 0.1 }
+      {
+        "metric": "lapTime.mean",
+        "better": "lower",
+        "floor": 1
+      },
+      {
+        "metric": "offroadFraction",
+        "better": "lower",
+        "floor": 0.01
+      },
+      {
+        "metric": "offroadEventsPerLap.total",
+        "better": "lower",
+        "floor": 0.5
+      },
+      {
+        "metric": "wallHits.perLap",
+        "better": "lower",
+        "floor": 0.1
+      },
+      {
+        "metric": "deadTimeFraction",
+        "better": "lower",
+        "floor": 0.02
+      },
+      {
+        "metric": "speed.mean",
+        "better": "higher",
+        "floor": 0.1
+      }
     ]
   }
 }
