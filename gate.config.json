@@ -1,0 +1,102 @@
+{
+  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md.",
+  "measure": {
+    "laps": 3,
+    "maxSecondsPerLap": 180,
+    "saturationSteer": 0.95,
+    "deadSteer": 0.05,
+    "straightCurveMax": 0.1
+  },
+  "defaultSeeds": 20,
+  "determinismSeed": 1,
+  "corridor": [
+    {
+      "id": "average-offroad-time",
+      "bot": "average",
+      "metric": "offroadFraction",
+      "max": 0.05,
+      "severity": "no-go",
+      "note": "average stays on asphalt >= 95% of the time"
+    },
+    {
+      "id": "average-offroad-easy-medium",
+      "bot": "average",
+      "metric": "offroadEventsPerLap.easyMedium",
+      "max": 1,
+      "severity": "no-go",
+      "note": "<= 1 off-road event per lap on easy+medium corners"
+    },
+    {
+      "id": "novice-offroad-hard",
+      "bot": "novice",
+      "metric": "offroadEventsPerLap.hard",
+      "min": 1,
+      "severity": "no-go",
+      "note": "novice leaves the road on hard corners at least once per lap, else the track is too easy and drift has no purpose"
+    },
+    {
+      "id": "novice-completes",
+      "bot": "novice",
+      "metric": "finishedFraction",
+      "min": 1,
+      "severity": "no-go",
+      "note": "novice still completes its laps"
+    },
+    {
+      "id": "expert-gap",
+      "type": "gap",
+      "fast": "expert",
+      "slow": "average",
+      "metric": "lapTime.mean",
+      "min": 0.03,
+      "max": 0.15,
+      "severity": "no-go",
+      "note": "expert 3-15% faster than average: a skill ceiling exists but is not absurd"
+    },
+    {
+      "id": "average-saturation",
+      "bot": "average",
+      "metric": "steerSaturation",
+      "min": 0.05,
+      "max": 0.4,
+      "severity": "conditional",
+      "note": "average uses full lock sometimes, not all the time"
+    },
+    {
+      "id": "dead-time",
+      "bot": "*",
+      "metric": "deadTimeFraction",
+      "max": 0.2,
+      "severity": "conditional",
+      "note": "dead time < 20% for every bot"
+    },
+    {
+      "id": "average-walls",
+      "bot": "average",
+      "metric": "wallHits.total",
+      "max": 0,
+      "severity": "no-go",
+      "note": "no wall hits (x at xLimit, R18)"
+    },
+    {
+      "id": "expert-walls",
+      "bot": "expert",
+      "metric": "wallHits.total",
+      "max": 0,
+      "severity": "no-go",
+      "note": "no wall hits (x at xLimit, R18)"
+    }
+  ],
+  "regression": {
+    "noGoWorseBy": 0.5,
+    "conditionalWorseBy": 0.25,
+    "metrics": [
+      { "metric": "lapTime.mean", "better": "lower", "floor": 1 },
+      { "metric": "offroadFraction", "better": "lower", "floor": 0.01 },
+      { "metric": "offroadEventsPerLap.total", "better": "lower", "floor": 0.5 },
+      { "metric": "wallHits.perLap", "better": "lower", "floor": 0.1 },
+      { "metric": "deadTimeFraction", "better": "lower", "floor": 0.02 },
+      { "metric": "speed.mean", "better": "higher", "floor": 0.1 }
+    ]
+  }
+}

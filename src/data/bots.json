@@ -1,0 +1,42 @@
+{
+  "_status": "[старт] T16 bot skill levels, starting values; derivation of the hold limit in src/bot/driver.ts (R11/R13)",
+  "novice": {
+    "steerLookahead": 0.25,
+    "brakeLookahead": 0,
+    "aim": "centre",
+    "insideX": 0,
+    "insideFullCurve": 2.5,
+    "speed": "never",
+    "steerReserve": 0,
+    "edgeMargin": 0,
+    "noiseAmp": 0.15,
+    "noiseTau": 0.3,
+    "reactionDelay": 0.25
+  },
+  "average": {
+    "steerLookahead": 1,
+    "brakeLookahead": 1,
+    "aim": "centre",
+    "insideX": 0,
+    "insideFullCurve": 2.5,
+    "speed": "hold",
+    "steerReserve": 0.15,
+    "edgeMargin": 0,
+    "noiseAmp": 0.08,
+    "noiseTau": 0.3,
+    "reactionDelay": 0
+  },
+  "expert": {
+    "steerLookahead": 0.8,
+    "brakeLookahead": 1.5,
+    "aim": "inside",
+    "insideX": 0.7,
+    "insideFullCurve": 2.5,
+    "speed": "late",
+    "steerReserve": 0,
+    "edgeMargin": 0.15,
+    "noiseAmp": 0.04,
+    "noiseTau": 0.3,
+    "reactionDelay": 0
+  }
+}
