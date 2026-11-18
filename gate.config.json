@@ -1,5 +1,5 @@
 {
-  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rules novice-not-faster, expert-brakes, expert-long-hard-slows: director 2026-11-18 (T16).",
+  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rules novice-not-faster, expert-brakes, expert-long-hard-slows: director 2026-11-18 (T16). Rule offroad-recovery: director 2026-11-18 (R15b).",
   "measure": {
     "laps": 3,
     "maxSecondsPerLap": 180,
@@ -112,6 +112,14 @@
       "max": 0,
       "severity": "no-go",
       "note": "no wall hits (x at xLimit, R18)"
+    },
+    {
+      "id": "offroad-recovery",
+      "type": "result",
+      "metric": "recovery.seconds",
+      "max": 1.5,
+      "severity": "no-go",
+      "note": "R15b feel: after leaving the road on a medium corner at vmax (0.2 beyond the edge) the car is back on asphalt within 1.5 s with full steer to the centre; missing = never"
     }
   ],
   "regression": {
@@ -149,5 +157,11 @@
         "floor": 0.1
       }
     ]
+  },
+  "recovery": {
+    "curveClass": "medium",
+    "speed": 1,
+    "depth": 0.2,
+    "maxSeconds": 10
   }
 }

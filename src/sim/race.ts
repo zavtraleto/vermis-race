@@ -51,8 +51,12 @@ export function step(
     car.steer += dSteer;
 
     // R11/R12: grip lateral speed target, exponential catch-up (drift ignored, state stays GRIP).
-    const target = car.steer * p.steerRate * sp0 * (1 - 0.25 * sp0);
-    car.vx += (target - car.vx) * (1 - Math.exp(-p.grip * DT));
+    // R15b: off road (|x| > 1 at the start of the step) the target is scaled by offroadSteerMul
+    // and the catch-up uses offroadGrip; variant A is offroadGrip = grip, offroadSteerMul = 1.
+    const off = car.x > 1 || car.x < -1;
+    let target = car.steer * p.steerRate * sp0 * (1 - 0.25 * sp0);
+    if (off) target *= p.offroadSteerMul;
+    car.vx += (target - car.vx) * (1 - Math.exp(-(off ? p.offroadGrip : p.grip) * DT));
 
     // R13/R19: lateral move plus centrifugal push outward (cm = 1 in GRIP).
     const cm = 1;

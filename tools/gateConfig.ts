@@ -1,4 +1,5 @@
 import type { MeasureConfig } from '../src/bot/run';
+import type { CurveClass } from '../src/data/tracks';
 
 export type Severity = 'no-go' | 'conditional';
 
@@ -26,6 +27,24 @@ export interface GapRule {
   note?: string;
 }
 
+/** A bound on a metric of results.json itself (not per bot/track), e.g. recovery.seconds. */
+export interface ResultRule {
+  id: string;
+  type: 'result';
+  metric: string;
+  min?: number;
+  max?: number;
+  severity: Severity;
+  note?: string;
+}
+
+export interface RecoveryConfig {
+  curveClass: CurveClass;
+  speed: number;
+  depth: number;
+  maxSeconds: number;
+}
+
 export interface RegressionMetric {
   metric: string;
   better: 'lower' | 'higher';
@@ -36,7 +55,8 @@ export interface GateConfig {
   measure: MeasureConfig;
   defaultSeeds: number;
   determinismSeed: number;
-  corridor: (BoundRule | GapRule)[];
+  recovery: RecoveryConfig;
+  corridor: (BoundRule | GapRule | ResultRule)[];
   regression: { noGoWorseBy: number; conditionalWorseBy: number; metrics: RegressionMetric[] };
 }
 

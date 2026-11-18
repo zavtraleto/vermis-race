@@ -114,10 +114,27 @@ function stability(io: Io, res: Results, cfg: GateConfig, out: Check[]): void {
 
 function corridor(res: Results, cfg: GateConfig, out: Check[]): void {
   const fail = (sev: string): Status => (sev === 'conditional' ? 'COND' : 'FAIL');
+  for (const rule of cfg.corridor) {
+    if (rule.type !== 'result') continue;
+    let v: unknown = res;
+    for (const k of rule.metric.split('.')) {
+      v = typeof v === 'object' && v !== null ? (v as Record<string, unknown>)[k] : undefined;
+    }
+    const ok = typeof v === 'number' && within(v, rule.min, rule.max);
+    out.push({
+      tier: 2,
+      id: rule.id,
+      scope: 'results',
+      value: typeof v === 'number' ? f2(v) : 'missing',
+      bound: bounds(rule.min, rule.max),
+      status: ok ? 'PASS' : fail(rule.severity),
+    });
+  }
   for (const track of res.tracks) {
     const of = (bot: string): Entry | undefined =>
       res.entries.find((e) => e.track === track && e.bot === bot);
     for (const rule of cfg.corridor) {
+      if (rule.type === 'result') continue;
       if (rule.type === 'gap') {
         const g = rule as GapRule;
         const fast = of(g.fast);

@@ -1,6 +1,9 @@
 // npm run bot [-- --seeds N]: every bot x every track in src/data/tracks x N seeds, headless.
 // Writes results.json for tools/gate.ts.
 import { BOT_NAMES, loadTracks, runOne, summarize, type Entry, type Results } from './botlib';
+import { recoverySeconds } from '../src/bot/recovery';
+import { baseCar } from '../src/data/cars';
+import { curveClasses } from '../src/data/tracks';
 import { GATE_CONFIG, readGateConfig, RESULTS } from './gateConfig';
 import { argValue, type Io } from './io';
 
@@ -29,6 +32,15 @@ export function main(io: Io): number {
       );
     }
   }
+  const { curveClass, speed, depth, maxSeconds } = cfg.recovery;
+  const rec = { curveClass, speed, depth };
+  const secs = recoverySeconds(
+    { curve: curveClasses[curveClass], speed, depth, maxSeconds },
+    baseCar,
+  );
+  io.log(
+    `recovery after an exit on ${curveClass} at ${speed} vmax, ${depth} beyond the edge: ${secs.toFixed(2)} s`,
+  );
   const results: Results = {
     version: 1,
     car: 'base',
@@ -37,6 +49,7 @@ export function main(io: Io): number {
     measure: m,
     tracks: tracks.map((t) => t.name),
     entries,
+    recovery: { ...rec, seconds: Number.isFinite(secs) ? secs : null },
   };
   io.write(RESULTS, JSON.stringify(results, null, 2) + '\n');
   io.log(

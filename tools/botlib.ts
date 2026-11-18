@@ -94,6 +94,8 @@ export interface Results {
   measure: MeasureConfig;
   tracks: string[];
   entries: Entry[];
+  /** R15b feel check: seconds back to asphalt after an exit (null = did not return). */
+  recovery: { curveClass: CurveClass; speed: number; depth: number; seconds: number | null };
 }
 
 function stat(v: readonly number[]): Stat {
