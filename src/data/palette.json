@@ -4,7 +4,7 @@
   "rumble": ["#e8e8e8", "#c0283c"],
   "lane": "#d8d8d8",
   "verge": ["#1c1c22", "#18181d"],
-  "player": "#f2f2f2",
+  "player": "#cfd0d6",
   "carShadow": "#0c0c12",
   "carWheel": "#18181d",
   "carGlass": "#0c0c12",

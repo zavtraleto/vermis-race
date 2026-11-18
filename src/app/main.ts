@@ -1,22 +1,32 @@
 import * as THREE from 'three';
 import { baseCar } from '../data/cars';
 import { cameraConfig, paletteConfig, roadConfig, spritesConfig } from '../data/render';
+import hypotheses from '../data/hypotheses.json';
+import { inputConfig } from '../data/input';
 import scenarios from '../data/scenarios.json';
+import { createKeyboardInput } from '../input/keyboard';
+import { attachKeyboard } from '../input/keyboardDom';
+import { createPlayerInput, type PlayerInput } from '../input/player';
+import { attachPointer } from '../input/pointerDom';
+import { resolveTouchScheme } from '../input/scheme';
+import { createTouchStick } from '../input/touchStick';
 import { createProjection, project } from '../render/projection';
 import { RoadMesh } from '../render/roadMesh';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
 import { createRace } from '../sim/race';
-import { makeStraightTrack } from '../sim/track';
+import { buildTrack, makeStraightTrack } from '../sim/track';
+import { loadTestTwisty } from '../data/tracks';
 import type { InputFrame, Track } from '../sim/types';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
+import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
 
 const WIDTH = 360;
 const HEIGHT = 640;
-// Placeholder tracks until real tracks exist.
+// Length of the literal screenshot/stress tracks.
 const STRAIGHT_TRACK_SEGMENTS = 1000;
 // Frame-time window: ~4 s at 60 Hz.
 const FRAME_STATS_WINDOW = 256;
@@ -49,11 +59,16 @@ const curveScenario =
   params.scenario === 'curve-left' || params.scenario === 'curve-right'
     ? scenarios[params.scenario]
     : null;
+const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
+// Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
+const fixedScenario = curveScenario ?? straightScenario;
 const track = curveScenario
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curveScenario.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
-    : makeStraightTrack(STRAIGHT_TRACK_SEGMENTS);
+    : straightScenario
+      ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
+      : buildTrack(loadTestTwisty().def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
 const proj = createProjection(view, roadConfig);
 const road = new RoadMesh(view, roadConfig, paletteConfig);
@@ -64,20 +79,33 @@ const world = new WorldSprites(spritesConfig, view, paletteConfig);
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
 
-// Input stub until src/input exists: automatic throttle, no steering, no brake.
-function readStubInput(_tick: number, out: InputFrame[]): void {
-  for (let i = 0; i < out.length; i++) {
-    const f = out[i]!;
-    f.steer = 0;
-    f.brake = false;
-    f.drift = false;
-  }
+// Input: keyboard + touch scheme (H2; only A exists, the resolve warns on a bad flag).
+resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
+const now = (): number => performance.now();
+const keyboard = createKeyboardInput(inputConfig.keyboard);
+const touchStick = createTouchStick(inputConfig.touch);
+attachKeyboard(window, keyboard, now);
+attachPointer(canvas, touchStick, now);
+// Constant input for screenshot scenarios so the frame does not depend on the keyboard.
+function fixedInput(steer: number): PlayerInput {
+  const last: InputFrame = { steer, brake: false, drift: false };
+  return {
+    last,
+    read(out: InputFrame): void {
+      out.steer = steer;
+      out.brake = false;
+      out.drift = false;
+    },
+  };
 }
+const player = fixedScenario
+  ? fixedInput(fixedScenario.steer)
+  : createPlayerInput(keyboard, touchStick, now);
 
 const loop = createLoop(createRace(params.seed, 1), {
   track,
   params: [baseCar],
-  readInput: readStubInput,
+  readInput: createReadInput(player),
 });
 
 let lastCalls = 0;
@@ -94,6 +122,7 @@ const game: GameDebug = {
   },
   state: () => JSON.parse(JSON.stringify(loop.curr)) as typeof loop.curr,
   stepTicks: (n) => loop.stepTicks(n),
+  input: () => copyInputFrame(player.last),
 };
 window.__game = game;
 
@@ -132,7 +161,6 @@ function frame(time: number): void {
 }
 
 // Screenshot scenarios pin the sim to a fixed tick unless ?ticks= overrides it.
-const fixedScenario = curveScenario ?? (params.scenario === 'straight' ? scenarios.straight : null);
 const fixedTicks = params.ticks ?? fixedScenario?.ticks ?? null;
 if (fixedTicks !== null) {
   // Deterministic debug run: exact tick count, one rendered frame, no rAF loop.

@@ -1,0 +1,11 @@
+{
+  "keyboard": { "steerRampMs": 120 },
+  "touch": {
+    "stickRadiusFrac": 0.2,
+    "deadZone": 0.05,
+    "responseExp": 1.4,
+    "releaseMs": 100,
+    "steerZoneFrac": 0.35,
+    "driftPullDownPx": 40
+  }
+}
