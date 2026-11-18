@@ -1,1 +1,8 @@
-{ "segmentLength": 200, "halfWidth": 400, "rumbleLength": 3, "lanes": 3, "rumbleWidth": 0.15, "laneMarkerWidth": 0.03 }
+{
+  "segmentLength": 200,
+  "halfWidth": 400,
+  "rumbleLength": 3,
+  "lanes": 3,
+  "rumbleWidth": 0.15,
+  "laneMarkerWidth": 0.03
+}

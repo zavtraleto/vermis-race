@@ -11,7 +11,9 @@
     "test": "vitest run",
     "smoke": "vite build && playwright test",
     "shot": "node tools/shot.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "bot": "node tools/run-ts.mjs tools/bot.ts",
+    "gate": "node tools/run-ts.mjs tools/gate.ts"
   },
   "dependencies": {
     "three": "0.187.0"
