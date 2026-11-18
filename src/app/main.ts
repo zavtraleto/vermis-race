@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { baseCar } from '../data/cars';
-import { cameraConfig, paletteConfig, roadConfig, spritesConfig } from '../data/render';
+import {
+  cameraConfig,
+  paletteConfig,
+  ribbonMapConfig,
+  roadConfig,
+  spritesConfig,
+} from '../data/render';
 import hypotheses from '../data/hypotheses.json';
 import { inputConfig } from '../data/input';
 import scenarios from '../data/scenarios.json';
@@ -11,12 +17,14 @@ import { attachPointer } from '../input/pointerDom';
 import { resolveTouchScheme } from '../input/scheme';
 import { createTouchStick } from '../input/touchStick';
 import { createProjection, project } from '../render/projection';
+import { ribbonThresholds } from '../render/ribbonMap';
+import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
 import { createRace } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
-import { loadTestTwisty } from '../data/tracks';
+import { curveClasses, loadTestTwisty } from '../data/tracks';
 import type { InputFrame, Track } from '../sim/types';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
@@ -60,8 +68,10 @@ const curveScenario =
     ? scenarios[params.scenario]
     : null;
 const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
+// map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
+const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
 // Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
-const fixedScenario = curveScenario ?? straightScenario;
+const fixedScenario = curveScenario ?? straightScenario ?? mapScenario;
 const track = curveScenario
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curveScenario.curve)
   : stress
@@ -76,6 +86,14 @@ scene.add(road.mesh);
 const sprites = new SpriteBatch(spritesConfig.capacity, view.screenWidth, view.screenHeight);
 scene.add(sprites.mesh);
 const world = new WorldSprites(spritesConfig, view, paletteConfig);
+const ribbon = new RibbonMapMesh(
+  ribbonMapConfig,
+  view,
+  paletteConfig,
+  ribbonThresholds(curveClasses),
+);
+ribbon.enabled = ribbonMapConfig.enabled && params.map;
+scene.add(ribbon.mesh);
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
 
@@ -138,6 +156,12 @@ function renderFrame(): void {
   world.drawPosts(sprites, proj);
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
+  ribbon.update(
+    track,
+    p.z + (c.z - p.z) * a,
+    p.speed + (c.speed - p.speed) * a,
+    p.x + (c.x - p.x) * a,
+  );
   renderer.info.reset();
   renderer.render(scene, camera);
   lastCalls = renderer.info.render.calls;

@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "lookaheadSeconds": 5,
+  "minDistance": 90,
+  "points": 48,
+  "substeps": 4,
+  "headingPerCurve": 0.005,
+  "maxHeadingDeg": 85,
+  "zone": { "height": 0.12, "padding": 5, "xStretch": 2.5 },
+  "ribbonWidth": 5,
+  "marker": { "width": 3, "height": 9, "span": 4 }
+}
