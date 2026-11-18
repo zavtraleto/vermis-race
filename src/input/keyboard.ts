@@ -62,7 +62,6 @@ function codeBit(code: string): number {
 }
 
 export function createKeyboardInput(cfg: KeyboardConfig): KeyboardInput {
-  const rate = 1 / cfg.steerRampMs;
   let held = 0;
   let steer = 0;
   let lastT: number | null = null;
@@ -76,7 +75,8 @@ export function createKeyboardInput(cfg: KeyboardConfig): KeyboardInput {
     const dt = tMs - lastT;
     lastT = tMs;
     const target = ((held & RIGHT) !== 0 ? 1 : 0) - ((held & LEFT) !== 0 ? 1 : 0);
-    const step = dt * rate;
+    // cfg read live (dev tuning panel); same arithmetic as dt * (1 / ramp).
+    const step = dt * (1 / cfg.steerRampMs);
     if (steer < target) steer = Math.min(target, steer + step);
     else if (steer > target) steer = Math.max(target, steer - step);
   }

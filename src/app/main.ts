@@ -23,6 +23,7 @@ import { FrameHud } from '../ui/hud';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
+import { installDev } from '../dev/install';
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -34,6 +35,11 @@ const FRAME_STATS_WINDOW = 256;
 const errors: string[] = [];
 installErrorCollectors(errors);
 const params = parseParams(window.location.search);
+// Dev tuning: live config objects + saved/URL diff, before anything reads them (T4).
+const tunables = installDev(
+  { car: baseCar, input: inputConfig, camera: cameraConfig, sprites: spritesConfig, hypotheses },
+  window.location.search,
+);
 
 const canvas = document.getElementById('game');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('canvas #game missing');
@@ -70,12 +76,25 @@ const track = curveScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : buildTrack(loadTestTwisty().def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
-const proj = createProjection(view, roadConfig);
-const road = new RoadMesh(view, roadConfig, paletteConfig);
+let proj = createProjection(view, roadConfig);
+let road = new RoadMesh(view, roadConfig, paletteConfig);
 scene.add(road.mesh);
 const sprites = new SpriteBatch(spritesConfig.capacity, view.screenWidth, view.screenHeight);
 scene.add(sprites.mesh);
-const world = new WorldSprites(spritesConfig, view, paletteConfig);
+let world = new WorldSprites(spritesConfig, view, paletteConfig);
+// drawDistance sizes the projection and road buffers: rebuild them when it is tuned live.
+let builtDrawDistance = view.drawDistance;
+function rebuildForDrawDistance(): void {
+  if (view.drawDistance === builtDrawDistance) return;
+  builtDrawDistance = view.drawDistance;
+  scene.remove(road.mesh);
+  road.mesh.geometry.dispose();
+  road.mesh.material.dispose();
+  proj = createProjection(view, roadConfig);
+  road = new RoadMesh(view, roadConfig, paletteConfig);
+  scene.add(road.mesh);
+  world = new WorldSprites(spritesConfig, view, paletteConfig);
+}
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
 
@@ -123,10 +142,12 @@ const game: GameDebug = {
   state: () => JSON.parse(JSON.stringify(loop.curr)) as typeof loop.curr,
   stepTicks: (n) => loop.stepTicks(n),
   input: () => copyInputFrame(player.last),
+  tunables,
 };
 window.__game = game;
 
 function renderFrame(): void {
+  rebuildForDrawDistance();
   // Camera follows the player car, interpolated between the last two sim states.
   const a = loop.alpha;
   const p = loop.prev.cars[0]!;

@@ -1,0 +1,37 @@
+{
+  "numbers": {
+    "car.vmax": { "min": 0.5, "max": 2, "step": 0.05, "label": "vmax — макс. скорость" },
+    "car.accel": { "min": 0.02, "max": 1, "step": 0.01, "label": "accel — разгон /с" },
+    "car.brake": { "min": 0, "max": 3, "step": 0.05, "label": "brake — тормоз /с" },
+    "car.steerRate": { "min": 0.2, "max": 6, "step": 0.1, "label": "steerRate — боковая скорость" },
+    "car.steerRise": { "min": 1, "max": 40, "step": 0.5, "label": "steerRise — нарастание руля /с" },
+    "car.grip": { "min": 1, "max": 40, "step": 0.5, "label": "grip — сцепление" },
+    "car.centrifugal": { "min": 0, "max": 1.5, "step": 0.01, "label": "centrifugal — снос" },
+    "car.kCurve": { "min": 0, "max": 5, "step": 0.05, "label": "kCurve — множитель сноса" },
+    "car.offroadMul": { "min": 0.9, "max": 1, "step": 0.001, "label": "offroadMul — вне дороги" },
+    "car.xLimit": { "min": 1, "max": 4, "step": 0.05, "label": "xLimit — стенка, полуширин" },
+    "input.keyboard.steerRampMs": { "min": 10, "max": 600, "step": 10, "label": "steerRampMs — рампа клавиш, мс" },
+    "input.touch.stickRadiusFrac": { "min": 0.05, "max": 0.5, "step": 0.01, "label": "stickRadiusFrac — радиус стика / ширина" },
+    "input.touch.deadZone": { "min": 0, "max": 0.3, "step": 0.01, "label": "deadZone — мёртвая зона" },
+    "input.touch.responseExp": { "min": 0.5, "max": 3, "step": 0.05, "label": "responseExp — кривая отклика" },
+    "input.touch.releaseMs": { "min": 10, "max": 500, "step": 10, "label": "releaseMs — возврат руля, мс" },
+    "input.touch.steerZoneFrac": { "min": 0.1, "max": 1, "step": 0.05, "label": "steerZoneFrac — зона руля / высота" },
+    "input.touch.driftPullDownPx": { "min": 10, "max": 150, "step": 5, "label": "driftPullDownPx — палец вниз, px" },
+    "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
+    "camera.height": { "min": 700, "max": 1600, "step": 10, "label": "height — высота камеры" },
+    "camera.horizon": { "min": 0.25, "max": 0.5, "step": 0.005, "label": "horizon — горизонт / высота" },
+    "camera.drawDistance": { "min": 50, "max": 400, "step": 10, "label": "drawDistance — сегментов" },
+    "sprites.player.baseY": { "min": 0.6, "max": 0.98, "step": 0.005, "label": "baseY — низ машины / высота" }
+  },
+  "flags": {
+    "hypotheses.H1_driftBoost": ["A", "B"],
+    "hypotheses.H2_touchSteering": ["A", "B", "C"],
+    "hypotheses.H3_driftEntry": ["A", "B", "C"],
+    "hypotheses.H4_fingerVertical": ["A", "B"],
+    "hypotheses.H5_slipstream": ["A", "B"],
+    "hypotheses.H6_trackFormat": ["P2P", "ring"],
+    "hypotheses.H7_rubberBand": ["off", "trailing", "both"],
+    "hypotheses.H8_worldRotation": ["off", "on"],
+    "hypotheses.H9_nearPerspective": ["off", "on"]
+  }
+}
