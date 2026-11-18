@@ -35,6 +35,8 @@ export interface CarParams {
   driftRate: number;
   driftDrag: number;
   offroadMul: number;
+  kCurve: number; // R13 K_CURVE, tuning (brief section 3)
+  xLimit: number; // R18 lateral limit, half-widths
 }
 
 export interface Segment {
@@ -43,4 +45,16 @@ export interface Segment {
 
 export interface Track {
   segments: Segment[];
+}
+
+/** One road piece, javascript-racer addRoad style. Lengths in segments, curve in curve units (+ right). */
+export interface TrackSection {
+  enter: number;
+  hold: number;
+  leave: number;
+  curve: number;
+}
+
+export interface TrackDef {
+  sections: TrackSection[];
 }

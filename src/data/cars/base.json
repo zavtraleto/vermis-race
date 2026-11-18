@@ -10,5 +10,7 @@
   "centMulDrift": 0.35,
   "driftRate": 2.6,
   "driftDrag": 0.03,
-  "offroadMul": 0.99
+  "offroadMul": 0.99,
+  "kCurve": 1.5,
+  "xLimit": 2
 }

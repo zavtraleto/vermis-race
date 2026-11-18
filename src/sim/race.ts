@@ -36,16 +36,47 @@ export function step(
     const input = inputs[i]!;
     const p = params[i]!;
 
+    // R11/R13: sp uses the speed before R14 updates it.
+    const sp0 = car.speed / p.vmax;
+    // R13/R17/R19: segment under the car, before z advances.
+    let seg = Math.floor(car.z) % segCount;
+    if (seg < 0) seg += segCount;
+    const curve = segments[seg]!.curve;
+
+    // R10: steer slews toward input at most steerRise per second.
+    const rise = p.steerRise * DT;
+    let dSteer = input.steer - car.steer;
+    if (dSteer > rise) dSteer = rise;
+    if (dSteer < -rise) dSteer = -rise;
+    car.steer += dSteer;
+
+    // R11/R12: grip lateral speed target, exponential catch-up (drift ignored, state stays GRIP).
+    const target = car.steer * p.steerRate * sp0 * (1 - 0.25 * sp0);
+    car.vx += (target - car.vx) * (1 - Math.exp(-p.grip * DT));
+
+    // R13/R19: lateral move plus centrifugal push outward (cm = 1 in GRIP).
+    const cm = 1;
+    car.x += car.vx * DT - curve * sp0 * sp0 * p.centrifugal * cm * p.kCurve * DT;
+
+    // R18: clamp to xLimit, zero vx only if it points into the wall.
+    if (car.x > p.xLimit) {
+      car.x = p.xLimit;
+      if (car.vx > 0) car.vx = 0;
+    } else if (car.x < -p.xLimit) {
+      car.x = -p.xLimit;
+      if (car.vx < 0) car.vx = 0;
+    }
+
     // R14: automatic throttle, brake, speed in [0, vmax] (capMul = 1 until stage 4).
     let speed = input.brake ? car.speed - p.brake * DT : car.speed + p.accel * DT;
     if (speed > p.vmax) speed = p.vmax;
     if (speed < 0) speed = 0;
+    // R15: offroad slowdown.
+    if (car.x > 1 || car.x < -1) speed *= Math.pow(p.offroadMul, 60 * DT);
     car.speed = speed;
 
-    // R17: heading from the curve of the segment under the car (before z advances).
-    let seg = Math.floor(car.z) % segCount;
-    if (seg < 0) seg += segCount;
-    car.heading += segments[seg]!.curve * speed * K_HEADING * DT;
+    // R17: heading from the curve of the segment under the car, with the final speed.
+    car.heading += curve * speed * K_HEADING * DT;
 
     // R16: z advances by post-update speed.
     car.z += speed * DT * SEG_PER_UNIT;
