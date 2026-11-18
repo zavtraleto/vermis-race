@@ -19,7 +19,8 @@ TypeScript (strict) + three.js (exact version pinned in package.json) + Vite. Mo
 - Tests: `npm test` (vitest, sim only, no browser)
 - Smoke: `npm run smoke` (prod build, Playwright runs N frames, zero console errors, renderer.info budget)
 - Screenshot: `npm run shot -- <scenario>` (deterministic frame + odiff against `shots/`)
-- Dev server: `npm run dev`
+- Bot + gate: `npm run bot && npm run gate` (three bot skill levels on every track → `results.json` → GO / CONDITIONAL / NO-GO by `gate.config.json`). Run after any change to `src/sim`, car or track numbers. Never loosen the corridor or tune numbers just to pass: a red gate is a finding.
+- Dev server: `npm run dev`. Live build: https://zavtraleto.github.io/vermis-race/ (`?dev=1` tuning panel, `?hud=1` frame times, `?map=0` no ribbon map, `?scenario=stress`)
 
 ## Hard rules
 - `src/sim` imports nothing from three, DOM, `src/render`, `src/input`, `src/app`. No `Math.random`, `Date`, `performance` there; randomness only via the seeded RNG stored in state.
