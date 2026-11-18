@@ -5,7 +5,7 @@ import { execSync } from 'node:child_process';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const mode = process.argv[2];
 
 let payload = {};
@@ -15,6 +15,23 @@ try {
   process.exit(0);
 }
 const input = payload.tool_input ?? {};
+
+// The command runs in payload.cwd, which may be a git worktree of this repo with its own branch.
+// Judge the branch and run checks there, not in the checkout this script happens to live in.
+function findRoot() {
+  const cwd = typeof payload.cwd === 'string' && existsSync(payload.cwd) ? payload.cwd : scriptRoot;
+  try {
+    const top = execSync('git rev-parse --show-toplevel', {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+    return top ? resolve(top) : scriptRoot;
+  } catch {
+    return scriptRoot;
+  }
+}
+const root = findRoot();
 
 function run(cmd) {
   return execSync(cmd, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
