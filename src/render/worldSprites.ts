@@ -50,7 +50,7 @@ export class WorldSprites {
   private readonly partColor: Int32Array;
   private readonly placement: Placement = { x: 0, y: 0, w: 0, h: 0, depth: 0 };
   private readonly carX: number;
-  private readonly carY: number;
+  private readonly screenH: number;
   private readonly carW: number;
   private readonly carH: number;
   private readonly carDepth: number;
@@ -73,7 +73,7 @@ export class WorldSprites {
       writeHex(this.rgb, 6 + i * 3, hex);
     }
     this.carX = camera.screenWidth / 2;
-    this.carY = cfg.player.baseY * camera.screenHeight;
+    this.screenH = camera.screenHeight;
     this.carW = cfg.player.width * camera.screenWidth;
     this.carH = cfg.player.height * camera.screenHeight;
     // Nearer than anything on the road (strip 0 sprites start at +0.05 step): never covered.
@@ -85,12 +85,14 @@ export class WorldSprites {
     const th = this.cfg.player.steerThreshold;
     const frame = steer > th ? 1 : steer < -th ? -1 : 0;
     const parts = this.cfg.player.parts;
+    // baseY read live (dev tuning panel).
+    const carY = this.cfg.player.baseY * this.screenH;
     // Later parts overdraw earlier ones: equal depth + LessEqual depth test, instances drawn in order.
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i]!;
       batch.push(
         this.carX + (p.x + p.shift * frame) * this.carW,
-        this.carY - p.y * this.carH,
+        carY - p.y * this.carH,
         p.w * this.carW,
         p.h * this.carH,
         this.carDepth,

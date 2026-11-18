@@ -15,6 +15,15 @@ export interface RendererStats {
   instances: number; // SpriteBatch instances drawn
 }
 
+/** Live tuning registry (src/dev): paths like 'car.accel', 'camera.fovDeg'. */
+export interface TunablesDebug {
+  get(path: string): number | string | undefined;
+  /** Clamps to the range in src/data/tunables.json; throws on an unknown path. */
+  set(path: string, value: number | string): number | string;
+  /** Only values that differ from src/data defaults. */
+  diff(): Record<string, number | string>;
+}
+
 export interface GameDebug {
   frames: number;
   done: boolean;
@@ -27,6 +36,7 @@ export interface GameDebug {
   stepTicks: (n: number) => void;
   /** Copy of the player's last InputFrame (what the sim received), independent of the driving model. */
   input: () => InputFrame;
+  tunables: TunablesDebug;
 }
 
 declare global {
