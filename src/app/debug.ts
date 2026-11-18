@@ -7,6 +7,7 @@ export interface GameParams {
   frames: number | null;
   ticks: number | null;
   hud: boolean;
+  map: boolean; // ribbonMap on unless ?map=0
 }
 
 export interface RendererStats {
@@ -61,6 +62,7 @@ export function parseParams(search: string): GameParams {
     frames: parseCount(q.get('frames')),
     ticks: parseCount(q.get('ticks')),
     hud: q.get('hud') === '1',
+    map: q.get('map') !== '0',
   };
 }
 

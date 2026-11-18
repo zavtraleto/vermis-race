@@ -2,6 +2,7 @@
   "straight": { "ticks": 120, "steer": 0 },
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
+  "map-curve": { "ticks": 300, "steer": 0.2 },
   "stress": {
     "drawDistance": 300,
     "curve": 1.5,
