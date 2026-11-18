@@ -1,13 +1,21 @@
 import * as THREE from 'three';
 import { baseCar } from '../data/cars';
 import { cameraConfig, paletteConfig, roadConfig } from '../data/render';
+import hypotheses from '../data/hypotheses.json';
+import { inputConfig } from '../data/input';
 import scenarios from '../data/scenarios.json';
+import { createKeyboardInput } from '../input/keyboard';
+import { attachKeyboard } from '../input/keyboardDom';
+import { createPlayerInput } from '../input/player';
+import { attachPointer } from '../input/pointerDom';
+import { resolveTouchScheme } from '../input/scheme';
+import { createTouchStick } from '../input/touchStick';
 import { createProjection, project } from '../render/projection';
 import { RoadMesh } from '../render/roadMesh';
 import { createRace } from '../sim/race';
 import { makeStraightTrack } from '../sim/track';
-import type { InputFrame } from '../sim/types';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
+import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
 
 const WIDTH = 360;
@@ -37,20 +45,19 @@ const proj = createProjection(cameraConfig, roadConfig);
 const road = new RoadMesh(cameraConfig, roadConfig, paletteConfig);
 scene.add(road.mesh);
 
-// Input stub until src/input exists: automatic throttle, no steering, no brake.
-function readStubInput(_tick: number, out: InputFrame[]): void {
-  for (let i = 0; i < out.length; i++) {
-    const f = out[i]!;
-    f.steer = 0;
-    f.brake = false;
-    f.drift = false;
-  }
-}
+// Input: keyboard + touch scheme (H2; only A exists, the resolve warns on a bad flag).
+resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
+const now = (): number => performance.now();
+const keyboard = createKeyboardInput(inputConfig.keyboard);
+const touchStick = createTouchStick(inputConfig.touch);
+attachKeyboard(window, keyboard, now);
+attachPointer(canvas, touchStick, now);
+const player = createPlayerInput(keyboard, touchStick, now);
 
 const loop = createLoop(createRace(params.seed, 1), {
   track,
   params: [baseCar],
-  readInput: readStubInput,
+  readInput: createReadInput(player),
 });
 
 let lastCalls = 0;
@@ -66,6 +73,7 @@ const game: GameDebug = {
   },
   state: () => JSON.parse(JSON.stringify(loop.curr)) as typeof loop.curr,
   stepTicks: (n) => loop.stepTicks(n),
+  input: () => copyInputFrame(player.last),
 };
 window.__game = game;
 
@@ -97,7 +105,8 @@ function frame(time: number): void {
 }
 
 // Screenshot scenarios pin the sim to a fixed tick unless ?ticks= overrides it.
-const fixedTicks = params.ticks ?? (params.scenario === 'straight' ? scenarios.straight.ticks : null);
+const fixedTicks =
+  params.ticks ?? (params.scenario === 'straight' ? scenarios.straight.ticks : null);
 if (fixedTicks !== null) {
   // Deterministic debug run: exact tick count, one rendered frame, no rAF loop.
   loop.stepTicks(fixedTicks);
