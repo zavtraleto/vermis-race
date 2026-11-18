@@ -1,4 +1,4 @@
-import type { RaceState } from '../sim/types';
+import type { InputFrame, RaceState } from '../sim/types';
 import type { FrameSummary } from '../ui/frameStats';
 
 export interface GameParams {
@@ -25,6 +25,8 @@ export interface GameDebug {
   readonly tick: number;
   state: () => RaceState;
   stepTicks: (n: number) => void;
+  /** Copy of the player's last InputFrame (what the sim received), independent of the driving model. */
+  input: () => InputFrame;
 }
 
 declare global {
