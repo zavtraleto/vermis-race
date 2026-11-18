@@ -1,15 +1,18 @@
 import type { RaceState } from '../sim/types';
+import type { FrameSummary } from '../ui/frameStats';
 
 export interface GameParams {
   seed: number;
   scenario: string;
   frames: number | null;
   ticks: number | null;
+  hud: boolean;
 }
 
 export interface RendererStats {
   calls: number;
   triangles: number;
+  instances: number; // SpriteBatch instances drawn
 }
 
 export interface GameDebug {
@@ -18,6 +21,7 @@ export interface GameDebug {
   errors: string[];
   params: GameParams;
   rendererInfo: () => RendererStats;
+  frameStats: () => FrameSummary; // ms over the recent live frames
   readonly tick: number;
   state: () => RaceState;
   stepTicks: (n: number) => void;
@@ -44,6 +48,7 @@ export function parseParams(search: string): GameParams {
     scenario: q.get('scenario') ?? 'empty',
     frames: parseCount(q.get('frames')),
     ticks: parseCount(q.get('ticks')),
+    hud: q.get('hud') === '1',
   };
 }
 
