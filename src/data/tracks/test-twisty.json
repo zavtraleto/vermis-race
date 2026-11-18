@@ -3,7 +3,7 @@
   "sections": [
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": 1 },
     { "enter": 30, "hold": 120, "leave": 30, "curveClass": "medium", "side": -1 },
-    { "enter": 30, "hold": 120, "leave": 30, "curveClass": "hard", "side": 1 },
+    { "enter": 30, "hold": 330, "leave": 30, "curveClass": "hard", "side": 1 },
     { "enter": 30, "hold": 60, "leave": 30, "curveClass": "easy", "side": -1 },
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "medium", "side": 1 },
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "hard", "side": -1 },
@@ -14,7 +14,7 @@
     { "enter": 30, "hold": 120, "leave": 30, "curveClass": "hard", "side": 1 },
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": -1 },
     { "enter": 30, "hold": 120, "leave": 30, "curveClass": "medium", "side": 1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "hard", "side": -1 },
+    { "enter": 30, "hold": 330, "leave": 30, "curveClass": "hard", "side": -1 },
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": 1 },
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "medium", "side": -1 },
     { "enter": 30, "hold": 90, "leave": 30, "curveClass": "hard", "side": 1 },

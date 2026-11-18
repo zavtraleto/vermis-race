@@ -1,0 +1,167 @@
+{
+  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rules novice-not-faster, expert-brakes, expert-long-hard-slows: director 2026-11-18 (T16). Rule offroad-recovery: director 2026-11-18 (R15b).",
+  "measure": {
+    "laps": 3,
+    "maxSecondsPerLap": 180,
+    "saturationSteer": 0.95,
+    "deadSteer": 0.05,
+    "straightCurveMax": 0.1,
+    "longHoldSeconds": 3
+  },
+  "defaultSeeds": 20,
+  "determinismSeed": 1,
+  "corridor": [
+    {
+      "id": "average-offroad-time",
+      "bot": "average",
+      "metric": "offroadFraction",
+      "max": 0.05,
+      "severity": "no-go",
+      "note": "average stays on asphalt >= 95% of the time"
+    },
+    {
+      "id": "average-offroad-easy-medium",
+      "bot": "average",
+      "metric": "offroadEventsPerLap.easyMedium",
+      "max": 1,
+      "severity": "no-go",
+      "note": "<= 1 off-road event per lap on easy+medium corners"
+    },
+    {
+      "id": "novice-offroad-hard",
+      "bot": "novice",
+      "metric": "offroadEventsPerLap.hard",
+      "min": 1,
+      "severity": "no-go",
+      "note": "novice leaves the road on hard corners at least once per lap, else the track is too easy and drift has no purpose"
+    },
+    {
+      "id": "novice-completes",
+      "bot": "novice",
+      "metric": "finishedFraction",
+      "min": 1,
+      "severity": "no-go",
+      "note": "novice still completes its laps"
+    },
+    {
+      "id": "expert-gap",
+      "type": "gap",
+      "fast": "expert",
+      "slow": "average",
+      "metric": "lapTime.mean",
+      "min": 0.03,
+      "max": 0.15,
+      "severity": "no-go",
+      "note": "expert 3-15% faster than average: a skill ceiling exists but is not absurd"
+    },
+    {
+      "id": "novice-not-faster",
+      "type": "gap",
+      "fast": "average",
+      "slow": "novice",
+      "metric": "lapTime.mean",
+      "min": 0,
+      "severity": "no-go",
+      "note": "novice lap >= average lap: leaving the road costs more than braking (pillar 3)"
+    },
+    {
+      "id": "expert-brakes",
+      "bot": "expert",
+      "metric": "brakeFraction",
+      "above": 0,
+      "severity": "no-go",
+      "note": "a hard corner needs a lift even for the expert"
+    },
+    {
+      "id": "expert-long-hard-slows",
+      "bot": "expert",
+      "metric": "speed.longHardMin",
+      "max": 0.9,
+      "severity": "no-go",
+      "note": "every hard corner with hold >= measure.longHoldSeconds forces the expert below 0.9 vmax; missing = no such corner on the track"
+    },
+    {
+      "id": "average-saturation",
+      "bot": "average",
+      "metric": "steerSaturation",
+      "min": 0.05,
+      "max": 0.4,
+      "severity": "conditional",
+      "note": "average uses full lock sometimes, not all the time"
+    },
+    {
+      "id": "dead-time",
+      "bot": "*",
+      "metric": "deadTimeFraction",
+      "max": 0.2,
+      "severity": "conditional",
+      "note": "dead time < 20% for every bot"
+    },
+    {
+      "id": "average-walls",
+      "bot": "average",
+      "metric": "wallHits.total",
+      "max": 0,
+      "severity": "no-go",
+      "note": "no wall hits (x at xLimit, R18)"
+    },
+    {
+      "id": "expert-walls",
+      "bot": "expert",
+      "metric": "wallHits.total",
+      "max": 0,
+      "severity": "no-go",
+      "note": "no wall hits (x at xLimit, R18)"
+    },
+    {
+      "id": "offroad-recovery",
+      "type": "result",
+      "metric": "recovery.seconds",
+      "max": 1.5,
+      "severity": "no-go",
+      "note": "R15b feel: after leaving the road on a medium corner at vmax (0.2 beyond the edge) the car is back on asphalt within 1.5 s with full steer to the centre; missing = never"
+    }
+  ],
+  "regression": {
+    "noGoWorseBy": 0.5,
+    "conditionalWorseBy": 0.25,
+    "metrics": [
+      {
+        "metric": "lapTime.mean",
+        "better": "lower",
+        "floor": 1
+      },
+      {
+        "metric": "offroadFraction",
+        "better": "lower",
+        "floor": 0.01
+      },
+      {
+        "metric": "offroadEventsPerLap.total",
+        "better": "lower",
+        "floor": 0.5
+      },
+      {
+        "metric": "wallHits.perLap",
+        "better": "lower",
+        "floor": 0.1
+      },
+      {
+        "metric": "deadTimeFraction",
+        "better": "lower",
+        "floor": 0.02
+      },
+      {
+        "metric": "speed.mean",
+        "better": "higher",
+        "floor": 0.1
+      }
+    ]
+  },
+  "recovery": {
+    "curveClass": "medium",
+    "speed": 1,
+    "depth": 0.2,
+    "maxSeconds": 10
+  }
+}

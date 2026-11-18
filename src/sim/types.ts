@@ -35,6 +35,8 @@ export interface CarParams {
   driftRate: number;
   driftDrag: number;
   offroadMul: number;
+  offroadGrip: number; // R15b grip in R12 while |x| > 1
+  offroadSteerMul: number; // R15b multiplier of the R11 target while |x| > 1
   kCurve: number; // R13 K_CURVE, tuning (brief section 3)
   xLimit: number; // R18 lateral limit, half-widths
 }

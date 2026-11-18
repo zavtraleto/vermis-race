@@ -16,7 +16,7 @@ export default tseslint.config(
   { ignores: ['node_modules', 'dist', 'test-results', 'playwright-report', 'docs', '.claude'] },
   ...tseslint.configs.recommended,
   {
-    files: ['src/sim/**/*.ts'],
+    files: ['src/sim/**/*.ts', 'src/bot/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',

@@ -4,3 +4,4 @@ test-results
 playwright-report
 shots/**/*.actual.png
 shots/**/*.diff.png
+results.json

@@ -7,5 +7,6 @@
   "H6_trackFormat": "P2P",
   "H7_rubberBand": "off",
   "H8_worldRotation": "off",
-  "H9_nearPerspective": "off"
+  "H9_nearPerspective": "off",
+  "H10_offroad": "B"
 }
