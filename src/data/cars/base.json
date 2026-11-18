@@ -1,0 +1,14 @@
+{
+  "vmax": 1,
+  "accel": 0.22,
+  "brake": 0.6,
+  "steerRate": 2.0,
+  "steerRise": 10,
+  "grip": 12,
+  "gripDrift": 3,
+  "centrifugal": 0.3,
+  "centMulDrift": 0.35,
+  "driftRate": 2.6,
+  "driftDrag": 0.03,
+  "offroadMul": 0.99
+}
