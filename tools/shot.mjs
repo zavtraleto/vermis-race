@@ -1,6 +1,8 @@
 // Usage: npm run shot -- <scenario> [--update] [--no-build]
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
@@ -16,7 +18,19 @@ if (!scenario) {
   process.exit(2);
 }
 const THRESHOLD_PCT = 0.5;
-const PORT = 4174;
+// Free port picked dynamically: a fixed port may be held by another worktree's preview server, and with
+// --strictPort our own server would then die silently while the screenshot is taken from the foreign build.
+function freePort() {
+  return new Promise((res, rej) => {
+    const s = createServer();
+    s.once('error', rej);
+    s.listen(0, () => {
+      const { port } = s.address();
+      s.close(() => res(port));
+    });
+  });
+}
+const PORT = Number(process.env.SHOT_PORT) || (await freePort());
 const shots = resolve(root, 'shots');
 mkdirSync(shots, { recursive: true });
 const base = resolve(shots, `${scenario}.png`);
@@ -28,22 +42,36 @@ if (!noBuild || !existsSync(resolve(root, 'dist'))) {
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
+// Unique marker inside dist/: proves the server answering on PORT serves exactly this build of ours.
+const markerName = '.shot-marker';
+const marker = randomUUID();
+writeFileSync(resolve(root, 'dist', markerName), marker);
+let serverExit = null;
 const server = spawn(`npx vite preview --port ${PORT} --strictPort`, {
   cwd: root,
   shell: true,
   stdio: 'ignore',
 });
+server.on('exit', (code) => {
+  serverExit = code;
+});
 const stopServer = () => {
+  rmSync(resolve(root, 'dist', markerName), { force: true });
   if (process.platform === 'win32') spawnSync(`taskkill /pid ${server.pid} /T /F`, { shell: true });
   else server.kill();
 };
 
 async function waitForServer() {
   for (let i = 0; i < 60; i++) {
+    if (serverExit !== null) throw new Error(`vite preview exited early (code ${serverExit}); port ${PORT} busy?`);
     try {
-      const res = await fetch(`http://localhost:${PORT}/`);
-      if (res.ok) return;
-    } catch {
+      const res = await fetch(`http://localhost:${PORT}/${markerName}`);
+      if (res.ok) {
+        if ((await res.text()).trim() === marker) return;
+        throw new Error(`server on port ${PORT} is not our build (marker mismatch): foreign server?`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('marker mismatch')) throw e;
       /* not up yet */
     }
     await new Promise((r) => setTimeout(r, 250));
