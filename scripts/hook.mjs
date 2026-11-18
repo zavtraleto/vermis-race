@@ -54,6 +54,10 @@ if (mode === 'guard') {
   const isPush = /\bgit\b[^|;&]*\bpush\b/.test(cmd);
   if (!isCommit && !isPush) process.exit(0);
 
+  // One-off override: the author asked in chat for this exact action on main.
+  // The agent must never add this marker on its own initiative. Force push stays forbidden.
+  const authorApproved = /\bAUTHOR_APPROVED\b/.test(cmd);
+
   const head = tryRun('git rev-parse --verify HEAD');
   const branch = tryRun('git branch --show-current').out.trim();
 
@@ -71,14 +75,14 @@ if (mode === 'guard') {
     const refspecs = pushArgs.slice(1);
     const namesMain = refspecs.some((r) => r === 'main' || r.endsWith(':main'));
     const implicitMain = branch === 'main' && refspecs.length === 0;
-    if (namesMain || implicitMain) {
+    if ((namesMain || implicitMain) && !authorApproved) {
       block('Pushing main is forbidden: main moves only through merges done by the author. Push your feature branch instead.');
     }
   }
 
   if (isCommit) {
     // The very first commit of the repo is allowed on main.
-    if (branch === 'main' && head.ok) {
+    if (branch === 'main' && head.ok && !authorApproved) {
       block('Direct commits to main are forbidden. Create a branch first: git switch -c feat/<short-name>, then commit there.');
     }
     if (hasDeps && existsSync(resolve(root, 'package.json'))) {
