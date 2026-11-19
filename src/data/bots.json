@@ -20,7 +20,11 @@
     "driftLineX": 0,
     "driftKickSteer": 0,
     "driftFeedLookahead": 0,
-    "driftGain": 0
+    "driftGain": 0,
+    "driftLine": "fixed",
+    "driftExitX": 0,
+    "driftAngleFloor": 0,
+    "driftPlanMin": 0
   },
   "average": {
     "steerLookahead": 1,
@@ -39,10 +43,14 @@
     "driftLookahead": 0.1,
     "driftApproach": 0.4,
     "driftEntryX": 0,
-    "driftLineX": 0.2,
+    "driftLineX": 0,
     "driftKickSteer": 0.4,
     "driftFeedLookahead": 0.2,
-    "driftGain": 0.7
+    "driftGain": 0.7,
+    "driftLine": "fixed",
+    "driftExitX": 0,
+    "driftAngleFloor": 0,
+    "driftPlanMin": 0
   },
   "expert": {
     "steerLookahead": 0.8,
@@ -60,10 +68,14 @@
     "driftMinCurve": 4,
     "driftLookahead": 0.3,
     "driftApproach": 0.8,
-    "driftEntryX": 0,
+    "driftEntryX": 0.7,
     "driftLineX": 0.4,
     "driftKickSteer": 0.4,
     "driftFeedLookahead": 0.3,
-    "driftGain": 1
+    "driftGain": 1,
+    "driftLine": "width",
+    "driftExitX": 0.7,
+    "driftAngleFloor": 0.15,
+    "driftPlanMin": 0.5
   }
 }

@@ -10,6 +10,12 @@ export type AimMode = 'centre' | 'inside';
 export type SpeedMode = 'never' | 'hold' | 'late';
 /** never: no drift input; corners: drift through corners with |curve| >= driftMinCurve (R20-R22). */
 export type DriftMode = 'never' | 'corners';
+/**
+ * Line held in DRIFT. fixed: driftLineX toward the inside. width: use the road width (R22b skill):
+ * aim to reach driftExitX on the outside exactly where the drift ends, so the angle carried is the
+ * smallest that still keeps the car on the asphalt.
+ */
+export type DriftLine = 'fixed' | 'width';
 
 export interface BotParams {
   steerLookahead: number; // s of road ahead used for steering, also the x-correction time constant
@@ -32,6 +38,10 @@ export interface BotParams {
   driftKickSteer: number; // |steer| used in GRIP to pass driftEnterSteer (R20)
   driftFeedLookahead: number; // s of road ahead averaged for the drift equilibrium feed-forward
   driftGain: number; // 1/s, lateral speed per unit x error toward the target line in DRIFT
+  driftLine: DriftLine;
+  driftExitX: number; // width line: x toward the outside to reach at the end of the drift, half-widths
+  driftAngleFloor: number; // width line: lowest |angle| held (kept above driftAngleExit, R21)
+  driftPlanMin: number; // width line: s, lower bound of the time left used to aim at the exit
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -159,19 +169,39 @@ export function botInput(
 
   let steer: number;
   if (inDrift && wantDrift && sp > 0) {
-    xTarget = bp.driftLineX * car.dir;
     // R22: hold the angle whose lateral target equals the push of the curve just ahead, plus a
-    // proportional pull toward the target line. Lateral target = angle*driftRate*sp, and the angle
-    // settles at clamp(steer*dir, 0, 1)*dir, so the steer that holds angle a is dir*a.
+    // pull toward the line. Lateral target = angle*driftRate*sp, and the angle settles at
+    // clamp(steer*dir, 0, 1)*dir, so the steer that holds angle a is dir*a.
     let dFeed = Math.round(segPerSec * bp.driftFeedLookahead);
     if (dFeed < 1) dFeed = 1;
     let feed = 0;
     for (let i = 0; i < dFeed; i++) feed += segs[wrap(seg0 + i, n)]!.curve;
     feed /= dFeed;
     const push = feed * sp * sp * p.centrifugal * p.centMulDrift * p.kCurve;
-    const vxReq = push + bp.driftGain * (xTarget - car.x);
+    let vxReq: number;
+    let floor = 0;
+    if (bp.drift === 'corners' && bp.driftLine === 'width') {
+      // Where does this drift end? The last same-side drift-corner segment ahead that the drift
+      // is carried to (no opposite bend, no gap longer than the approach scan).
+      let dGap = Math.round(segPerSec * bp.driftApproach);
+      if (dGap < dDrift) dGap = dDrift;
+      let last = 0;
+      for (let i = 0; i < n; i++) {
+        const c = segs[wrap(seg0 + i, n)]!.curve;
+        if (c * car.dir < 0 || i - last > dGap) break;
+        if (c * car.dir >= bp.driftMinCurve) last = i;
+      }
+      let tLeft = last / segPerSec;
+      if (tLeft < bp.driftPlanMin) tLeft = bp.driftPlanMin;
+      // Drift out from wherever the car is to the outside edge line by the end of the drift.
+      vxReq = push + (-bp.driftExitX * car.dir - car.x) / tLeft;
+      floor = bp.driftAngleFloor;
+    } else {
+      xTarget = bp.driftLineX * car.dir;
+      vxReq = push + bp.driftGain * (xTarget - car.x);
+    }
     let angle = (vxReq * car.dir) / (p.driftRate * sp);
-    if (angle < 0) angle = 0;
+    if (angle < floor) angle = floor;
     if (angle > 1) angle = 1;
     steer = car.dir * angle;
   } else {

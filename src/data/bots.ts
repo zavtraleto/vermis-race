@@ -2,6 +2,7 @@ import {
   MAX_DELAY_TICKS,
   type AimMode,
   type BotParams,
+  type DriftLine,
   type DriftMode,
   type SpeedMode,
 } from '../bot/driver';
@@ -32,6 +33,10 @@ export function parseBot(name: string, v: unknown): BotParams {
   if (drift !== 'never' && drift !== 'corners') {
     throw new Error(`bots.${name}.drift: never | corners`);
   }
+  const driftLine = r.driftLine;
+  if (driftLine !== 'fixed' && driftLine !== 'width') {
+    throw new Error(`bots.${name}.driftLine: fixed | width`);
+  }
   const bp: BotParams = {
     steerLookahead: num(r, 'steerLookahead', name),
     brakeLookahead: num(r, 'brakeLookahead', name),
@@ -53,10 +58,17 @@ export function parseBot(name: string, v: unknown): BotParams {
     driftKickSteer: num(r, 'driftKickSteer', name),
     driftFeedLookahead: num(r, 'driftFeedLookahead', name),
     driftGain: num(r, 'driftGain', name),
+    driftLine: driftLine as DriftLine,
+    driftExitX: num(r, 'driftExitX', name),
+    driftAngleFloor: num(r, 'driftAngleFloor', name),
+    driftPlanMin: num(r, 'driftPlanMin', name),
   };
   if (bp.steerLookahead <= 0) throw new Error(`bots.${name}.steerLookahead must be > 0`);
   if (bp.reactionDelay < 0 || bp.reactionDelay > MAX_DELAY_TICKS * DT) {
     throw new Error(`bots.${name}.reactionDelay must be in [0, ${MAX_DELAY_TICKS * DT}] s`);
+  }
+  if (bp.driftLine === 'width' && bp.driftPlanMin <= 0) {
+    throw new Error(`bots.${name}.driftPlanMin must be > 0`);
   }
   if (bp.noiseAmp > 0 && bp.noiseTau <= 0) throw new Error(`bots.${name}.noiseTau must be > 0`);
   return bp;
