@@ -62,13 +62,21 @@ export function step(
     // R20: rising edge of the drift input; driftHeld is written every tick.
     const rising = input.drift && !car.driftHeld;
     car.driftHeld = input.drift;
+    // R20: the edge arms entry (armTicks = 1); it grows while held; release, entry or burning out
+    // past driftArmTime reset it to 0 (held input cannot re-arm: no edge while driftHeld).
+    if (!input.drift) car.armTicks = 0;
+    else if (rising) car.armTicks = 1;
+    else if (car.armTicks > 0) car.armTicks++;
+    const armed = car.armTicks > 0 && car.armTicks * DT <= p.driftArmTime;
+    if (car.armTicks > 0 && !armed) car.armTicks = 0; // R20: burnt out; no re-arm until the next edge
 
     // R20/R21: GRIP <-> DRIFT transitions on the smoothed steer and the speed before R14.
     // R21b (H11 B, driftOffroad = 1): no off-road condition on entry or exit.
     const offroadBlocks = p.driftOffroad !== 1;
+    let entered = false;
     if (car.state === 'GRIP') {
       if (
-        rising &&
+        armed &&
         car.speed > p.driftEnterSpeed * p.vmax &&
         (car.steer > p.driftEnterSteer || car.steer < -p.driftEnterSteer) &&
         !(offroadBlocks && off)
@@ -77,6 +85,8 @@ export function step(
         car.dir = car.steer > 0 ? 1 : -1;
         car.angle = car.dir * p.driftAngleStart; // R20
         car.lowTicks = 0;
+        car.armTicks = 0; // R20: entry consumes the arm
+        entered = true;
       }
     } else if (
       !input.drift ||
@@ -96,11 +106,13 @@ export function step(
     let cm: number;
     let cap = p.vmax;
     if (drift) {
-      // R22: the angle chases clamp(steer*dir, 0, 1) * dir (also in the entry tick).
-      let aim = car.steer * car.dir;
-      if (aim < 0) aim = 0;
-      if (aim > 1) aim = 1;
-      car.angle += (aim * car.dir - car.angle) * (1 - Math.exp(-p.driftAngleResponse * DT));
+      // R22: the angle chases clamp(steer*dir, 0, 1) * dir; R20: the entry tick keeps driftAngleStart.
+      if (!entered) {
+        let aim = car.steer * car.dir;
+        if (aim < 0) aim = 0;
+        if (aim > 1) aim = 1;
+        car.angle += (aim * car.dir - car.angle) * (1 - Math.exp(-p.driftAngleResponse * DT));
+      }
       const absAngle = car.angle * car.dir;
       // R21: consecutive small-angle ticks, counted on the angle after the chase.
       car.lowTicks = absAngle < p.driftAngleExit ? car.lowTicks + 1 : 0;
