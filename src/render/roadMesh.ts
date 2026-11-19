@@ -68,8 +68,8 @@ export class RoadMesh {
   private quads = 0;
 
   constructor(
-    // horizon is read live in update() (dev tuning panel); drawDistance sizes the buffers here.
-    private readonly camera: CameraConfig,
+    // drawDistance sizes the buffers; the horizon lives in the projection (read live there).
+    camera: CameraConfig,
     private readonly road: RoadMeshConfig,
     palette: Palette,
   ) {
@@ -121,7 +121,6 @@ export class RoadMesh {
 
   update(proj: Projection): void {
     const road = this.road;
-    const horizonY = this.camera.horizon * this.camera.screenHeight;
     const step = 2 / this.strips;
     const dashPeriod = road.laneDash.on + road.laneDash.off;
     const centreLane = road.lanes % 2 === 0 ? road.lanes / 2 : -1;
@@ -130,8 +129,11 @@ export class RoadMesh {
     for (let n = 0; n < last; n++) {
       const y0 = proj.y[n]!;
       const y1 = proj.y[n + 1]!;
-      // Skip strips at/above the horizon or with no height (y grows downwards).
-      if (y0 <= horizonY || y1 >= y0) continue;
+      // R30: skip strips whose far line is behind a crest (this also drops back faces, y1 >= y0,
+      // y grows downwards). A strip whose near line is hidden but far line is not is drawn: the
+      // nearer strips cover its lower part by depth, so the road meets the crest without cracks.
+      // The verge quad is the ground fill, so it rises and falls with the road.
+      if (proj.clipped[n + 1] === 1 || y1 >= y0) continue;
       const x0 = proj.x[n]!;
       const x1 = proj.x[n + 1]!;
       const w0 = proj.w[n]!;

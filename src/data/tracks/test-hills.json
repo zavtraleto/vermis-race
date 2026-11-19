@@ -1,0 +1,11 @@
+{
+  "name": "test-hills",
+  "sections": [
+    { "enter": 30, "hold": 60, "leave": 30, "curveClass": "easy", "side": 1, "hill": 30 },
+    { "enter": 30, "hold": 60, "leave": 30, "curveClass": "medium", "side": -1, "hill": -45 },
+    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "hard", "side": 1, "hill": 20 },
+    { "enter": 25, "hold": 50, "leave": 25, "curveClass": "easy", "side": -1, "hill": 25 },
+    { "enter": 30, "hold": 60, "leave": 30, "curveClass": "medium", "side": 1, "hill": -40 },
+    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": -1, "hill": 10 }
+  ]
+}

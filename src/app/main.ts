@@ -29,7 +29,7 @@ import { WorldSprites } from '../render/worldSprites';
 import { DT } from '../sim/constants';
 import { createRace } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
-import { curveClasses, loadTestTwisty } from '../data/tracks';
+import { curveClasses, loadTestHills, loadTestTwisty } from '../data/tracks';
 import type { InputFrame, Track } from '../sim/types';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
@@ -87,8 +87,14 @@ const straightScenario = params.scenario === 'straight' ? scenarios.straight : n
 const driftScenario = params.scenario === 'drift-right' ? scenarios['drift-right'] : null;
 // map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
+// R30 hill-crest / hill-dip: literal straight track with hills, car placed at a fixed z.
+const hillScenario =
+  params.scenario === 'hill-crest' || params.scenario === 'hill-dip'
+    ? scenarios[params.scenario]
+    : null;
 // Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
-const fixedScenario = curveScenario ?? straightScenario ?? mapScenario ?? driftScenario;
+const fixedScenario =
+  curveScenario ?? straightScenario ?? mapScenario ?? driftScenario ?? hillScenario;
 const curve = curveScenario ?? driftScenario;
 const track = curve
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
@@ -96,7 +102,9 @@ const track = curve
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
     : straightScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
-      : buildTrack(loadTestTwisty().def);
+      : hillScenario
+        ? buildTrack({ sections: hillScenario.sections })
+        : buildTrack((params.track === 'hills' ? loadTestHills() : loadTestTwisty()).def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
 let proj = createProjection(view, roadConfig);
 let road = new RoadMesh(view, roadConfig, paletteConfig);
@@ -163,6 +171,7 @@ const player = fixedScenario
 const race = createRace(params.seed, 1);
 // Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
 if (driftScenario) race.cars[0]!.speed = driftScenario.speed;
+if (hillScenario) race.cars[0]!.z = hillScenario.z;
 const loop = createLoop(race, {
   track,
   params: [baseCar],
