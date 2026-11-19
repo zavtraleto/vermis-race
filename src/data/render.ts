@@ -25,7 +25,14 @@ export interface Palette {
   carGlass: string;
   carLamp: string;
   post: string;
-  postCap: string;
+  lampPole: string;
+  lampHead: string;
+  billboardLeg: string;
+  billboardFrame: string;
+  billboard: string[];
+  billboardStripe: string;
+  building: string[];
+  buildingWindow: string;
   smoke: string;
   mapBacking: string;
   mapStraight: string;

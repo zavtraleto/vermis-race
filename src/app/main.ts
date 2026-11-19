@@ -25,6 +25,7 @@ import { createProjection, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
 import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
+import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
 import { DT } from '../sim/constants';
@@ -84,6 +85,8 @@ const curveScenario =
     ? scenarios[params.scenario]
     : null;
 const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
+// R32 roadside: literal straight track, car placed where a lamp pair, a billboard and buildings are in view.
+const roadsideScenario = params.scenario === 'roadside' ? scenarios.roadside : null;
 // drift-right: constant hard curve, drift held from an initial speed (R24 drift look screenshot).
 const driftScenario = params.scenario === 'drift-right' ? scenarios['drift-right'] : null;
 // map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
@@ -95,13 +98,18 @@ const hillScenario =
     : null;
 // Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
 const fixedScenario =
-  curveScenario ?? straightScenario ?? mapScenario ?? driftScenario ?? hillScenario;
+  curveScenario ??
+  straightScenario ??
+  roadsideScenario ??
+  mapScenario ??
+  driftScenario ??
+  hillScenario;
 const curve = curveScenario ?? driftScenario;
 const track = curve
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
-    : straightScenario
+    : straightScenario || roadsideScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : hillScenario
         ? buildTrack({ sections: hillScenario.sections })
@@ -113,6 +121,9 @@ scene.add(road.mesh);
 const sprites = new SpriteBatch(spritesConfig.capacity, view.screenWidth, view.screenHeight);
 scene.add(sprites.mesh);
 let world = new WorldSprites(spritesConfig, view, paletteConfig);
+// R32: roadside placement is built once per track (deterministic from the seed).
+const roadside = buildRoadside(track.segments.length, spritesConfig.roadside, params.seed);
+const roadsideIndex = indexBySegment(roadside, track.segments.length);
 const driftVisual = new DriftVisual(spritesConfig.drift);
 // R25: the player car is a 3D model in its own scene, drawn after the road pass.
 const carView = new CarView(car3dConfig, spritesConfig.player, view, paletteConfig);
@@ -181,6 +192,7 @@ if (driftScenario) {
   race.cars[0]!.steer = driftScenario.steer;
 }
 if (hillScenario) race.cars[0]!.z = hillScenario.z;
+if (roadsideScenario) race.cars[0]!.z = roadsideScenario.z;
 const loop = createLoop(race, {
   track,
   params: [baseCar],
@@ -227,7 +239,7 @@ function renderFrame(): void {
     (driftVisual.yaw / spritesConfig.drift.yawMaxDeg) * car3dConfig.driftRollDeg;
   carView.update(yaw, roll, carDx);
   world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
-  world.drawPosts(sprites, proj);
+  world.drawRoadside(sprites, proj, roadside, roadsideIndex);
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
   ribbon.update(
