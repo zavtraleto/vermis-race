@@ -4,10 +4,11 @@ import { botParams, BOT_NAMES, type BotName } from '../src/data/bots';
 import { baseCar } from '../src/data/cars';
 import {
   curveClasses,
-  parseSections,
   resolveSections,
+  trackSections,
   type ClassedSection,
   type CurveClass,
+  type SectionClass,
 } from '../src/data/tracks';
 import { SEG_PER_UNIT } from '../src/sim/constants';
 import { buildTrack } from '../src/sim/track';
@@ -22,14 +23,18 @@ export interface LoadedTrack {
   track: Track;
 }
 
-/** Every JSON in src/data/tracks with a "sections" array is a track (curves.json is not). */
+/** Every JSON in src/data/tracks with a "sections" or R31 "figures" array is a track. */
 export function loadTracks(io: Io): LoadedTrack[] {
   const out: LoadedTrack[] = [];
   for (const f of io.list(TRACK_DIR)) {
     if (!f.endsWith('.json')) continue;
-    const raw = JSON.parse(io.read(`${TRACK_DIR}/${f}`)) as { name?: unknown; sections?: unknown };
-    if (!Array.isArray(raw.sections)) continue;
-    const sections = parseSections(raw.sections);
+    const raw = JSON.parse(io.read(`${TRACK_DIR}/${f}`)) as {
+      name?: unknown;
+      sections?: unknown;
+      figures?: unknown;
+    };
+    if (!Array.isArray(raw.sections) && !Array.isArray(raw.figures)) continue;
+    const sections = trackSections(raw);
     const name = typeof raw.name === 'string' ? raw.name : f.replace(/\.json$/, '');
     out.push({ name, sections, track: buildTrack(resolveSections(sections, curveClasses)) });
   }
@@ -48,7 +53,7 @@ export interface Stat {
 
 export interface CornerSummary {
   index: number;
-  curveClass: CurveClass;
+  curveClass: SectionClass;
   side: -1 | 1;
   entrySpeed: { mean: number; min: number };
   maxAbsX: number;

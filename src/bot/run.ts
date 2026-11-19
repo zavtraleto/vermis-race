@@ -158,7 +158,8 @@ export function runBot(
     if (off && !wasOff) {
       r.offroadEvents++;
       corner.offroadEvents++;
-      r.offroadEventsByClass[sections[si]!.curveClass]++;
+      const cls = sections[si]!.curveClass;
+      if (cls !== 'straight') r.offroadEventsByClass[cls]++;
     }
     wasOff = off;
     const wall = ax >= p.xLimit;

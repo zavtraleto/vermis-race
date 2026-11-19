@@ -1,1 +1,161 @@
-{}
+{
+  "straight": {
+    "parts": [
+      {
+        "enter": 0,
+        "hold": 60,
+        "leave": 0,
+        "curveClass": "straight",
+        "side": 1
+      }
+    ]
+  },
+  "kink": {
+    "parts": [
+      {
+        "enter": 20,
+        "hold": 40,
+        "leave": 20,
+        "curveClass": "easy",
+        "side": 1
+      }
+    ]
+  },
+  "sweeper": {
+    "parts": [
+      {
+        "enter": 30,
+        "hold": 240,
+        "leave": 30,
+        "curveClass": "medium",
+        "side": 1
+      }
+    ]
+  },
+  "hairpin": {
+    "parts": [
+      {
+        "enter": 40,
+        "hold": 200,
+        "leave": 35,
+        "curveClass": "hard",
+        "side": 1
+      }
+    ]
+  },
+  "flick": {
+    "parts": [
+      {
+        "enter": 35,
+        "hold": 100,
+        "leave": 20,
+        "curveClass": "hard",
+        "side": 1
+      },
+      {
+        "enter": 20,
+        "hold": 100,
+        "leave": 35,
+        "curveClass": "hard",
+        "side": -1
+      }
+    ]
+  },
+  "esses": {
+    "parts": [
+      {
+        "enter": 30,
+        "hold": 80,
+        "leave": 22,
+        "curveClass": "medium",
+        "side": 1
+      },
+      {
+        "enter": 26,
+        "hold": 80,
+        "leave": 22,
+        "curveClass": "medium",
+        "side": -1
+      },
+      {
+        "enter": 26,
+        "hold": 80,
+        "leave": 22,
+        "curveClass": "medium",
+        "side": 1
+      },
+      {
+        "enter": 26,
+        "hold": 80,
+        "leave": 30,
+        "curveClass": "medium",
+        "side": -1
+      }
+    ]
+  },
+  "tightening": {
+    "parts": [
+      {
+        "enter": 30,
+        "hold": 150,
+        "leave": 0,
+        "curveClass": "medium",
+        "side": 1
+      },
+      {
+        "enter": 0,
+        "hold": 150,
+        "leave": 35,
+        "curveClass": "hard",
+        "side": 1
+      }
+    ]
+  },
+  "opening": {
+    "parts": [
+      {
+        "enter": 40,
+        "hold": 150,
+        "leave": 0,
+        "curveClass": "hard",
+        "side": 1
+      },
+      {
+        "enter": 0,
+        "hold": 150,
+        "leave": 30,
+        "curveClass": "medium",
+        "side": 1
+      }
+    ]
+  },
+  "carousel": {
+    "parts": [
+      {
+        "enter": 40,
+        "hold": 420,
+        "leave": 40,
+        "curveClass": "hard",
+        "side": 1
+      }
+    ]
+  },
+  "double": {
+    "parts": [
+      {
+        "enter": 40,
+        "hold": 120,
+        "leave": 35,
+        "curveClass": "hard",
+        "side": 1
+      },
+      {
+        "enter": 40,
+        "hold": 120,
+        "leave": 35,
+        "curveClass": "hard",
+        "side": 1
+      }
+    ]
+  }
+}
