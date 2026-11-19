@@ -14,12 +14,14 @@
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
   "map-curve": { "ticks": 300, "steer": 0.2 },
-  "drift-right": { "ticks": 60, "curve": 4.5, "steer": 0.5, "speed": 0.9 },
+  "drift-right": { "ticks": 60, "curve": 4.5, "steer": 0.5, "speed": 0.9, "flickFrom": -0.4, "flickTicks": 4 },
   "drift-camera": {
     "ticks": 90,
     "curve": 4.5,
-    "steer": 0.9,
+    "steer": 0.5,
     "speed": 0.9,
+    "flickFrom": -0.4,
+    "flickTicks": 4,
     "ui": true,
     "z": 0,
     "cars": [

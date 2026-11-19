@@ -12,6 +12,8 @@ export interface NumberRange {
   max: number;
   step: number;
   label?: string;
+  /** Panel section to show the entry in; default = the path without its last segment. */
+  group?: string;
 }
 
 export interface TunableSpec {
@@ -112,7 +114,7 @@ class NumberEntry implements NumberTunable {
     if (!(range.step > 0)) throw new Error(`tunables: '${path}' step must be > 0`);
     if (v < range.min || v > range.max)
       throw new Error(`tunables: '${path}' default ${v} outside [${range.min}, ${range.max}]`);
-    this.section = sectionOf(path);
+    this.section = range.group ?? sectionOf(path);
     this.label = range.label ?? labelOf(path);
     this.min = range.min;
     this.max = range.max;
