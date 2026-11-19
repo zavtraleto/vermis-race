@@ -6,18 +6,19 @@
     "car.velGrip": { "min": 5, "max": 40, "step": 0.5 },
     "car.yawResponse": { "min": 5, "max": 120, "step": 1 },
     "car.slipGripMax": { "min": 0.1, "max": 1.5, "step": 0.01 },
-    "car.yawRateMaxDrift": { "min": 10, "max": 80, "step": 0.5 },
-    "car.yawResponseDrift": { "min": 2, "max": 40, "step": 0.5 },
     "car.slipDrag": { "min": 0, "max": 0.3, "step": 0.002 },
     "car.kickBase": { "min": 0, "max": 30, "step": 0.5 },
     "car.kickGain": { "min": 0, "max": 40, "step": 0.5 },
     "car.flickDelta": { "min": 0.2, "max": 1.5, "step": 0.05 },
     "car.flickWindow": { "min": 0.03, "max": 0.13, "step": 0.01 },
-    "car.gripRecoverTime": { "min": 0.02, "max": 1, "step": 0.01 },
-    "car.slipSnapMax": { "min": 0.3, "max": 3.5, "step": 0.05 },
-    "car.snapLoss": { "min": 0, "max": 0.2, "step": 0.005 },
-    "car.snapCatch": { "min": 0, "max": 1, "step": 0.05 },
     "car.offroadVelMul": { "min": 0.3, "max": 1, "step": 0.05 },
+    "car.driftLat": { "min": 0.1, "max": 1.5, "step": 0.01 },
+    "car.driftPush": { "min": 0, "max": 0.1, "step": 0.001 },
+    "car.slipFull": { "min": 0.5, "max": 5, "step": 0.02 },
+    "car.slipResponse": { "min": 1, "max": 30, "step": 0.5 },
+    "car.carryDecay": { "min": 0, "max": 30, "step": 0.5 },
+    "car.slipGripLimit": { "min": 0.2, "max": 2, "step": 0.01 },
+    "car.yawAlign": { "min": 2, "max": 40, "step": 0.5 },
     "sprites.weight.slipDeg": { "min": 0, "max": 30, "step": 0.5 },
     "sprites.weight.velDeg": { "min": 0, "max": 15, "step": 0.5 },
     "car.vmax": { "min": 0.5, "max": 2, "step": 0.05 },
@@ -137,30 +138,38 @@
   "meta": {
     "car.velGripDrift": {
       "title": "Сцепление в дрифте",
-      "hint": "больше — быстрее ловит курс, угол меньше; меньше — дальше несёт боком",
+      "hint": "больше — движение быстрее догоняет угол дрифта; меньше — дольше плывёт",
       "tier": "core",
       "group": "Дрифт",
       "model": "B",
       "rule": "R84"
     },
-    "car.yawRateMaxDrift": {
-      "title": "Острота руля в дрифте",
-      "hint": "больше — в дрифте нос крутится быстрее, угол набирается легче",
+    "car.driftLat": {
+      "title": "Сила руля в дрифте",
+      "hint": "больше — палец в дрифте сильнее ведёт машину внутрь (и наружу контррулём)",
       "tier": "core",
       "group": "Дрифт",
       "model": "B",
-      "rule": "R83"
+      "rule": "R84"
+    },
+    "car.driftPush": {
+      "title": "Снос в дрифте",
+      "hint": "больше — в дрифте сильнее выносит наружу поворота",
+      "tier": "core",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R84"
     },
     "car.slipDrag": {
-      "title": "Цена угла",
-      "hint": "больше — дрифт с большим углом сильнее тормозит",
-      "tier": "core",
+      "title": "Цена скольжения без дрифта",
+      "hint": "больше — скольжение без дрифта и остаток угла после дрифта сильнее тормозят",
+      "tier": "more",
       "group": "Дрифт",
       "model": "B",
       "rule": "R86"
     },
     "car.flickDelta": {
-      "title": "Порог флика",
+      "title": "Порог рывка",
       "hint": "больше — для входа в дрифт руль надо дёрнуть сильнее",
       "tier": "core",
       "group": "Дрифт",
@@ -168,68 +177,52 @@
       "rule": "R81"
     },
     "car.flickWindow": {
-      "title": "Окно флика, с",
+      "title": "Окно рывка, с",
       "hint": "больше — рывок для входа можно делать медленнее (не больше 0.13 с)",
-      "tier": "core",
+      "tier": "more",
       "group": "Дрифт",
       "model": "B",
       "rule": "R81"
     },
     "car.kickBase": {
-      "title": "Рывок на входе",
-      "hint": "больше — нос резче бросает вбок при входе в дрифт",
-      "tier": "core",
+      "title": "Толчок на входе",
+      "hint": "больше — угол дрифта сразу после рывка нарастает быстрее",
+      "tier": "more",
       "group": "Дрифт",
       "model": "B",
       "rule": "R81"
     },
     "car.kickGain": {
-      "title": "Рывок от силы флика",
-      "hint": "больше — резкий флик бросает нос заметно сильнее мягкого",
+      "title": "Толчок от силы рывка",
+      "hint": "больше — резкий рывок набирает угол заметно быстрее мягкого",
       "tier": "more",
       "group": "Дрифт",
       "model": "B",
       "rule": "R81"
     },
-    "car.yawResponseDrift": {
-      "title": "Отклик кузова в дрифте",
-      "hint": "больше — в дрифте кузов быстрее слушает руль; меньше — тяжелее",
+    "car.slipFull": {
+      "title": "Угол дрифта на экране",
+      "hint": "больше — кузов в дрифте повёрнут сильнее; на движение почти не влияет",
       "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R83, R87"
+    },
+    "car.slipResponse": {
+      "title": "Отклик угла",
+      "hint": "больше — угол дрифта быстрее следует за пальцем",
+      "tier": "core",
       "group": "Дрифт",
       "model": "B",
       "rule": "R83"
     },
-    "car.gripRecoverTime": {
-      "title": "Возврат сцепления, с",
-      "hint": "больше — после дрифта машина дольше остаётся скользкой",
+    "car.carryDecay": {
+      "title": "Затухание остатка угла",
+      "hint": "больше — после входа и выхода из дрифта кузов быстрее встаёт по движению",
       "tier": "more",
       "group": "Дрифт",
       "model": "B",
-      "rule": "R83"
-    },
-    "car.slipSnapMax": {
-      "title": "Щелчок: порог угла",
-      "hint": "больше — щелчок на выходе бывает только при большом угле",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R82"
-    },
-    "car.snapLoss": {
-      "title": "Щелчок: потеря скорости",
-      "hint": "больше — щелчок на выходе из дрифта сильнее тормозит",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R82"
-    },
-    "car.snapCatch": {
-      "title": "Щелчок: доворот",
-      "hint": "больше — при щелчке движение резче доворачивает за носом",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R82"
+      "rule": "R82b"
     },
     "car.driftRate": {
       "title": "Снос в дрифте (A)",
@@ -248,12 +241,11 @@
       "rule": "R22"
     },
     "car.driftSpeedLoss": {
-      "title": "Цена угла (A)",
+      "title": "Цена угла",
       "hint": "больше — большой угол дрифта сильнее срезает скорость",
       "tier": "core",
       "group": "Дрифт",
-      "model": "A",
-      "rule": "R22"
+      "rule": "R22, R86"
     },
     "car.driftAngleResponse": {
       "title": "Отклик угла (A)",
@@ -313,7 +305,7 @@
     },
     "car.yawRateMax": {
       "title": "Острота руля",
-      "hint": "больше — нос поворачивает быстрее при том же пальце",
+      "hint": "больше — без дрифта нос поворачивает сильнее при том же пальце",
       "tier": "core",
       "group": "Руль и вес",
       "model": "B",
@@ -337,11 +329,27 @@
     },
     "car.slipGripMax": {
       "title": "Предел сцепления",
-      "hint": "больше — дольше держит дорогу, позже начинает сносить наружу",
+      "hint": "больше — без дрифта дольше держит дорогу, позже начинает сносить наружу",
       "tier": "more",
       "group": "Руль и вес",
       "model": "B",
       "rule": "R84"
+    },
+    "car.slipGripLimit": {
+      "title": "Предел угла без дрифта",
+      "hint": "больше — без дрифта кузов может сильнее развернуться относительно движения",
+      "tier": "more",
+      "group": "Руль и вес",
+      "model": "B",
+      "rule": "R84"
+    },
+    "car.yawAlign": {
+      "title": "Выравнивание кузова",
+      "hint": "больше — нос быстрее встаёт по движению, тот же палец поворачивает слабее",
+      "tier": "more",
+      "group": "Руль и вес",
+      "model": "B",
+      "rule": "R83"
     },
     "car.steerRate": {
       "title": "Острота руля (A)",
