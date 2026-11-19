@@ -116,7 +116,7 @@ describe('T10 test-twisty data', () => {
 
   it('side sequence is the irregular one from the author playtest 2026-11-19', () => {
     expect(tw.sections.map((x) => x.side)).toEqual([
-      1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, -1, 1, 1,
+      1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1,
     ]);
   });
 

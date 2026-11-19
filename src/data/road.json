@@ -1,6 +1,6 @@
 {
   "segmentLength": 200,
-  "halfWidth": 600,
+  "halfWidth": 500,
   "rumbleLength": 3,
   "lanes": 3,
   "rumbleWidth": 0.15,
