@@ -15,6 +15,15 @@ import type { SpriteBatch } from './spriteBatch';
 
 /** R32 placement (RoadsideConfig) plus drawing sizes. World units unless noted. */
 export interface RoadsideDrawConfig extends RoadsideConfig {
+  // Small shoulder posts, drawn straight from the projected lines (not in the placement); skipped
+  // on lamp segments so a post never stands next to a lamp pole.
+  posts: {
+    every: number; // a post on each shoulder every N segments
+    offset: number; // road half-widths from the centre, nearer the road than the lamps
+    width: number;
+    height: number;
+    capHeight: number; // fraction of the post height drawn in the cap colour
+  };
   lamps: RoadsideConfig['lamps'] & {
     drawDistance: number; // lines from the camera
     height: number;
@@ -74,7 +83,8 @@ const BB_LEG = 12;
 const BB_FRAME = 15;
 const BB_STRIPE = 18;
 const WINDOW = 21;
-const BB_PANEL = 24; // palette.billboard[], then palette.building[]
+const POST_CAP = 24;
+const BB_PANEL = 27; // palette.billboard[], then palette.building[]
 
 /** Placeholder sprites of layers 2-4: roadside objects, drift smoke, stress filler. */
 export class WorldSprites {
@@ -98,6 +108,7 @@ export class WorldSprites {
     this.buildingAt = BB_PANEL + this.panels * 3;
     this.rgb = new Float32Array(this.buildingAt + this.buildings * 3);
     writeHex(this.rgb, POST, palette.post);
+    writeHex(this.rgb, POST_CAP, palette.postCap);
     writeHex(this.rgb, SMOKE, palette.smoke);
     writeHex(this.rgb, LAMP_POLE, palette.lampPole);
     writeHex(this.rgb, LAMP_HEAD, palette.lampHead);
@@ -143,17 +154,24 @@ export class WorldSprites {
   }
 
   /**
-   * R32 lamps, billboards and buildings standing on the projected lines, each kind within its
+   * R32 lamps, billboards, buildings and shoulder posts standing on the projected lines, each kind within its
    * own draw distance. `first` is the per-segment index of `rs` (indexBySegment).
    * R30: an object on a line behind a crest keeps only its part above the crest.
    */
   drawRoadside(batch: SpriteBatch, proj: Projection, rs: Roadside, first: Int32Array): void {
     const step = 2 / (proj.count - 1);
+    const posts = this.cfg.roadside.posts;
+    const postEvery = Math.max(1, Math.floor(posts.every));
+    const lampEvery = Math.max(1, Math.floor(this.cfg.roadside.lamps.every));
     let crestY = Infinity;
     for (let n = 0; n < proj.count - 1; n++) {
       const seg = proj.segment[n]!;
       this.clipY = proj.clipped[n] === 1 ? crestY : Infinity;
       if (proj.y[n]! < crestY) crestY = proj.y[n]!;
+      if (seg % postEvery === 0 && seg % lampEvery !== 0) {
+        this.post(batch, proj, seg, -posts.offset);
+        this.post(batch, proj, seg, posts.offset);
+      }
       if (seg + 1 >= first.length) continue;
       for (let k = first[seg]!; k < first[seg + 1]!; k++) {
         const kind = rs.kind[k]!;
@@ -186,6 +204,16 @@ export class WorldSprites {
         batch.push(p.x, p.y, p.w, p.h, p.depth, this.rgb, POST);
       }
     }
+  }
+
+  // Short post with a light cap.
+  private post(batch: SpriteBatch, proj: Projection, seg: number, x: number): void {
+    const c = this.cfg.roadside.posts;
+    const p = this.placement;
+    if (!placeOnRoad(p, proj, seg, x, c.width, c.height)) return;
+    const capH = p.h * c.capHeight;
+    this.rect(batch, p.x, p.y, p.w, p.h - capH, p.depth, POST);
+    this.rect(batch, p.x, p.y - (p.h - capH), p.w, capH, p.depth, POST_CAP);
   }
 
   // Tall pole, an arm at the top reaching over the road, a lamp head under the arm tip.
