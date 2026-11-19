@@ -334,11 +334,12 @@ function stepModelB(
   car.yawRate += (steer * Y * f - al * car.yaw - car.yawRate) * (1 - Math.exp(-r * DT));
   car.yaw += (car.yawRate - A) * DT;
 
-  // R84: motion follows the body with a saturated force; off road g and smax shrink.
+  // R84: motion follows the body with a saturated force; off road g and smax shrink in GRIP only
+  // (R84 replaces R15b, which DRIFT does not use: R21b/H11 B off road a drift costs only R15 speed).
   let g = p.velGripDrift + (p.velGrip - p.velGripDrift) * k;
   let smax = p.slipDriftMax + (p.slipGripMax - p.slipDriftMax) * k;
   const lim = p.slipHardMax + (p.slipGripLimit - p.slipHardMax) * k;
-  if (off) {
+  if (off && !drift) {
     g *= p.offroadSteerMul;
     smax *= p.offroadSteerMul;
   }

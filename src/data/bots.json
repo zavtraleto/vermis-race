@@ -29,7 +29,21 @@
     "trafficLookaheadSeg": 0,
     "trafficMargin": 0,
     "trafficEdge": 0,
-    "trafficSteerTime": 0
+    "trafficSteerTime": 0,
+    "bSteerGain": 1.5,
+    "bSteerDamp": 0.4,
+    "bCurveGain": 0.2,
+    "bLookahead": 0.3,
+    "bDriftSteerGain": 0.5,
+    "bDriftSteerDamp": 0.15,
+    "bDriftCurveGain": 0.09,
+    "bGripMargin": 0.9,
+    "bFlickLook": 0.35,
+    "bReleaseLook": 0.25,
+    "bReleaseFrac": 0.6,
+    "bDipSteer": 0.3,
+    "bDipTime": 0.03,
+    "bKickTime": 0.06
   },
   "average": {
     "steerLookahead": 1,
@@ -60,7 +74,21 @@
     "trafficLookaheadSeg": 40,
     "trafficMargin": 0.05,
     "trafficEdge": 0.85,
-    "trafficSteerTime": 0.35
+    "trafficSteerTime": 0.35,
+    "bSteerGain": 1.5,
+    "bSteerDamp": 0.4,
+    "bCurveGain": 0.2,
+    "bLookahead": 0.3,
+    "bDriftSteerGain": 0.5,
+    "bDriftSteerDamp": 0.15,
+    "bDriftCurveGain": 0.09,
+    "bGripMargin": 0.9,
+    "bFlickLook": 0.35,
+    "bReleaseLook": 0.25,
+    "bReleaseFrac": 0.6,
+    "bDipSteer": 0.3,
+    "bDipTime": 0.03,
+    "bKickTime": 0.06
   },
   "expert": {
     "steerLookahead": 0.8,
@@ -91,6 +119,20 @@
     "trafficLookaheadSeg": 80,
     "trafficMargin": 0.06,
     "trafficEdge": 0.9,
-    "trafficSteerTime": 0.25
+    "trafficSteerTime": 0.25,
+    "bSteerGain": 1.5,
+    "bSteerDamp": 0.4,
+    "bCurveGain": 0.2,
+    "bLookahead": 0.3,
+    "bDriftSteerGain": 0.5,
+    "bDriftSteerDamp": 0.15,
+    "bDriftCurveGain": 0.09,
+    "bGripMargin": 0.9,
+    "bFlickLook": 0.35,
+    "bReleaseLook": 0.25,
+    "bReleaseFrac": 0.6,
+    "bDipSteer": 0.3,
+    "bDipTime": 0.03,
+    "bKickTime": 0.06
   }
 }

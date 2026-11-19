@@ -49,6 +49,21 @@ export interface BotParams {
   trafficMargin: number; // half-widths of clearance added to the R40 hit width when passing
   trafficEdge: number; // |x| limit of a passing gap, half-widths
   trafficSteerTime: number; // s, x-correction time constant toward the gap in GRIP
+  // Model B driver (H14): feedback gains, not a model inversion.
+  bSteerGain: number; // GRIP: steer per half-width of error to the target line
+  bSteerDamp: number; // GRIP: steer per half-width/s of lateral speed (vx), subtracted
+  bCurveGain: number; // GRIP: steer per unit of (mean curve ahead x sp)
+  bLookahead: number; // s of road ahead averaged for the curvature term
+  bDriftSteerGain: number; // DRIFT: steer per half-width of error to the drift line
+  bDriftSteerDamp: number; // DRIFT: steer per half-width/s of vx, subtracted
+  bDriftCurveGain: number; // DRIFT: steer per unit of (mean curve ahead x sp)
+  bGripMargin: number; // share of velGrip*slipGripMax the bot trusts GRIP with; above it: drift
+  bFlickLook: number; // s of road ahead: flick into a drift when such a corner is this close
+  bReleaseLook: number; // s of road ahead: release the drift when no drift corner is this close
+  bReleaseFrac: number; // in DRIFT a corner still counts while its turn exceeds this share of the grip cap
+  bDipSteer: number; // |steer| of the counter-steer before the flick
+  bDipTime: number; // s of counter-steer
+  bKickTime: number; // s of full steer into the corner after the counter-steer
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -61,12 +76,26 @@ export interface BotState {
   /** Ring buffer of decided steer values, so a delayed bot outputs what it decided reactionDelay ago. */
   steerQueue: number[];
   head: number;
+  /** Model B: ticks into a planned flick (R81), 0 = none. */
+  flick: number;
+  /** Model B: side of the planned flick. */
+  flickDir: number;
+  /** Model B: decided drift input (1/0), same ring and delay as steerQueue. */
+  driftQueue: number[];
 }
 
 export function createBot(seed: number): BotState {
   const steerQueue: number[] = [];
   for (let i = 0; i < MAX_DELAY_TICKS + 1; i++) steerQueue.push(0);
-  return { rng: seed | 0, noise: 0, steerQueue, head: 0 };
+  return {
+    rng: seed | 0,
+    noise: 0,
+    steerQueue,
+    head: 0,
+    flick: 0,
+    flickDir: 0,
+    driftQueue: steerQueue.slice(),
+  };
 }
 
 /** mulberry32, same algorithm as nextRandom in src/sim/rng.ts, on the bot's own state. */
@@ -187,6 +216,152 @@ function avoidX(
 }
 
 /**
+ * Adds the bot's steering noise to the decided steer, clamps it, and returns the steer decided
+ * reactionDelay ago (the one applied now). Shared by both driving models.
+ */
+function humanize(bot: BotState, bp: BotParams, decided: number): number {
+  let steer = decided;
+  if (bp.noiseAmp > 0) {
+    // Low-passed uniform noise, scaled so its stationary std equals noiseAmp.
+    const a = 1 - Math.exp(-DT / bp.noiseTau);
+    bot.noise += (2 * nextUnit(bot) - 1 - bot.noise) * a;
+    steer += (bp.noiseAmp * bot.noise) / Math.sqrt(a / (2 - a) / 3);
+  }
+  if (steer > 1) steer = 1;
+  if (steer < -1) steer = -1;
+  // Reaction delay: decide now, act reactionDelay later (zero delay = act now).
+  const q = bot.steerQueue;
+  const qn = q.length;
+  bot.head = (bot.head + 1) % qn;
+  q[bot.head] = steer;
+  return q[wrap(bot.head - delayTicks(bp, qn), qn)]!;
+}
+
+function delayTicks(bp: BotParams, qn: number): number {
+  const delay = Math.round(bp.reactionDelay / DT);
+  return delay > qn - 1 ? qn - 1 : delay;
+}
+
+/** Segments covered in `secs` at segPerSec, at least 1. */
+function ahead(segPerSec: number, secs: number): number {
+  const d = Math.round(segPerSec * secs);
+  return d < 1 ? 1 : d;
+}
+
+/** Mean curve of the `d` segments from seg0 on (d >= 1). */
+function meanCurve(segs: Track['segments'], n: number, seg0: number, d: number): number {
+  let sum = 0;
+  for (let i = 0; i < d; i++) sum += segs[wrap(seg0 + i, n)]!.curve;
+  return sum / d;
+}
+
+/**
+ * Model B driver (H14, R80-R88). A feedback driver, not a model inversion: steer = gain on the
+ * lateral error to a target line - damping on the lateral speed + a gain on the curvature ahead
+ * (gains per skill level in bots.json). A corner whose road turn A = |curve|*sp*kYaw is above what
+ * GRIP holds (velGrip*slipGripMax, times the bot's bGripMargin) is taken in DRIFT: a planned flick
+ * (R81: a short counter-steer, then a full steer into the corner with the drift input held), the
+ * input held through the corner and released at the exit (R82). Reaction delay and noise as in A.
+ */
+function botInputB(
+  bot: BotState,
+  bp: BotParams,
+  car: Car,
+  track: Track,
+  p: CarParams,
+  out: InputFrame,
+  cars: readonly Car[] | undefined,
+): void {
+  const weave = bp.traffic === 'avoid' && cars !== undefined;
+  const segs = track.segments;
+  const n = segs.length;
+  const sp = car.speed / p.vmax;
+  const segPerSec = car.speed * SEG_PER_UNIT;
+  const seg0 = wrap(Math.floor(car.z), n);
+  // What the bot trusts GRIP to hold, as a road turn rate A (R83/R84 saturation).
+  const gripCap = p.velGrip * p.slipGripMax * bp.bGripMargin;
+  const turn = sp * p.kYaw; // A per unit curve at the current speed
+  const inDrift = car.state === 'DRIFT';
+  if (inDrift) bot.flick = 0;
+
+  // Drift corner ahead within bFlickLook (GRIP) / bReleaseLook (DRIFT): the first segment GRIP
+  // cannot hold; in DRIFT a bend the other way first ends the drift.
+  let driftSign = 0;
+  if (bp.drift === 'corners' && turn > 0) {
+    const look = ahead(segPerSec, inDrift ? bp.bReleaseLook : bp.bFlickLook);
+    for (let i = 0; i < look; i++) {
+      const c = segs[wrap(seg0 + i, n)]!.curve;
+      const a = (c < 0 ? -c : c) * turn;
+      if (inDrift && c * car.dir < 0 && a > gripCap * bp.bReleaseFrac) break;
+      if (a > (inDrift ? gripCap * bp.bReleaseFrac : gripCap)) {
+        driftSign = c > 0 ? 1 : -1;
+        break;
+      }
+    }
+  }
+  const holdDrift = inDrift && driftSign === car.dir;
+
+  // Target line: centre or the inside of the bend ahead (as in model A); in DRIFT driftLineX.
+  const cMean = meanCurve(segs, n, seg0, ahead(segPerSec, bp.steerLookahead));
+  let xTarget = 0;
+  if (holdDrift) xTarget = bp.driftLineX * car.dir;
+  else if (bp.aim === 'inside') {
+    let r = cMean / bp.insideFullCurve;
+    if (r > 1) r = 1;
+    if (r < -1) r = -1;
+    xTarget = bp.insideX * r; // + curve = right turn, inside = +x (R19 signs)
+  }
+  if (weave) {
+    const xa = avoidX(bp, car, cars, p, xTarget);
+    if (xa === xa) xTarget = xa;
+  }
+  const cAhead = meanCurve(segs, n, seg0, ahead(segPerSec, bp.bLookahead));
+  let steer = holdDrift
+    ? bp.bDriftCurveGain * cAhead * sp +
+      bp.bDriftSteerGain * (xTarget - car.x) -
+      bp.bDriftSteerDamp * car.vx
+    : bp.bCurveGain * cAhead * sp + bp.bSteerGain * (xTarget - car.x) - bp.bSteerDamp * car.vx;
+
+  // R81 planned flick: counter-steer for bDipTime with the drift input still up (else the dip itself
+  // is a flick the wrong way), then full steer into the corner for bKickTime with it held, then the
+  // line controller; held until DRIFT, or until the flick has had time to reach the car (reaction
+  // delay + dip + kick + flickWindow) and failed. The drift input goes through the same delay.
+  if (!inDrift && bot.flick === 0 && driftSign !== 0 && car.speed > p.driftEnterSpeed * p.vmax) {
+    bot.flick = 1;
+    bot.flickDir = driftSign;
+  }
+  let drift = holdDrift;
+  if (!inDrift && bot.flick > 0) {
+    const dip = Math.round(bp.bDipTime / DT);
+    const kick = Math.round(bp.bKickTime / DT);
+    const f = bot.flick;
+    if (f <= dip) steer = -bot.flickDir * bp.bDipSteer;
+    else if (f <= dip + kick) steer = bot.flickDir;
+    const timeout =
+      delayTicks(bp, bot.steerQueue.length) + dip + kick + Math.round(p.flickWindow / DT);
+    drift = f > dip;
+    bot.flick = f >= timeout ? 0 : f + 1;
+  }
+  out.steer = humanize(bot, bp, steer);
+  const dq = bot.driftQueue;
+  dq[bot.head] = drift ? 1 : 0;
+  out.drift = dq[wrap(bot.head - delayTicks(bp, dq.length), dq.length)] === 1;
+
+  // Speed: brake only for a corner the bot neither drifts nor trusts GRIP with at this speed.
+  out.brake = false;
+  if (bp.speed === 'never' || inDrift || bot.flick > 0) return;
+  const dBrake = ahead(segPerSec, bp.brakeLookahead);
+  for (let i = 0; i < dBrake; i++) {
+    const c = segs[wrap(seg0 + i, n)]!.curve;
+    const a = (c < 0 ? -c : c) * turn;
+    if (a > gripCap && (bp.drift !== 'corners' || car.speed <= p.driftEnterSpeed * p.vmax)) {
+      out.brake = true;
+      return;
+    }
+  }
+}
+
+/**
  * Writes this tick's input for `car` into `out`. Reads car + track ahead only, and (traffic =
  * avoid) the positions of the traffic cars in `cars`, read-only.
  */
@@ -199,6 +374,11 @@ export function botInput(
   out: InputFrame,
   cars?: readonly Car[],
 ): void {
+  // H14: the driver follows the car's driving model.
+  if (p.model === 1) {
+    botInputB(bot, bp, car, track, p, out, cars);
+    return;
+  }
   const weave = bp.traffic === 'avoid' && cars !== undefined;
   const segs = track.segments;
   const n = segs.length;
@@ -331,22 +511,7 @@ export function botInput(
       steer = driftSign * bp.driftKickSteer;
   }
 
-  if (bp.noiseAmp > 0) {
-    // Low-passed uniform noise, scaled so its stationary std equals noiseAmp.
-    const a = 1 - Math.exp(-DT / bp.noiseTau);
-    bot.noise += (2 * nextUnit(bot) - 1 - bot.noise) * a;
-    steer += (bp.noiseAmp * bot.noise) / Math.sqrt(a / (2 - a) / 3);
-  }
-  if (steer > 1) steer = 1;
-  if (steer < -1) steer = -1;
-  // Reaction delay: decide now, act reactionDelay later (zero delay = act now).
-  const q = bot.steerQueue;
-  const qn = q.length;
-  bot.head = (bot.head + 1) % qn;
-  q[bot.head] = steer;
-  let delay = Math.round(bp.reactionDelay / DT);
-  if (delay > qn - 1) delay = qn - 1;
-  out.steer = q[wrap(bot.head - delay, qn)]!;
+  out.steer = humanize(bot, bp, steer);
   // R20 needs a rising edge with the applied steer already past driftEnterSteer: in GRIP press only
   // then, and release for a tick after a press that did not start a drift, so the next one is an
   // edge again. In DRIFT hold it while the corner wants it; release (R21) when it ends.

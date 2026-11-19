@@ -72,6 +72,20 @@ export function parseBot(name: string, v: unknown): BotParams {
     trafficMargin: num(r, 'trafficMargin', name),
     trafficEdge: num(r, 'trafficEdge', name),
     trafficSteerTime: num(r, 'trafficSteerTime', name),
+    bSteerGain: num(r, 'bSteerGain', name),
+    bSteerDamp: num(r, 'bSteerDamp', name),
+    bCurveGain: num(r, 'bCurveGain', name),
+    bLookahead: num(r, 'bLookahead', name),
+    bDriftSteerGain: num(r, 'bDriftSteerGain', name),
+    bDriftSteerDamp: num(r, 'bDriftSteerDamp', name),
+    bDriftCurveGain: num(r, 'bDriftCurveGain', name),
+    bGripMargin: num(r, 'bGripMargin', name),
+    bFlickLook: num(r, 'bFlickLook', name),
+    bReleaseLook: num(r, 'bReleaseLook', name),
+    bReleaseFrac: num(r, 'bReleaseFrac', name),
+    bDipSteer: num(r, 'bDipSteer', name),
+    bDipTime: num(r, 'bDipTime', name),
+    bKickTime: num(r, 'bKickTime', name),
   };
   if (bp.traffic === 'avoid' && bp.trafficSteerTime <= 0) {
     throw new Error(`bots.${name}.trafficSteerTime must be > 0`);
