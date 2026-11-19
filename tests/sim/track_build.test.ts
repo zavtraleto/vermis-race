@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { cameraConfig, roadConfig } from '../../src/data/render';
 import {
   curveClasses,
+  figureDict,
   loadTestTwisty,
   parseSections,
   resolveSections,
 } from '../../src/data/tracks';
+import twistyRaw from '../../src/data/tracks/test-twisty.json';
 import { createProjection, project } from '../../src/render/projection';
 import { SEG_PER_UNIT } from '../../src/sim/constants';
 import { buildTrack } from '../../src/sim/track';
@@ -166,13 +168,78 @@ describe('T10 test-twisty data', () => {
     expect(s.some((x) => x.hold >= 300)).toBe(true);
   });
 
-  it('max |delta curve| between neighbours over the loop (with wrap) <= 0.35', () => {
+  // R31: tightening/opening are a class change with no transition; flick has a transition <= 40.
+  // Segment ranges [from, to) of every placement of those figures, from the default track's figure list.
+  const jumpFigures = ['flick', 'tightening', 'opening'];
+  const placements = (): { figure: string; from: number; to: number }[] => {
+    const out: { figure: string; from: number; to: number }[] = [];
+    let at = 0;
+    for (const ref of twistyRaw.figures as { figure: string }[]) {
+      let len = 0;
+      for (const p of figureDict[ref.figure]!.parts) len += p.enter + p.hold + p.leave;
+      out.push({ figure: ref.figure, from: at, to: at + len });
+      at += len;
+    }
+    return out;
+  };
+  const stepAt = (segs: { curve: number }[], i: number): number =>
+    Math.abs(segs[(i + 1) % segs.length]!.curve - segs[i]!.curve);
+  // A step i -> i+1 belongs to a jump figure when either end lies inside its range.
+  const jumpFigureAt = (i: number, n: number): string | undefined => {
+    const j = (i + 1) % n;
+    for (const pl of placements()) {
+      if (!jumpFigures.includes(pl.figure)) continue;
+      if ((i >= pl.from && i < pl.to) || (j >= pl.from && j < pl.to)) return pl.figure;
+    }
+    return undefined;
+  };
+
+  it('max |delta curve| between neighbours outside flick/tightening/opening (with wrap) <= 0.35', () => {
     const segs = buildTrack(tw.def).segments;
     const n = segs.length;
     let m = 0;
-    for (let i = 0; i < n; i++)
-      m = Math.max(m, Math.abs(segs[(i + 1) % n]!.curve - segs[i]!.curve));
+    for (let i = 0; i < n; i++) {
+      if (jumpFigureAt(i, n) === undefined) m = Math.max(m, stepAt(segs, i));
+    }
     expect(m).toBeLessThanOrEqual(0.35);
+  });
+
+  it('the default track contains flick, tightening and opening placements', () => {
+    const seen = new Set(placements().map((p) => p.figure));
+    for (const f of jumpFigures) expect(seen.has(f)).toBe(true);
+  });
+
+  it('tightening/opening steps are at most the medium-hard spread; flick steps at most its transition slope', () => {
+    const segs = buildTrack(tw.def).segments;
+    const n = segs.length;
+    // tightening/opening: no transition, the step is |hard - medium| = 7 - 4.5 = 2.5 in one segment.
+    const spread = curveClasses.hard - curveClasses.medium;
+    // flick: leave (easeInOut) peak slope hard*pi/(2*leave) = 7*pi/40 = 0.5498,
+    // enter (easeIn) peak slope 2*hard/enter = 14/20 = 0.7; transition total 40 segments.
+    const flickParts = figureDict.flick!.parts;
+    const flickBound = Math.max(
+      ...flickParts.map((p) =>
+        Math.max(
+          (curveClasses[p.curveClass] * Math.PI) / (2 * Math.max(p.leave, 1)),
+          (2 * curveClasses[p.curveClass]) / Math.max(p.enter, 1),
+        ),
+      ),
+    );
+    expect(flickBound).toBeCloseTo(0.7, 9);
+    for (let i = 0; i < n; i++) {
+      const f = jumpFigureAt(i, n);
+      if (f === undefined) continue;
+      const d = stepAt(segs, i);
+      if (f === 'flick') expect(d).toBeLessThanOrEqual(flickBound + 1e-9);
+      else expect(d).toBeLessThanOrEqual(spread + 1e-9);
+    }
+    // the class change really happens: some step reaches the full spread
+    let best = 0;
+    for (let i = 0; i < n; i++) {
+      const f = jumpFigureAt(i, n);
+      if (f === 'tightening' || f === 'opening') best = Math.max(best, stepAt(segs, i));
+    }
+    expect(best).toBeCloseTo(spread, 9);
   });
 
   it('resolveSections applies the given classes', () => {
