@@ -6,6 +6,7 @@ import type {
   InputFrame,
   RaceState,
   RivalConfig,
+  Segment,
   Track,
   TrafficConfig,
 } from './types';
@@ -126,7 +127,7 @@ export function step(
 
     // H14: model B (R80-R87) replaces R10-R15b and R20-R22; R16/R17 below are shared.
     if (p.model === 1) {
-      const speedB = stepModelB(car, input, p, cars, curve, off, vcap);
+      const speedB = stepModelB(car, input, p, cars, segments, seg, off, vcap);
       car.heading += curve * speedB * K_HEADING * DT; // R17
       car.z += speedB * DT * SEG_PER_UNIT; // R16
       lampHit(car, z0, p, segCount); // R47/R64: after R16, before R40
@@ -321,6 +322,7 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
     car.draft = 0;
     car.boostTicks = 0;
     car.steerHistCount = 0;
+    car.deflectTicks = 0;
     return;
   }
 }
@@ -354,6 +356,43 @@ function viewAngle(car: Car, p: CarParams): number {
 }
 
 /**
+ * R81 entry: GRIP -> DRIFT on side dir with the initial slip rate `rate` (> 0). The visible slip
+ * is continuous; what lies against dir goes to carry; vel is kept.
+ */
+function enterDrift(car: Car, dir: 1 | -1, rate: number): void {
+  car.state = 'DRIFT';
+  car.dir = dir;
+  const vis = car.yaw - car.vel + car.carry;
+  const slip0 = vis * dir > 0 ? vis : 0;
+  car.yaw = car.vel + slip0;
+  car.carry = vis - slip0;
+  car.yawRate = dir * rate;
+}
+
+/**
+ * R81b B: threshold multiplier for a flick of sign(best). cAhead = the curve of largest modulus on
+ * segments seg..seg+flickLook (lap wrap); toward a corner of at least flickCornerMin: flickCornerMul,
+ * otherwise flickStraightMul.
+ */
+export function flickMul(
+  segments: readonly Segment[],
+  seg: number,
+  best: number,
+  p: CarParams,
+): number {
+  const n = segments.length;
+  let cAhead = 0;
+  let j = seg;
+  for (let k = 0; k <= p.flickLook; k++) {
+    const c = segments[j]!.curve;
+    if ((c < 0 ? -c : c) > (cAhead < 0 ? -cAhead : cAhead)) cAhead = c;
+    j = j + 1 >= n ? 0 : j + 1;
+  }
+  const absC = cAhead < 0 ? -cAhead : cAhead;
+  return absC >= p.flickCornerMin && cAhead * best > 0 ? p.flickCornerMul : p.flickStraightMul;
+}
+
+/**
  * Model B tick (R80-R87) of a player or rival car; returns the speed after R86 (also stored).
  * `off` is |x| > 1 at the start of the step; offTicks is already updated by the caller.
  */
@@ -362,11 +401,14 @@ function stepModelB(
   input: InputFrame,
   p: CarParams,
   cars: readonly Car[],
-  curve: number,
+  segments: readonly Segment[],
+  seg: number,
   off: boolean,
   vcap: number,
 ): number {
-  // R80: raw steer, no R10 slew.
+  const curve = segments[seg]!.curve;
+  // R80: raw steer, no R10 slew. prevSteer is the raw steer of the previous tick (R81b C sign).
+  const prevSteer = car.steer;
   let steer = input.steer;
   if (steer > 1) steer = 1;
   if (steer < -1) steer = -1;
@@ -375,15 +417,32 @@ function stepModelB(
   // R21b (H11 B, driftOffroad = 1): no off-road condition; H11 A blocks entry off road and ends
   // the drift after driftOffroadTime off road, as in model A.
   const offroadBlocks = p.driftOffroad !== 1;
-
-  // R81: flick entry, compared with the recorded raw steer of the last flickWindow seconds.
-  const hist = car.steerHist;
-  if (
+  const canEnter =
     car.state === 'GRIP' &&
     input.drift &&
     car.speed > p.driftEnterSpeed * p.vmax &&
-    !(offroadBlocks && off)
-  ) {
+    !(offroadBlocks && off);
+
+  const hist = car.steerHist;
+  if (p.driftEntry === 2) {
+    // R81b C: entry by deflection, no flick. armTicks > 0 (model B, C only) = the drift ended during
+    // this hold (R82 without release): no count until the hold breaks.
+    if (!input.drift) car.armTicks = 0;
+    const absS = steer < 0 ? -steer : steer;
+    if (canEnter && car.armTicks === 0 && absS >= p.deflectEnter) {
+      // A sign change restarts the run at 1 for the new sign.
+      const same = car.deflectTicks > 0 && prevSteer * steer > 0;
+      car.deflectTicks = same ? car.deflectTicks + 1 : 1;
+      // Held for deflectTime: deflectTime/DT ticks have passed since the first qualifying tick.
+      if (car.deflectTicks > Math.round(p.deflectTime / DT)) {
+        enterDrift(car, steer > 0 ? 1 : -1, p.kickBase);
+      }
+    } else {
+      car.deflectTicks = 0;
+    }
+    if (car.state !== 'GRIP') car.deflectTicks = 0;
+  } else if (canEnter) {
+    // R81: flick entry, compared with the recorded raw steer of the last flickWindow seconds.
     let kMax = Math.round(p.flickWindow / DT);
     if (kMax > car.steerHistCount) kMax = car.steerHistCount;
     let best = 0;
@@ -393,18 +452,15 @@ function stepModelB(
       const d = steer - hist[j]!;
       if ((d < 0 ? -d : d) > (best < 0 ? -best : best)) best = d;
     }
-    if (best >= p.flickDelta || best <= -p.flickDelta) {
-      car.state = 'DRIFT';
-      const dir = best > 0 ? 1 : -1;
-      car.dir = dir;
-      // R81: the visible slip is continuous; what lies against dir goes to carry; vel is kept.
-      const vis = car.yaw - car.vel + car.carry;
-      const along = vis * dir;
-      const slip0 = along > 0 ? vis : 0;
-      car.yaw = car.vel + slip0;
-      car.carry = vis - slip0;
+    // R81b B: threshold flickDelta*m from the road ahead; A: m = 1.
+    let m = 1;
+    if (p.driftEntry === 1 && best !== 0) m = flickMul(segments, seg, best, p);
+    const thr = p.flickDelta * m;
+    if (best >= thr || best <= -thr) {
       const abs = best < 0 ? -best : best;
-      car.yawRate = dir * (p.kickBase + p.kickGain * (abs - p.flickDelta)); // R81: rate of slip
+      let over = abs - thr;
+      if (over < 0) over = 0;
+      enterDrift(car, best > 0 ? 1 : -1, p.kickBase + p.kickGain * over); // R81: rate of slip
     }
   }
   // R81: the current steer is recorded every held tick, in any state; a flick counts only within
@@ -431,6 +487,8 @@ function stepModelB(
   ) {
     car.state = 'GRIP';
     car.dir = 0;
+    // R81b C: an exit while still held blocks the deflection count until the hold breaks.
+    if (p.driftEntry === 2 && input.drift) car.armTicks = 1;
     let sG = A / p.velGrip;
     if (sG > p.slipGripMax) sG = p.slipGripMax;
     if (sG < -p.slipGripMax) sG = -p.slipGripMax;
@@ -464,7 +522,10 @@ function stepModelB(
       car.yawRate = 0;
     }
     // R84 DRIFT: bounded lateral term from the angle (and counter-steer) minus the road push.
-    const velT = dir * p.driftLat * ((slip * dir) / p.slipFull + (u < 0 ? u : 0)) - p.driftPush * A;
+    // push: driftPush toward the drift side or straight (A*dir >= 0), wrongPush against it.
+    const push = A * dir >= 0 ? p.driftPush : p.wrongPush;
+    const velT =
+      dir * p.driftLat * ((slip * dir) / p.slipFull + p.driftCounter * (u < 0 ? u : 0)) - push * A;
     car.vel += (velT - car.vel) * (1 - Math.exp(-p.velGripDrift * DT));
     car.yaw = car.vel + slip;
   } else {
@@ -772,6 +833,7 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.carry = 0;
     c.steerHistHead = 0;
     c.steerHistCount = 0;
+    c.deflectTicks = 0;
     c.crashTicks = 0;
     c.crashSpeed0 = 0;
     c.crashX0 = 0;

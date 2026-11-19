@@ -355,9 +355,14 @@ function botInputB(
   if (!inDrift && bot.flick > 0) {
     // R81: a flick counts only inside one hold, so the hold starts on the last pre-kick tick (the
     // dip steer, or the line steer without a dip) and the kick follows inside it.
-    const dip = Math.round(bp.bDipTime / DT);
+    // R81b C (driftEntry 2): no flick; no dip, and the full steer is held past deflectTime (the
+    // entry comes on the tick after deflectTime/DT qualifying ticks), with a tick of margin.
+    const byDeflect = p.driftEntry === 2;
+    const dip = byDeflect ? 0 : Math.round(bp.bDipTime / DT);
     const pre = dip < 1 ? 1 : dip;
-    const kick = Math.round(bp.bKickTime / DT);
+    let kick = Math.round(bp.bKickTime / DT);
+    if (byDeflect && kick < Math.round(p.deflectTime / DT) + 2)
+      kick = Math.round(p.deflectTime / DT) + 2;
     const f = bot.flick;
     if (f <= dip) steer = -bot.flickDir * bp.bDipSteer;
     else if (f > pre && f <= pre + kick) steer = bot.flickDir;

@@ -73,6 +73,7 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     for (let j = 0; j < sh.length; j++) dh[j] = sh[j]!;
     d.steerHistHead = s.steerHistHead;
     d.steerHistCount = s.steerHistCount;
+    d.deflectTicks = s.deflectTicks; // R81b C
     // R48 crash.
     d.crashTicks = s.crashTicks;
     d.crashSpeed0 = s.crashSpeed0;

@@ -49,6 +49,7 @@ import { Leaderboard } from '../ui/leaderboard';
 import { NameLabels } from '../ui/nameLabels';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
+import { DriftEntryProbe, driftEntryOf } from './driftEntryProbe';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
@@ -111,6 +112,12 @@ const tunables = installDev(
 // keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
 baseCar.lampEvery = spritesConfig.roadside.lamps.every;
 baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
+// H16 (R81b): the model B drift entry variant follows the hypothesis flag (A/B/C -> 0/1/2), on load
+// and on every panel change (the rival copies below take it with the rest of baseCar).
+const applyDriftEntry = (): void => {
+  baseCar.driftEntry = driftEntryOf(hypotheses.H16_driftEntry);
+};
+applyDriftEntry();
 
 const canvas = document.getElementById('game');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('canvas #game missing');
@@ -250,6 +257,9 @@ ribbon.enabled = ribbonMapConfig.enabled && (params.map || mapScenario !== null)
 scene.add(ribbon.mesh);
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
+// R81b (отладка): last model B drift-entry readout on the ?hud=1 overlay.
+const entryProbe = hud ? new DriftEntryProbe() : null;
+const entryText = entryProbe ? (): string => entryProbe.text() : undefined;
 // R28 UI layer: on unless ?ui=0; screenshot scenarios show it only when they opt in.
 const uiOn =
   params.ui && (fixedScenario === null || ('ui' in fixedScenario && fixedScenario.ui === true));
@@ -386,10 +396,18 @@ const carParams: CarParams[] = race.cars.map((c) =>
   c.kind === 'rival' ? { ...baseCar } : baseCar,
 );
 tunables.onChange(() => {
+  applyDriftEntry();
   for (const p of carParams) if (p !== baseCar) Object.assign(p, baseCar);
 });
 const rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;
-const readPlayer = createReadInput(player);
+const readPlayerRaw = createReadInput(player);
+// R81b (отладка): the probe sees the player car after each tick (loop.curr before the next one).
+const readPlayer = entryProbe
+  ? (tick: number, out: InputFrame[]): void => {
+      entryProbe.observe(loop.curr.cars[0]!, baseCar, track.segments);
+      readPlayerRaw(tick, out);
+    }
+  : readPlayerRaw;
 const readInput = rivalDrivers
   ? (tick: number, out: InputFrame[]): void => {
       readPlayer(tick, out);
@@ -612,7 +630,7 @@ function frame(time: number): void {
   const ca = loop.curr.cars[0]!.angle;
   updateVisuals(Math.min(frameSeconds, MAX_VISUAL_DT), pa + (ca - pa) * loop.alpha, loop.alpha);
   renderFrame();
-  hud?.update(time, frameStats, lastCalls);
+  hud?.update(time, frameStats, lastCalls, baseCar.model === 1 ? entryText : undefined);
   if (params.frames !== null && game.frames >= params.frames) {
     game.done = true;
     return;
