@@ -9,7 +9,7 @@ import { PB } from '../sim/modelb_helpers';
 
 const track = makeStraightTrack(2000);
 
-/** Flicks and holds, so yaw, vel, recover and the steer ring buffer all get non-trivial values. */
+/** Flicks and holds, so yaw, vel, carry and the steer ring buffer all get non-trivial values. */
 const source: InputSource = (t, out) => {
   const f = out[0]!;
   f.steer = Math.max(-1, Math.min(1, 1.2 * Math.sin(t / 9)));
@@ -29,10 +29,11 @@ function played(n: number): RaceState {
 }
 
 describe('copyRaceState with model B fields', () => {
-  it('copies yaw, yawRate, vel, recover and the steerHist contents; src untouched', () => {
-    const src = played(400);
+  it('copies yaw, yawRate, vel, carry and the steerHist contents; src untouched', () => {
+    const src = played(205); // tick 200 releases a drift: the exit leaves a carry (R82)
     const c = src.cars[0]!;
     expect(c.yaw).not.toBe(0);
+    expect(c.carry).not.toBe(0); // R82b: the scripted flicks and releases leave a carry
     expect(c.steerHist.some((v) => v !== 0)).toBe(true);
     const before = JSON.stringify(src);
     const dst = createRace(999, 1);

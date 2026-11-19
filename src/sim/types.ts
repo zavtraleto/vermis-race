@@ -26,7 +26,8 @@ export interface Car {
   yaw: number; // R83 body heading relative to the road tangent, lateral units
   yawRate: number; // R83
   vel: number; // R84 direction of motion relative to the road tangent, lateral units
-  recover: number; // R82/R83 seconds since leaving DRIFT
+  carry: number; // R82b visible slip left over from the last state change, decays
+  recover: number; // OBSOLETE (to be removed by the implementer together with R83 blending)
   steerHist: number[]; // R81 ring buffer of raw steer, fixed length STEER_HIST
   steerHistHead: number; // R81 next write index
   steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
@@ -50,7 +51,12 @@ export interface CarParams {
   velGrip: number;
   slipGripMax: number;
   slipGripLimit: number;
-  yawRateMaxDrift: number;
+  slipFull: number; // R83/R87 visible slip at full steer in DRIFT
+  slipResponse: number; // R83 DRIFT slip chase natural rate, 1/s
+  driftLat: number; // R84 DRIFT lateral authority of the slip and of counter-steer
+  driftPush: number; // R84 DRIFT push by the road turn, times A
+  carryDecay: number; // R82b 1/s
+  yawRateMaxDrift: number; // OBSOLETE
   yawAlignDrift: number;
   yawResponseDrift: number;
   velGripDrift: number;

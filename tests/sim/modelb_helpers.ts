@@ -4,7 +4,7 @@ import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
 import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 
-/** Explicit model B parameter set (spike table, docs/research/yaw-slip-spike.md section 2). */
+/** Explicit model B parameter set (docs/research/calm-drift-spike.md section 3; brief R80-R89b). */
 export const PB: CarParams = {
   ...baseCar,
   model: 1,
@@ -21,28 +21,24 @@ export const PB: CarParams = {
   kYaw: 2.0,
   latScale: 1,
   yawFullSpeed: 0.3,
-  yawRateMax: 15,
-  yawAlign: 12.5,
-  yawResponse: 50,
+  yawRateMax: 15.75,
+  yawAlign: 15,
+  yawResponse: 60,
   velGrip: 22,
-  slipGripMax: 0.42,
-  slipGripLimit: 0.6,
-  yawRateMaxDrift: 43.6,
-  yawAlignDrift: 6,
-  yawResponseDrift: 12,
-  velGripDrift: 6.3,
-  slipDriftMax: 3.0,
-  slipHardMax: 3.5,
+  slipGripMax: 0.75,
+  slipGripLimit: 0.8,
+  velGripDrift: 3,
+  slipFull: 2.64,
+  slipResponse: 8,
+  driftLat: 0.46,
+  driftPush: 0.0287,
+  driftSpeedLoss: 0.15,
   slipDrag: 0.058,
   flickDelta: 0.5,
   flickWindow: 0.12,
-  kickBase: 8,
-  kickGain: 15,
-  gripRecoverTime: 0.25,
-  slipSnapMax: 1.2,
-  snapLoss: 0.04,
-  snapCatch: 0.5,
-  slipViewFull: 2.47,
+  kickBase: 2,
+  kickGain: 6,
+  carryDecay: 8,
 };
 
 /** accel 0 and slipDrag 0: speed is constant, so every expected number is hand-computable. */

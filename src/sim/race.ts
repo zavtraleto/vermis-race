@@ -27,6 +27,7 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       yaw: 0,
       yawRate: 0,
       vel: 0,
+      carry: 0,
       recover: 0,
       steerHist: new Array<number>(STEER_HIST).fill(0),
       steerHistHead: 0,
