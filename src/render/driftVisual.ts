@@ -3,9 +3,8 @@ import type { CameraConfig, RoadConfig } from './projection';
 
 /** R24 drift look (render only; numbers in src/data/sprites.json "drift"). */
 export interface DriftVisualConfig {
-  yawMinDeg: number; // R25 car yaw with full counter-steer, degrees about the vertical axis
-  yawMaxDeg: number; // car yaw with full steer into the drift, degrees
-  yawTau: number; // s, smoothing time constant of the yaw
+  yawMaxDeg: number; // R24 car yaw at sim drift angle 1, degrees about the vertical axis
+  yawTau: number; // s, light smoothing time constant of the yaw
   cameraOffset: number; // road half-widths the camera moves toward the inside of the drift
   cameraTau: number; // s, smoothing time constant of the camera offset
   smoke: string; // "on" | "off"
@@ -28,7 +27,11 @@ export function approach(current: number, target: number, dt: number, tau: numbe
   return current + (target - current) * (1 - Math.exp(-dt / tau));
 }
 
-/** R24 yaw target: 0 in GRIP; in DRIFT dir * lerp(yawMin, yawMax, (steer*dir+1)/2). */
+/**
+ * Old R24 yaw target from steer (before the sim drift angle): 0 in GRIP; in DRIFT
+ * dir * lerp(yawMin, yawMax, (steer*dir+1)/2). No longer used by DriftVisual (R24 now takes the
+ * sim angle); kept only because tests/render/driftVisual.test.ts still covers it.
+ */
 export function driftYawTarget(
   state: Car['state'],
   dir: number,
@@ -122,24 +125,17 @@ export class DriftVisual {
   readonly smoke: SmokePool;
   private emitAcc = 0;
   private rng = 1;
-  private readonly yawRange = { yawMin: 0, yawMax: 0 };
 
   constructor(private readonly cfg: DriftVisualConfig) {
     this.smoke = new SmokePool(cfg.smokeCapacity);
   }
 
-  update(dt: number, car: Car): void {
+  /** `angle` = sim drift angle interpolated between the prev and curr states (0 in GRIP). */
+  update(dt: number, car: Car, angle: number): void {
     const cfg = this.cfg;
     const drifting = car.state === 'DRIFT' && car.dir !== 0;
-    // Read live (dev tuning panel).
-    this.yawRange.yawMin = cfg.yawMinDeg;
-    this.yawRange.yawMax = cfg.yawMaxDeg;
-    this.yaw = approach(
-      this.yaw,
-      driftYawTarget(car.state, car.dir, car.steer, this.yawRange),
-      dt,
-      cfg.yawTau,
-    );
+    // R24: yaw comes from the sim angle (yawMaxDeg read live for the dev panel); render only smooths.
+    this.yaw = approach(this.yaw, drifting ? angle * cfg.yawMaxDeg : 0, dt, cfg.yawTau);
     this.cameraX = approach(
       this.cameraX,
       drifting ? car.dir * cfg.cameraOffset : 0,

@@ -13,6 +13,7 @@ import { inputConfig } from '../data/input';
 import scenarios from '../data/scenarios.json';
 import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
+import { createRetouchDrift } from '../input/retouchDrift';
 import { attachKeyboard } from '../input/keyboardDom';
 import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
@@ -146,7 +147,9 @@ const now = (): number => performance.now();
 const keyboard = createKeyboardInput(inputConfig.keyboard);
 const touchStick = createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
-attachPointer(canvas, touchStick, now);
+// H3 D re-touch drift, live config (dev panel); fed alongside the stick.
+const retouch = createRetouchDrift(inputConfig.touch);
+attachPointer(canvas, touchStick, now, retouch);
 // Constant input for screenshot scenarios so the frame does not depend on the keyboard.
 function fixedInput(steer: number, drift: boolean): PlayerInput {
   const last: InputFrame = { steer, brake: false, drift };
@@ -162,15 +165,21 @@ function fixedInput(steer: number, drift: boolean): PlayerInput {
 const player = fixedScenario
   ? fixedInput(fixedScenario.steer, driftScenario !== null)
   : createPlayerInput(keyboard, touchStick, now, {
-      // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection.
+      // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
+      // D = re-touch and swipe sideways.
       hypotheses,
       autoDrift: createAutoDrift(inputConfig.touch),
+      retouch,
       warn: (m) => console.warn(m),
     });
 
 const race = createRace(params.seed, 1);
 // Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
-if (driftScenario) race.cars[0]!.speed = driftScenario.speed;
+if (driftScenario) {
+  race.cars[0]!.speed = driftScenario.speed;
+  // R20 needs a rising edge with the steer already past driftEnterSteer: start with it applied.
+  race.cars[0]!.steer = driftScenario.steer;
+}
 if (hillScenario) race.cars[0]!.z = hillScenario.z;
 const loop = createLoop(race, {
   track,
@@ -243,7 +252,14 @@ function frame(time: number): void {
   lastTime = time;
   if (frameSeconds > 0) frameStats.push(frameSeconds * 1000);
   loop.advance(frameSeconds);
-  driftVisual.update(Math.min(frameSeconds, MAX_VISUAL_DT), loop.curr.cars[0]!);
+  // R24: drift yaw from the sim angle, interpolated like the other car fields.
+  const pa = loop.prev.cars[0]!.angle;
+  const ca = loop.curr.cars[0]!.angle;
+  driftVisual.update(
+    Math.min(frameSeconds, MAX_VISUAL_DT),
+    loop.curr.cars[0]!,
+    pa + (ca - pa) * loop.alpha,
+  );
   renderFrame();
   hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
@@ -260,7 +276,7 @@ if (fixedTicks !== null) {
   // Drift visuals follow each tick with the fixed DT, so the frame is deterministic.
   for (let i = 0; i < fixedTicks; i++) {
     loop.stepTicks(1);
-    driftVisual.update(DT, loop.curr.cars[0]!);
+    driftVisual.update(DT, loop.curr.cars[0]!, loop.curr.cars[0]!.angle);
   }
   renderFrame();
   game.done = true;

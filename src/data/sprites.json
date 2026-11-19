@@ -14,7 +14,6 @@
     "capHeight": 0.15
   },
   "drift": {
-    "yawMinDeg": 18,
     "yawMaxDeg": 42,
     "yawTau": 0.05,
     "cameraOffset": 0.09,
