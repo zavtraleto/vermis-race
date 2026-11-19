@@ -1,11 +1,14 @@
 import type { Car3dConfig } from '../render/carModel';
 import type { CameraConfig } from '../render/projection';
+import type { PrintConfig } from '../render/printPass';
 import type { RibbonMapRenderConfig } from '../render/ribbonMapMesh';
 import type { RoadMeshConfig } from '../render/roadMesh';
 import type { SpritesConfig } from '../render/worldSprites';
 import camera from './camera.json';
 import car3d from './car3d.json';
 import palette from './palette.json';
+import palettePrint from './palette.print.json';
+import print from './print.json';
 import ribbonMap from './ribbonMap.json';
 import road from './road.json';
 import sprites from './sprites.json';
@@ -47,6 +50,9 @@ export interface Palette {
 export const cameraConfig: CameraConfig = camera;
 export const roadConfig: RoadMeshConfig = road;
 export const paletteConfig: Palette = palette;
+// Spike ?print=1: placeholder colours from the print palette, print pass numbers.
+export const printPaletteConfig: Palette = palettePrint;
+export const printConfig: PrintConfig = print;
 export const spritesConfig: SpritesConfig = sprites;
 export const car3dConfig: Car3dConfig = car3d;
 export const ribbonMapConfig: RibbonMapRenderConfig = ribbonMap;

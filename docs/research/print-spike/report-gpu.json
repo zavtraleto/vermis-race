@@ -1,0 +1,147 @@
+{
+  "gpu": true,
+  "shots": {
+    "roadside-am": {
+      "size": "1080x1920",
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7066,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-right-am": {
+      "size": "1080x1920",
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7050,
+        "instances": 389,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "curve-left-am": {
+      "size": "1080x1920",
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7054,
+        "instances": 391,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "traffic-am": {
+      "size": "1080x1920",
+      "unique": 15,
+      "foreign": [],
+      "info": {
+        "calls": 5,
+        "triangles": 7368,
+        "instances": 401,
+        "dropped": 0,
+        "traffic": 3
+      },
+      "errors": []
+    },
+    "roadside-stipple": {
+      "size": "1080x1920",
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7066,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "roadside-bayer": {
+      "size": "1080x1920",
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7066,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    }
+  },
+  "live": {
+    "live-print": {
+      "stats": {
+        "p50": 16.699999999999818,
+        "p99": 16.800000000000182,
+        "max": 16.800000000000182,
+        "samples": 256
+      },
+      "info": {
+        "calls": 4,
+        "triangles": 1360,
+        "instances": 162,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "maxCalls": 4,
+      "frames": 518,
+      "renderer": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "errors": []
+    },
+    "live-plain": {
+      "stats": {
+        "p50": 16.699999999999818,
+        "p99": 16.800000000000182,
+        "max": 16.80000000000109,
+        "samples": 256
+      },
+      "info": {
+        "calls": 3,
+        "triangles": 1340,
+        "instances": 159,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "maxCalls": 3,
+      "frames": 518,
+      "renderer": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "errors": []
+    }
+  },
+  "timed": {
+    "timed-print": {
+      "msPerFrame": 2.4625,
+      "info": {
+        "calls": 5,
+        "triangles": 7368,
+        "instances": 401,
+        "dropped": 0,
+        "traffic": 3
+      },
+      "errors": []
+    },
+    "timed-plain": {
+      "msPerFrame": 0.7059999999962747,
+      "info": {
+        "calls": 4,
+        "triangles": 7366,
+        "instances": 401,
+        "dropped": 0,
+        "traffic": 3
+      },
+      "errors": []
+    }
+  }
+}
