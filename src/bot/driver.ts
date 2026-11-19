@@ -26,6 +26,9 @@ export interface BotParams {
   drift: DriftMode;
   driftMinCurve: number; // drift only through corners at least this sharp (|curve|)
   driftLookahead: number; // s of road ahead: drift is held while such a corner is this close
+  driftApproach: number; // s of road ahead: in GRIP, steer to the entry line when such a corner is this close
+  driftEntryX: number; // entry line toward the inside of the drift corner, half-widths (negative = outside)
+  driftLineX: number; // line held in DRIFT toward the inside, half-widths
   driftKickSteer: number; // |steer| used in GRIP to pass driftEnterSteer (R20)
   driftFeedLookahead: number; // s of road ahead averaged for the drift equilibrium feed-forward
   driftGain: number; // 1/s, lateral speed per unit x error toward the target line in DRIFT
@@ -107,29 +110,31 @@ export function botInput(
     if (r < -1) r = -1;
     xTarget = bp.insideX * r; // + curve = right turn, inside = +x (R19 signs)
   }
-  // Drift corners (R20): the nearest corner with |curve| >= driftMinCurve within driftLookahead.
+  // Drift corners (R20): the nearest segment with |curve| >= driftMinCurve, its distance and side.
   let driftSign = 0;
+  let driftAt = 0;
+  let dDrift = Math.round(segPerSec * bp.driftLookahead);
+  if (dDrift < 1) dDrift = 1;
   if (bp.drift === 'corners') {
-    let dDrift = Math.round(segPerSec * bp.driftLookahead);
-    if (dDrift < 1) dDrift = 1;
-    for (let i = 0; i < dDrift; i++) {
+    let dScan = Math.round(segPerSec * bp.driftApproach);
+    if (dScan < dDrift) dScan = dDrift;
+    for (let i = 0; i < dScan; i++) {
       const c = segs[wrap(seg0 + i, n)]!.curve;
-      if (c >= bp.driftMinCurve) {
-        driftSign = 1;
-        break;
-      }
-      if (c <= -bp.driftMinCurve) {
-        driftSign = -1;
+      if (c >= bp.driftMinCurve || c <= -bp.driftMinCurve) {
+        driftSign = c > 0 ? 1 : -1;
+        driftAt = i;
         break;
       }
     }
   }
   const inDrift = car.state === 'DRIFT';
-  // dir is fixed until exit (R20): a drift corner the other way releases first.
-  const wantDrift = driftSign !== 0 && (!inDrift || driftSign === car.dir);
+  // Drift is held while the corner is within driftLookahead; dir is fixed until exit (R20),
+  // so a drift corner the other way releases first.
+  const wantDrift = driftSign !== 0 && driftAt < dDrift && (!inDrift || driftSign === car.dir);
 
   let steer: number;
   if (inDrift && wantDrift && sp > 0) {
+    xTarget = bp.driftLineX * car.dir;
     // R22: steer around the equilibrium (target = push) for the curve just ahead, plus a
     // proportional pull toward the target line. target = dir*lerp(min, max, (steer*dir+1)/2)*driftRate*sp.
     let dFeed = Math.round(segPerSec * bp.driftFeedLookahead);
@@ -143,7 +148,14 @@ export function botInput(
     const t = (lerp - p.driftSteerMin) / (p.driftSteerMax - p.driftSteerMin);
     steer = car.dir * (2 * t - 1);
   } else {
-    const vxReq = (xTarget - car.x) / bp.steerLookahead + cMean * sp * sp * k;
+    let cFeed = cMean;
+    if (driftSign !== 0 && !inDrift) {
+      // Approach to a drift corner: go to the entry line and hold only the push under the car,
+      // so the drift starts without the inward lateral speed that DRIFT cannot take back (R22).
+      xTarget = bp.driftEntryX * driftSign;
+      cFeed = segs[seg0]!.curve;
+    }
+    const vxReq = (xTarget - car.x) / bp.steerLookahead + cFeed * sp * sp * k;
     const authority = p.steerRate * sp * (1 - 0.25 * sp); // R11 vx per unit steer
     steer = authority > 0 ? vxReq / authority : 0;
     // R20: in GRIP, turn into the coming drift corner past driftEnterSteer.
