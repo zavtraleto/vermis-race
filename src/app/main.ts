@@ -10,6 +10,7 @@ import {
 } from '../data/render';
 import hypotheses from '../data/hypotheses.json';
 import { inputConfig } from '../data/input';
+import { trafficConfig } from '../data/traffic';
 import scenarios from '../data/scenarios.json';
 import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
@@ -19,6 +20,7 @@ import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
 import { resolveTouchScheme } from '../input/scheme';
 import { createTouchStick } from '../input/touchStick';
+import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
 import { createProjection, project } from '../render/projection';
@@ -29,10 +31,10 @@ import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
 import { DT } from '../sim/constants';
-import { createRace } from '../sim/race';
+import { createRace, placeTraffic } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
 import { curveClasses, loadTestTwisty } from '../data/tracks';
-import type { InputFrame, Track } from '../sim/types';
+import type { InputFrame, Track, TrafficConfig } from '../sim/types';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
@@ -87,6 +89,8 @@ const curveScenario =
 const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
 // R32 roadside: literal straight track, car placed where a lamp pair, a billboard and buildings are in view.
 const roadsideScenario = params.scenario === 'roadside' ? scenarios.roadside : null;
+// R45 traffic look: literal straight track, traffic cars at fixed positions, no respawn.
+const trafficScenario = params.scenario === 'traffic' ? scenarios.traffic : null;
 // drift-right: constant hard curve, drift held from an initial speed (R24 drift look screenshot).
 const driftScenario = params.scenario === 'drift-right' ? scenarios['drift-right'] : null;
 // map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
@@ -101,6 +105,7 @@ const fixedScenario =
   curveScenario ??
   straightScenario ??
   roadsideScenario ??
+  trafficScenario ??
   mapScenario ??
   driftScenario ??
   hillScenario;
@@ -109,7 +114,7 @@ const track = curve
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
-    : straightScenario || roadsideScenario
+    : straightScenario || roadsideScenario || trafficScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : hillScenario
         ? buildTrack({ sections: hillScenario.sections })
@@ -184,7 +189,17 @@ const player = fixedScenario
       warn: (m) => console.warn(m),
     });
 
-const race = createRace(params.seed, 1);
+// R70/R71: the default track runs with a traffic pool (off with ?traffic=0); screenshot and
+// stress scenarios run without traffic unless they opt in (the traffic scenario places its own).
+const trafficOn = fixedScenario === null && stress === null && params.traffic;
+const traffic: TrafficConfig = { ...trafficConfig, lanes: roadConfig.lanes };
+const trafficCount = trafficOn
+  ? traffic.trafficMax
+  : trafficScenario
+    ? trafficScenario.cars.length
+    : 0;
+const race = createRace(params.seed, 1, trafficCount);
+if (trafficOn) placeTraffic(race, traffic, baseCar.vmax);
 // Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
 if (driftScenario) {
   race.cars[0]!.speed = driftScenario.speed;
@@ -193,10 +208,21 @@ if (driftScenario) {
 }
 if (hillScenario) race.cars[0]!.z = hillScenario.z;
 if (roadsideScenario) race.cars[0]!.z = roadsideScenario.z;
+if (trafficScenario) {
+  race.cars[0]!.z = trafficScenario.z;
+  trafficScenario.cars.forEach((t, i) => {
+    const c = race.cars[i + 1]!;
+    c.z = trafficScenario.z + t.dz;
+    c.x = -1 + ((t.lane + 0.5) * 2) / roadConfig.lanes; // R70 lane centre
+    c.speed = t.speed;
+  });
+}
+const bump = new BumpFeedback(spritesConfig.bump);
 const loop = createLoop(race, {
   track,
-  params: [baseCar],
+  params: race.cars.map(() => baseCar),
   readInput: createReadInput(player),
+  traffic: trafficOn ? traffic : undefined,
 });
 
 let lastCalls = 0;
@@ -206,7 +232,12 @@ const game: GameDebug = {
   done: false,
   errors,
   params,
-  rendererInfo: () => ({ calls: lastCalls, triangles: lastTriangles, instances: sprites.count }),
+  rendererInfo: () => ({
+    calls: lastCalls,
+    triangles: lastTriangles,
+    instances: sprites.count,
+    dropped: sprites.dropped,
+  }),
   frameStats: () => frameStats.summarize({ p50: 0, p99: 0, max: 0, samples: 0 }),
   get tick() {
     return loop.curr.tick;
@@ -225,7 +256,8 @@ function renderFrame(): void {
   const p = loop.prev.cars[0]!;
   const c = loop.curr.cars[0]!;
   // R24: in DRIFT the camera moves toward the inside of the corner; the car is drawn off-centre.
-  const camX = driftVisual.cameraX;
+  // R45: the contact shake moves the whole camera (road, traffic and the car line together).
+  const camX = driftVisual.cameraX + bump.shake;
   project(proj, track, p.z + (c.z - p.z) * a, p.x + (c.x - p.x) * a + camX, view, roadConfig);
   road.update(proj);
   sprites.begin();
@@ -238,8 +270,19 @@ function renderFrame(): void {
     steer * car3dConfig.leanRollDeg -
     (driftVisual.yaw / spritesConfig.drift.yawMaxDeg) * car3dConfig.driftRollDeg;
   carView.update(yaw, roll, carDx);
+  carView.scene.visible = bump.visible; // R45 blink while bumpTicks > 0
   world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
   world.drawRoadside(sprites, proj, roadside, roadsideIndex);
+  world.drawTraffic(
+    sprites,
+    proj,
+    loop.prev.cars,
+    loop.curr.cars,
+    a,
+    playerLineOffset(view, roadConfig, spritesConfig.player.baseY),
+    // R45: car width in world units (one lane = 2 * halfWidth / lanes), read live.
+    (spritesConfig.traffic.widthLanes * 2 * roadConfig.halfWidth) / roadConfig.lanes,
+  );
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
   ribbon.update(
@@ -272,6 +315,7 @@ function frame(time: number): void {
     loop.curr.cars[0]!,
     pa + (ca - pa) * loop.alpha,
   );
+  bump.update(Math.min(frameSeconds, MAX_VISUAL_DT), loop.curr.cars[0]!.bumpTicks);
   renderFrame();
   hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
@@ -289,6 +333,7 @@ if (fixedTicks !== null) {
   for (let i = 0; i < fixedTicks; i++) {
     loop.stepTicks(1);
     driftVisual.update(DT, loop.curr.cars[0]!, loop.curr.cars[0]!.angle);
+    bump.update(DT, loop.curr.cars[0]!.bumpTicks);
   }
   renderFrame();
   game.done = true;

@@ -304,6 +304,90 @@
       "max": 1,
       "step": 0.01,
       "label": "cameraOffset — камера внутрь дрифта, полуширин (R24)"
+    },
+    "car.carLength": {
+      "min": 0.5,
+      "max": 4,
+      "step": 0.05,
+      "label": "carLength — длина касания по z, сегментов (R40)"
+    },
+    "car.carHitW": {
+      "min": 0.05,
+      "max": 0.3,
+      "step": 0.01,
+      "label": "carHitW — ширина касания игрока, полуширин (R40)"
+    },
+    "car.trafficHitW": {
+      "min": 0.05,
+      "max": 0.3,
+      "step": 0.01,
+      "label": "trafficHitW — ширина касания трафика, полуширин (R40)"
+    },
+    "car.bumpSpeedLoss": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "bumpSpeedLoss — удар сзади: ниже скорости трафика, доли vmax (R41)"
+    },
+    "car.bumpSideLoss": {
+      "min": 0,
+      "max": 0.3,
+      "step": 0.01,
+      "label": "bumpSideLoss — касание боком: потеря скорости, доли vmax (R41)"
+    },
+    "car.bumpFloor": {
+      "min": 0,
+      "max": 0.8,
+      "step": 0.01,
+      "label": "bumpFloor — нижняя граница скорости после касания, доли vmax (R41)"
+    },
+    "car.bumpKick": {
+      "min": 0,
+      "max": 2,
+      "step": 0.05,
+      "label": "bumpKick — толчок вбок, полуширин/с (R42)"
+    },
+    "car.bumpInvulnTime": {
+      "min": 0.1,
+      "max": 3,
+      "step": 0.05,
+      "label": "bumpInvulnTime — неуязвимость после касания, с (R43)"
+    },
+    "car.bumpAngleLoss": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "bumpAngleLoss — потеря угла дрифта при касании (R44)"
+    },
+    "sprites.traffic.widthLanes": {
+      "min": 0.3,
+      "max": 1,
+      "step": 0.01,
+      "label": "traffic.widthLanes — ширина машины трафика, полос (R45)"
+    },
+    "sprites.bump.blinkHz": {
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "label": "bump.blinkHz — мигание игрока после касания, раз/с (R45)"
+    },
+    "sprites.bump.shakeAmp": {
+      "min": 0,
+      "max": 0.2,
+      "step": 0.005,
+      "label": "bump.shakeAmp — тряска камеры, полуширин (R45)"
+    },
+    "sprites.bump.shakeTime": {
+      "min": 0.05,
+      "max": 1,
+      "step": 0.01,
+      "label": "bump.shakeTime — длительность тряски, с (R45)"
+    },
+    "sprites.bump.shakeHz": {
+      "min": 1,
+      "max": 40,
+      "step": 1,
+      "label": "bump.shakeHz — частота тряски, Гц (R45)"
     }
   },
   "flags": {

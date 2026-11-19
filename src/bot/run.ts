@@ -2,8 +2,8 @@
 // Setup allocates; the tick loop does not.
 import type { ClassedSection, CurveClass } from '../data/tracks';
 import { DT } from '../sim/constants';
-import { createRace, step } from '../sim/race';
-import type { CarParams, InputFrame, Track } from '../sim/types';
+import { createRace, placeTraffic, step } from '../sim/race';
+import type { CarParams, InputFrame, Track, TrafficConfig } from '../sim/types';
 import { botInput, createBot, type BotParams } from './driver';
 
 /** How metrics are measured (from gate.config.json "measure"). */
@@ -44,6 +44,8 @@ export interface RunResult {
   nan: boolean;
   corners: CornerRun[]; // one per track section
   fingerprint: string; // FNV-1a over the per-tick state, for determinism checks
+  /** Only in a run with traffic (R70, R71): contacts (R40) and traffic cars overtaken. */
+  traffic?: { bumps: number; bumpsInDrift: number; passed: number };
 }
 
 const f64 = new Float64Array(1);
@@ -62,6 +64,7 @@ export function runBot(
   sections: readonly ClassedSection[],
   seed: number,
   m: MeasureConfig,
+  traffic?: TrafficConfig,
 ): RunResult {
   const n = track.segments.length;
   // Segment -> section index, and the segment where each section's hold begins.
@@ -105,12 +108,17 @@ export function runBot(
     fingerprint: '',
   };
 
-  const race = createRace(seed, 1);
+  const race = createRace(seed, 1, traffic ? traffic.trafficMax : 0);
+  if (traffic) placeTraffic(race, traffic, p.vmax);
   const car = race.cars[0]!;
   const bot = createBot(seed);
   const frame: InputFrame = { steer: 0, brake: false, drift: false };
-  const inputs = [frame];
-  const params = [p];
+  const idle: InputFrame = { steer: 0, brake: false, drift: false };
+  const inputs = race.cars.map((_, i) => (i === 0 ? frame : idle));
+  const params = race.cars.map(() => p);
+  const cars = race.cars;
+  const tz = new Float64Array(cars.length);
+  const tr = traffic ? { bumps: 0, bumpsInDrift: 0, passed: 0 } : null;
   const goal = m.laps * n;
   const maxTicks = Math.ceil((m.laps * m.maxSecondsPerLap) / DT);
   let lapStartTick = 0;
@@ -120,10 +128,23 @@ export function runBot(
   let hash = 2166136261;
 
   while (car.z < goal && race.tick < maxTicks) {
-    botInput(bot, bp, car, track, p, frame);
+    botInput(bot, bp, car, track, p, frame, cars);
     const segBefore = Math.floor(car.z) % n;
     const zBefore = car.z;
-    step(race, inputs, track, params);
+    const bumpBefore = car.bumpTicks;
+    for (let i = 1; i < cars.length; i++) tz[i] = cars[i]!.z;
+    step(race, inputs, track, params, traffic);
+    if (tr) {
+      // R43: bumpTicks only rises on a contact.
+      if (car.bumpTicks > bumpBefore) {
+        tr.bumps++;
+        if (car.state === 'DRIFT') tr.bumpsInDrift++;
+      }
+      // Overtaken: was ahead of the player before the step, level or behind after it.
+      for (let i = 1; i < cars.length; i++) {
+        if (tz[i]! > zBefore && cars[i]!.z <= car.z) tr.passed++;
+      }
+    }
 
     const x = car.x;
     const sp = car.speed / p.vmax;
@@ -180,5 +201,6 @@ export function runBot(
   r.ticks = race.tick;
   r.finished = !r.nan && car.z >= goal && r.lapTimes.length === m.laps;
   r.fingerprint = (hash >>> 0).toString(16).padStart(8, '0');
+  if (tr) r.traffic = tr;
   return r;
 }

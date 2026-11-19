@@ -1,6 +1,6 @@
 import { DT } from '../sim/constants';
 import { step } from '../sim/race';
-import type { CarParams, InputFrame, RaceState, Track } from '../sim/types';
+import type { CarParams, InputFrame, RaceState, Track, TrafficConfig } from '../sim/types';
 
 /** Hard cap on sim steps per advance() call (spiral-of-death guard). 8 ticks = 66.7 ms. */
 export const MAX_STEPS_PER_FRAME = 8;
@@ -13,6 +13,8 @@ export interface LoopOptions {
   params: readonly CarParams[];
   readInput: InputSource;
   maxStepsPerFrame?: number;
+  /** R71 traffic respawn config; absent = traffic cars (if any) never respawn. */
+  traffic?: TrafficConfig | undefined;
 }
 
 export interface Loop {
@@ -49,6 +51,7 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.driftHeld = s.driftHeld;
     d.armTicks = s.armTicks;
     d.lowTicks = s.lowTicks;
+    d.bumpTicks = s.bumpTicks;
   }
 }
 
@@ -62,14 +65,14 @@ export function createLoop(initial: RaceState, opts: LoopOptions): Loop {
   const inputs: InputFrame[] = [];
   for (let i = 0; i < initial.cars.length; i++)
     inputs.push({ steer: 0, brake: false, drift: false });
-  const { track, params, readInput } = opts;
+  const { track, params, readInput, traffic } = opts;
   const maxSteps = opts.maxStepsPerFrame ?? MAX_STEPS_PER_FRAME;
   let acc = 0;
 
   function tick(): void {
     readInput(curr.tick, inputs);
     copyRaceState(curr, prev);
-    step(curr, inputs, track, params);
+    step(curr, inputs, track, params, traffic);
   }
 
   const loop = {

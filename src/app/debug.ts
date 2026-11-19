@@ -9,12 +9,14 @@ export interface GameParams {
   hud: boolean;
   map: boolean; // ribbonMap off unless ?map=1
   track: string; // reserved: track selector (only the default loop exists)
+  traffic: boolean; // R70 traffic on the default track; ?traffic=0 turns it off
 }
 
 export interface RendererStats {
   calls: number;
   triangles: number;
   instances: number; // SpriteBatch instances drawn
+  dropped: number; // SpriteBatch instances dropped in the last frame (capacity overflow)
 }
 
 /** Live tuning registry (src/dev): paths like 'car.accel', 'camera.fovDeg'. */
@@ -65,6 +67,7 @@ export function parseParams(search: string): GameParams {
     hud: q.get('hud') === '1',
     map: q.get('map') === '1',
     track: q.get('track') ?? 'twisty',
+    traffic: q.get('traffic') !== '0',
   };
 }
 

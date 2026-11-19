@@ -39,12 +39,12 @@ function startHeight(track: Track, seg: number): number {
   return seg === 0 ? 0 : (track.segments[seg - 1]!.y ?? 0);
 }
 
-function focalPx(camera: CameraConfig): number {
+export function focalPx(camera: CameraConfig): number {
   return camera.screenWidth / 2 / Math.tan((camera.fovDeg * Math.PI) / 360);
 }
 
 // Distance from the camera to the line at the bottom of the screen.
-function nearDistance(camera: CameraConfig, f: number): number {
+export function nearDistance(camera: CameraConfig, f: number): number {
   return (f * camera.height) / (camera.screenHeight - camera.horizon * camera.screenHeight);
 }
 
