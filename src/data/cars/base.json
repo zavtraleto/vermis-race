@@ -25,5 +25,14 @@
   "driftStraightTime": 0.4,
   "driftAngleResponse": 6,
   "driftSpeedLoss": 0.15,
-  "driftBrake": 0.3
+  "driftBrake": 0.3,
+  "carLength": 1.5,
+  "carHitW": 0.16,
+  "trafficHitW": 0.16,
+  "bumpSpeedLoss": 0.1,
+  "bumpSideLoss": 0.05,
+  "bumpFloor": 0.3,
+  "bumpKick": 0.6,
+  "bumpInvulnTime": 0.8,
+  "bumpAngleLoss": 0.3
 }
