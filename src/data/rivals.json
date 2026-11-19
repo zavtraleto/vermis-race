@@ -45,5 +45,18 @@
   "bandStartDelay": 15,
   "poolRadius": 1800,
   "poolSpawnBehind": 60,
-  "joinShowTime": 4
+  "joinShowTime": 4,
+  "mistakePeriod": [
+    20,
+    50,
+    110
+  ],
+  "mistakeTimeMin": 0.3,
+  "mistakeTimeMax": 0.6,
+  "mistakeSteerMin": 0.3,
+  "mistakeSteerMax": 0.6,
+  "mistakeBandMul": 0.6,
+  "rivalNameDistance": 40,
+  "leaderboardRows": 5,
+  "placeFlashTime": 0.8
 }

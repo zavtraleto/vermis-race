@@ -612,9 +612,79 @@ describe('R84 motion', () => {
     });
   });
 
-  describe('R84 DRIFT: velT = dir*driftLat*(slip*dir/slipFull + min(0, u)) - driftPush*A', () => {
+  describe('R84 DRIFT: velT = dir*driftLat*(slip*dir/slipFull + driftCounter*min(0, u)) - push*A', () => {
     // vel chase factor 1 - exp(-velGripDrift*DT) = 1 - exp(-3/120) = 0.024690
     const cf = 1 - Math.exp(-3 * DT);
+    // Q: driftCounter 1, wrongPush = driftPush = 0.0287 -> bit-for-bit the pre-revision formula.
+    // PN: the revised start numbers (driftCounter 0, wrongPush 0.13), explicit so the data file is not read.
+    const PN: CarParams = { ...Q, driftCounter: 0, wrongPush: 0.13, driftPush: 0.0287 };
+    it('R84 DRIFT driftCounter 0: counter-steer has no lateral effect (u < 0 gives the same vel as u = 0)', () => {
+      // slip 0, straight: velT = 0.46*(0 + 0*u) - 0 = 0 for every u; vel1 = 0.1 + (0 - 0.1)*0.024690 = 0.097531
+      const a = mk({ speed: 0.8, state: 'DRIFT', dir: 1, yaw: 0.1, vel: 0.1 });
+      const b = mk({ speed: 0.8, state: 'DRIFT', dir: 1, yaw: 0.1, vel: 0.1 });
+      stepB(a, inp(-0.5, true), PN);
+      stepB(b, inp(0, true), PN);
+      expect(car(a).vel).toBeCloseTo(0.1 - 0.1 * cf, 9);
+      expect(car(a).vel).toBe(car(b).vel);
+      expect(car(a).yaw).toBe(car(b).yaw);
+    });
+    it('R84 DRIFT driftCounter is a plain factor on the counter-steer term (0.5)', () => {
+      // velT = 0.46*(0 + 0.5*(-0.5)) = -0.115; vel1 = 0.1 + (-0.115 - 0.1)*0.024690
+      const s = mk({ speed: 0.8, state: 'DRIFT', dir: 1, yaw: 0.1, vel: 0.1 });
+      stepB(s, inp(-0.5, true), { ...Q, driftCounter: 0.5 });
+      expect(car(s).vel).toBeCloseTo(0.1 + (-0.115 - 0.1) * cf, 9);
+    });
+    it('R84 DRIFT driftCounter 0 does not change the finger-toward-dir case (u = 0.4, A toward dir)', () => {
+      const a = mk({ speed: 0.5, state: 'DRIFT', dir: 1, yaw: 0.9, vel: 0.3, yawRate: 0.2 });
+      const b = mk({ speed: 0.5, state: 'DRIFT', dir: 1, yaw: 0.9, vel: 0.3, yawRate: 0.2 });
+      stepB(a, inp(0.4, true), PN, constTrack(3));
+      stepB(b, inp(0.4, true), Q, constTrack(3));
+      expect(car(a).vel).toBe(car(b).vel);
+    });
+    // Push selection by the sign of A*dir. A = curve*speed/vmax*kYaw = curve*2 at speed 1; steer 0, slip 0, vel 0.
+    it('R84 DRIFT push: turn toward the drift side (right drift, right curve 4.5, A = 9) uses driftPush', () => {
+      // velT = -0.0287*9 = -0.2583
+      const s = mk({ speed: 1, state: 'DRIFT', dir: 1 });
+      stepB(s, inp(0, true), PN, constTrack(4.5));
+      expect(car(s).vel).toBeCloseTo(-0.0287 * 9 * cf, 9);
+    });
+    it('R84 DRIFT push: turn against the drift side (right drift, left curve -4.5, A = -9) uses wrongPush', () => {
+      // A*dir = -9 < 0 -> velT = -0.13*(-9) = +1.17
+      const s = mk({ speed: 1, state: 'DRIFT', dir: 1 });
+      stepB(s, inp(0, true), PN, constTrack(-4.5));
+      expect(car(s).vel).toBeCloseTo(0.13 * 9 * cf, 9);
+    });
+    it('R84 DRIFT push mirror: left drift, left curve uses driftPush; left drift, right curve uses wrongPush', () => {
+      // dir -1, A = -9: A*dir = 9 >= 0 -> velT = -0.0287*(-9) = +0.2583
+      const toward = mk({ speed: 1, state: 'DRIFT', dir: -1 });
+      stepB(toward, inp(0, true), PN, constTrack(-4.5));
+      expect(car(toward).vel).toBeCloseTo(0.0287 * 9 * cf, 9);
+      // dir -1, A = +9: A*dir = -9 < 0 -> velT = -0.13*9 = -1.17
+      const against = mk({ speed: 1, state: 'DRIFT', dir: -1 });
+      stepB(against, inp(0, true), PN, constTrack(4.5));
+      expect(car(against).vel).toBeCloseTo(-0.13 * 9 * cf, 9);
+    });
+    it('R84 DRIFT push on a straight (A = 0, both sides): zero whatever the pushes are', () => {
+      // velT = -push*0 = 0 for dir +1 and dir -1; vel stays 0
+      for (const dir of [1, -1] as const) {
+        const s = mk({ speed: 1, state: 'DRIFT', dir });
+        stepB(s, inp(0, true), { ...PN, wrongPush: 5, driftPush: 5 });
+        expect(car(s).vel).toBeCloseTo(0, 12);
+      }
+    });
+    it('R84 wrongPush and driftCounter exist only in DRIFT: GRIP is identical for any values', () => {
+      const run = (p: CarParams) => {
+        const s = mk({ speed: 1 });
+        stepN(s, 60, inp(0.3), p, constTrack(-4.5));
+        return car(s);
+      };
+      const a = run(PN);
+      const b = run({ ...PN, wrongPush: 9, driftCounter: 1 });
+      expect(a.state).toBe('GRIP');
+      expect(b.vel).toBe(a.vel);
+      expect(b.yaw).toBe(a.yaw);
+      expect(b.x).toBe(a.x);
+    });
     it('R84 DRIFT one tick: velT from the new slip and A, vel chases it, yaw = vel + slip', () => {
       // DRIFT dir +1, speed 0.5, curve 3 (A = 3*0.5*2 = 3), steer 0.4 (u = 0.4), yaw 0.9, vel 0.3, yawRate 0.2.
       // slip1 = 0.603471 (see R83); velT = 0.46*(0.603471/2.64 + min(0, 0.4)) - 0.0287*3

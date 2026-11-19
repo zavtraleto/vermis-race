@@ -10,7 +10,9 @@ import {
 } from '../data/render';
 import hypotheses from '../data/hypotheses.json';
 import { inputConfig } from '../data/input';
+import { mistakeConfig, rivalConfig, rivalNames, rivalUiConfig } from '../data/rivals';
 import { trafficConfig } from '../data/traffic';
+import tunablesRivals from '../data/tunablesRivals.json';
 import scenarios from '../data/scenarios.json';
 import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
@@ -26,6 +28,7 @@ import { CarView } from '../render/carModel';
 import { CarWeight } from '../render/carWeight';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
+import { RivalModels } from '../render/rivalModels';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
@@ -36,17 +39,21 @@ import { RoadMesh } from '../render/roadMesh';
 import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
-import { DT } from '../sim/constants';
-import { createRace, placeTraffic } from '../sim/race';
+import { DT, SEG_PER_UNIT } from '../sim/constants';
+import { createRivalDrivers, fillRivalInputs } from '../bot/rivals';
+import { createRace, placeRivals, placeTraffic } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
 import { curveClasses, loadTestTwisty, loadTrackByName } from '../data/tracks';
-import type { InputFrame, Track, TrafficConfig } from '../sim/types';
+import type { CarParams, InputFrame, RivalConfig, Track, TrafficConfig } from '../sim/types';
+import { Leaderboard } from '../ui/leaderboard';
+import { NameLabels } from '../ui/nameLabels';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
 import { installDev } from '../dev/install';
+import type { TunableSpec } from '../dev/tunables';
 import render3dJson from '../data/render3d.json';
 import tunables3d from '../data/tunables3d.json';
 import { Render3d } from '../render3d/render3d';
@@ -70,6 +77,19 @@ if (params.model !== null) baseCar.model = params.model;
 // Spike E1: ?render=3d draws the same game as a true 3D scene (src/render3d).
 const render3dConfig: Render3dConfig = render3dJson;
 const use3d = params.render === '3d';
+// R60-R66: the live rivals config the sim reads every tick (dev panel group «Соперники»).
+const rivalsCfg: RivalConfig = { ...rivalConfig, lanes: roadConfig.lanes };
+// Rival sliders live in their own range file (src/data/tunablesRivals.json); merged with the
+// spike E1 render3d ranges when that renderer runs.
+type MetaSpec = TunableSpec & { meta?: Record<string, unknown> };
+const rivalSpec = tunablesRivals as MetaSpec;
+const extraSpec: MetaSpec = use3d
+  ? {
+      numbers: { ...rivalSpec.numbers, ...(tunables3d as MetaSpec).numbers },
+      flags: { ...rivalSpec.flags, ...(tunables3d as MetaSpec).flags },
+      meta: { ...rivalSpec.meta, ...(tunables3d as MetaSpec).meta },
+    }
+  : rivalSpec;
 // Dev tuning: live config objects + saved/URL diff, before anything reads them (T4).
 const tunables = installDev(
   {
@@ -79,9 +99,12 @@ const tunables = installDev(
     sprites: spritesConfig,
     hypotheses,
     render3d: render3dConfig,
+    rivals: rivalsCfg,
+    mistakes: mistakeConfig,
+    rivalUi: rivalUiConfig,
   },
   window.location.search,
-  use3d ? tunables3d : undefined,
+  extraSpec,
 );
 // R47: the sim hits the lamps the roadside layout draws. The layout is built once below from the
 // (dev-diffed) sprites config and its lamp sliders apply after a reload, so one copy here at load
@@ -136,6 +159,8 @@ const driftScenario =
 const sharpScenario = params.scenario === 'sharp' ? scenarios.sharp : null;
 // map-curve: the test-twisty loop (pinned, not the default track), shortly before a corner (ribbon map screenshot).
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
+// R67 rivals look: literal straight track, rivals at fixed gaps ahead, labels and leaderboard.
+const rivalsScenario = params.scenario === 'rivals' ? scenarios.rivals : null;
 // R30 hill-crest / hill-dip: literal straight track with hills, car placed at a fixed z.
 const hillScenario =
   params.scenario === 'hill-crest' || params.scenario === 'hill-dip'
@@ -151,13 +176,14 @@ const fixedScenario =
   mapScenario ??
   driftScenario ??
   sharpScenario ??
-  hillScenario;
+  hillScenario ??
+  rivalsScenario;
 const curve = curveScenario ?? driftScenario;
 const track = curve
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
-    : straightScenario || roadsideScenario || crashScenario || trafficScenario
+    : straightScenario || roadsideScenario || crashScenario || trafficScenario || rivalsScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : hillScenario
         ? buildTrack({ sections: hillScenario.sections })
@@ -283,8 +309,30 @@ const traffic: TrafficConfig = { ...trafficConfig, lanes: roadConfig.lanes };
 const scenarioCars =
   trafficScenario ?? (params.scenario === 'drift-camera' ? scenarios['drift-camera'] : null);
 const trafficCount = trafficOn ? traffic.trafficMax : scenarioCars ? scenarioCars.cars.length : 0;
-const race = createRace(params.seed, 1, trafficCount);
+// R60: the default track runs with rivals (off with ?rivals=0); screenshot and stress scenarios
+// run without them so their frames do not change (the rivals scenario places its own).
+const rivalsOn = fixedScenario === null && stress === null && params.rivals;
+const rivalCount = rivalsOn
+  ? Math.max(0, Math.floor(rivalsCfg.rivalCount))
+  : rivalsScenario
+    ? rivalsScenario.rivals.length
+    : 0;
+const race = createRace(params.seed, 1 + rivalCount, trafficCount);
+if (rivalsOn) placeRivals(race, rivalsCfg);
 if (trafficOn) placeTraffic(race, traffic, baseCar.vmax);
+if (rivalsScenario) {
+  race.cars[0]!.z = rivalsScenario.z;
+  race.cars[0]!.speed = rivalsScenario.speed;
+  rivalsScenario.rivals.forEach((t, i) => {
+    const c = race.cars[i + 1]!;
+    c.z = rivalsScenario.z + t.dz;
+    c.x = -1 + ((t.lane + 0.5) * 2) / roadConfig.lanes; // R70 lane centre
+    c.speed = t.speed;
+    c.nameId = t.nameId;
+    c.nemesis = t.nemesis;
+    c.joinTicks = t.join * Math.round(rivalsCfg.joinShowTime / DT);
+  });
+}
 // Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
 if (driftScenario) {
   race.cars[0]!.speed = driftScenario.speed;
@@ -332,11 +380,69 @@ const render3d = use3d
       roadsideIndex,
     })
   : null;
+// R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
+// the copies follow live dev-panel edits of the player car.
+const carParams: CarParams[] = race.cars.map((c) =>
+  c.kind === 'rival' ? { ...baseCar } : baseCar,
+);
+tunables.onChange(() => {
+  for (const p of carParams) if (p !== baseCar) Object.assign(p, baseCar);
+});
+const rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;
+const readPlayer = createReadInput(player);
+const readInput = rivalDrivers
+  ? (tick: number, out: InputFrame[]): void => {
+      readPlayer(tick, out);
+      // H15 read live: A = rubber band on (R63), B = off; R63c reads the live bandBoost.
+      rivalsCfg.rubberBand = hypotheses.H15_rubberBand === 'B' ? 0 : 1;
+      mistakeConfig.bandBoost = rivalsCfg.bandBoost;
+      fillRivalInputs(rivalDrivers, loop.curr, track, carParams, mistakeConfig, out);
+    }
+  : readPlayer;
+// R67: rivals drawn with the player's model (one instanced draw call in the road pass), names
+// over them and the leaderboard in the UI layer.
+const rivalModels =
+  rivalCount > 0
+    ? new RivalModels(
+        car3dConfig,
+        spritesConfig.rivals,
+        spritesConfig.traffic,
+        spritesConfig.weight,
+        spritesConfig.bump,
+        spritesConfig.crash,
+        view,
+        roadConfig,
+        paletteConfig,
+        screenRoll.uniform,
+        overscan,
+        race.cars.length,
+      )
+    : null;
+if (rivalModels) scene.add(rivalModels.mesh);
+const rivalUiOn = uiOn && rivalCount > 0 && !use3d;
+const nameLabels = rivalUiOn
+  ? new NameLabels(document.body, canvas, rivalNames, WIDTH, HEIGHT, spritesConfig.rivals)
+  : null;
+// Metres per segment from the speedometer scale: vmax shows as vmaxKmh.
+const metersPerSegment = spritesConfig.speedometer.vmaxKmh / 3.6 / (baseCar.vmax * SEG_PER_UNIT);
+const leaderboard = rivalUiOn
+  ? new Leaderboard(
+      document.body,
+      canvas,
+      rivalUiConfig,
+      rivalNames,
+      1 + rivalCount,
+      metersPerSegment,
+    )
+  : null;
+// Frame seconds of the last updateVisuals() (rival yaw smoothing and the place flash).
+let visualDt = 0;
 const loop = createLoop(race, {
   track,
-  params: race.cars.map(() => baseCar),
-  readInput: createReadInput(player),
+  params: carParams,
+  readInput,
   traffic: trafficOn ? traffic : undefined,
+  rivals: rivalsOn ? rivalsCfg : undefined,
 });
 
 let lastCalls = 0;
@@ -352,6 +458,7 @@ const game: GameDebug = {
     instances: sprites.count,
     dropped: sprites.dropped,
     traffic: render3d ? render3d.info().traffic : trafficModels.count,
+    rivals: rivalModels ? rivalModels.count : 0,
   }),
   frameStats: () => frameStats.summarize({ p50: 0, p99: 0, max: 0, samples: 0 }),
   get tick() {
@@ -418,6 +525,22 @@ function renderFrame(): void {
     // R45: car width in world units (one lane = 2 * halfWidth / lanes), read live.
     (spritesConfig.traffic.widthLanes * 2 * roadConfig.halfWidth) / roadConfig.lanes,
   );
+  if (rivalModels) {
+    rivalModels.update(
+      proj,
+      loop.prev.cars,
+      loop.curr.cars,
+      a,
+      visualDt,
+      playerLineOffset(view, roadConfig, spritesConfig.player.baseY),
+      baseCar.model,
+      Math.round(baseCar.crashTime / DT),
+      spritesConfig.drift.yawMaxDeg,
+      rivalUiConfig.rivalNameDistance,
+    );
+    nameLabels?.draw(rivalModels, loop.curr.cars);
+  }
+  leaderboard?.update(visualDt, loop.curr.cars);
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
   if (speedometer)
@@ -442,6 +565,7 @@ function renderFrame(): void {
 function updateVisuals(dt: number, angle: number, alpha: number): void {
   const p = loop.prev.cars[0]!;
   const c = loop.curr.cars[0]!;
+  visualDt = dt;
   driftVisual.update(dt, c, angle);
   screenRoll.update(dt, c, angle);
   // R89: in model B the body yaw is vis*slipDeg + vel*velDeg with the visible slip

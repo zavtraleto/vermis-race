@@ -3,6 +3,7 @@ import type { CarView } from './carModel';
 import type { SpeedometerConfig } from '../ui/speedometer';
 import type { CarWeightConfig } from './carWeight';
 import type { CrashTumbleConfig } from './crashTumble';
+import type { RivalDrawConfig } from './rivalModels';
 import type { DriftVisual, DriftVisualConfig } from './driftVisual';
 import { placeOnRoad, type Placement } from './placeOnRoad';
 import type { CameraConfig, Projection } from './projection';
@@ -72,6 +73,7 @@ export interface SpritesConfig {
   bump: BumpFeedbackConfig;
   crash: CrashTumbleConfig;
   weight: CarWeightConfig;
+  rivals: RivalDrawConfig;
   driftCamera: ScreenRollConfig;
   speedometer: SpeedometerConfig;
 }

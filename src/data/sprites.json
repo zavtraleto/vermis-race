@@ -84,6 +84,12 @@
     "yawGain": 1,
     "yawMaxDeg": 30
   },
+  "rivals": {
+    "capacity": 16,
+    "widthLanes": 0.65,
+    "labelLift": 2.2,
+    "labelPx": 9
+  },
   "bump": {
     "blinkHz": 8,
     "shakeAmp": 0.03,

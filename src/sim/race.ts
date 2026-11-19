@@ -39,6 +39,7 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       steerHist: new Array<number>(STEER_HIST).fill(0),
       steerHistHead: 0,
       steerHistCount: 0,
+      deflectTicks: 0,
       crashTicks: 0,
       crashSpeed0: 0,
       crashX0: 0,

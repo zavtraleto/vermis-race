@@ -147,6 +147,15 @@ function inDriftCorner(segs: Track['segments'], n: number, i: number, cSkip: num
 }
 
 /**
+ * Cars the weaving (R46) steers around: every traffic car, and another race car (R65 contact,
+ * rivals) only while it is slower than this one (a faster one pulls away). Never the car itself.
+ */
+function isObstacle(t: Car, car: Car): boolean {
+  if (t === car) return false;
+  return t.kind === 'traffic' || t.speed < car.speed;
+}
+
+/**
  * True when the lateral move from x0 to x1 crosses the band (R40 hit width + margin) of a traffic
  * car in the scan window. A band that already contains x0 may be left on the side x0 is on.
  */
@@ -163,7 +172,7 @@ function crosses(
   const hi = x0 < x1 ? x1 : x0;
   for (let i = 0; i < cars.length; i++) {
     const t = cars[i]!;
-    if (t.kind !== 'traffic') continue;
+    if (!isObstacle(t, car)) continue;
     const dz = t.z - car.z;
     if (dz <= back || dz > bp.trafficLookaheadSeg) continue;
     const l = t.x - clear;
@@ -201,7 +210,7 @@ function avoidX(
   let bestD = Infinity;
   for (let i = 0; i < cars.length; i++) {
     const t = cars[i]!;
-    if (t.kind !== 'traffic') continue;
+    if (!isObstacle(t, car)) continue;
     const dz = t.z - car.z;
     if (dz <= back || dz > bp.trafficLookaheadSeg) continue;
     for (let s = -1; s <= 1; s += 2) {

@@ -146,6 +146,7 @@
     "hypotheses.H9_nearPerspective": ["off", "on"],
     "hypotheses.H10_offroad": ["A", "B"],
     "hypotheses.H14_model": ["A", "B"],
+    "hypotheses.H15_rubberBand": ["A", "B"],
     "sprites.drift.smoke": ["on", "off"]
   },
   "meta": {
@@ -1216,6 +1217,13 @@
       "tier": "legacy",
       "group": "Переключатели",
       "rule": "H14"
+    },
+    "hypotheses.H15_rubberBand": {
+      "title": "Резиновая лента соперников",
+      "hint": "A — соперники держатся у своего места (R63), B — лента выключена",
+      "tier": "more",
+      "group": "Соперники",
+      "rule": "H15"
     }
   }
 }
