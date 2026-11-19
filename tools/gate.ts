@@ -251,6 +251,8 @@ function metricTable(res: Results): string[] {
     'v mean',
     'v min',
     'brake',
+    'drift',
+    'dr/lap',
     'dead',
     'walls',
   ];
@@ -271,6 +273,8 @@ function metricTable(res: Results): string[] {
       f2(e.speed.mean),
       f2(e.speed.min),
       pct(e.brakeFraction),
+      pct(e.driftFraction),
+      f2(e.driftsPerLap),
       pct(e.deadTimeFraction),
       String(e.wallHits.total),
     ]);
