@@ -1,4 +1,4 @@
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from './baseCarA';
 import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 

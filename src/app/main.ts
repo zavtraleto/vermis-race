@@ -63,6 +63,9 @@ const MAX_VISUAL_DT = 0.1;
 const errors: string[] = [];
 installErrorCollectors(errors);
 const params = parseParams(window.location.search);
+// H14: ?model=a|b picks the driving model before the dev registry reads its defaults (so it is not
+// saved as a tuning diff); the panel switch car.model still changes it live.
+if (params.model !== null) baseCar.model = params.model;
 // Spike E1: ?render=3d draws the same game as a true 3D scene (src/render3d).
 const render3dConfig: Render3dConfig = render3dJson;
 const use3d = params.render === '3d';
@@ -222,20 +225,26 @@ attachKeyboard(window, keyboard, now);
 const retouch = createRetouchDrift(inputConfig.touch);
 const flick = createFlickDrift(inputConfig.touch);
 attachPointer(canvas, touchStick, now, retouch, flick);
-// Constant input for screenshot scenarios so the frame does not depend on the keyboard.
-function fixedInput(steer: number, drift: boolean): PlayerInput {
+// Constant input for screenshot scenarios so the frame does not depend on the keyboard. Drift
+// scenarios first hold `flickFrom` for `flickTicks` reads (one read per tick), then `steer`: the
+// R81 flick that enters a drift in model B (model A enters on the R20 edge as before).
+function fixedInput(steer: number, drift: boolean, flickFrom = steer, flickTicks = 0): PlayerInput {
   const last: InputFrame = { steer, brake: false, drift };
+  let reads = 0;
   return {
     last,
     read(out: InputFrame): void {
-      out.steer = steer;
+      out.steer = reads < flickTicks ? flickFrom : steer;
+      reads++;
       out.brake = false;
       out.drift = drift;
     },
   };
 }
 const player = fixedScenario
-  ? fixedInput(fixedScenario.steer, driftScenario !== null)
+  ? driftScenario
+    ? fixedInput(driftScenario.steer, true, driftScenario.flickFrom, driftScenario.flickTicks)
+    : fixedInput(fixedScenario.steer, false)
   : createPlayerInput(keyboard, touchStick, now, {
       // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
       // D = re-touch and swipe sideways, E = sharp sideways flick, held until release.
@@ -243,6 +252,8 @@ const player = fixedScenario
       autoDrift: createAutoDrift(inputConfig.touch),
       retouch,
       flick,
+      // H14 read live: in model B the touch drift input is "pointer held", H3 is ignored.
+      car: baseCar,
       warn: (m) => console.warn(m),
     });
 
@@ -394,6 +405,14 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   const c = loop.curr.cars[0]!;
   driftVisual.update(dt, c, angle);
   screenRoll.update(dt, c, angle);
+  // R89: in model B the body yaw is slip*slipDeg + vel*velDeg (interpolated, both states).
+  let bodyYaw: number | null = null;
+  if (baseCar.model === 1) {
+    const vel = p.vel + (c.vel - p.vel) * alpha;
+    const slip = p.yaw + (c.yaw - p.yaw) * alpha - vel;
+    const w = spritesConfig.weight;
+    bodyYaw = slip * w.slipDeg + vel * w.velDeg;
+  }
   weight.update(
     dt,
     p,
@@ -404,6 +423,7 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
     car3dConfig.driftRollDeg,
     roadConfig.halfWidth,
     roadConfig.segmentLength,
+    bodyYaw,
   );
   bump.update(dt, c.bumpTicks);
   render3d?.update(loop.prev.cars, loop.curr.cars, alpha, dt);

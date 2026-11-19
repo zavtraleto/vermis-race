@@ -25,6 +25,8 @@ export interface DriftEntryOptions {
   retouch?: RetouchDrift;
   /** H3 E: flick detector fed by the pointer adapter / the poll. */
   flick?: FlickDrift;
+  /** H14, read live: in model B (model 1) touch drift = the pointer is held, H3 does not apply (R81). */
+  car?: { readonly model: number };
   warn: (message: string) => void;
 }
 
@@ -53,8 +55,10 @@ export function createPlayerInput(
           entry = resolveDriftEntry(f, drift.warn);
           drift.autoDrift.reset();
         }
+        // R81 (model B): drift input = finger on the screen or mouse button held; the sim finds the flick.
+        if (drift.car?.model === 1) touchFrame.drift = touch.activeId !== null;
         // H3 C: the pull-down gesture is ignored, touch drift follows the stick deflection.
-        if (entry === 'C') touchFrame.drift = drift.autoDrift.update(touchFrame.steer);
+        else if (entry === 'C') touchFrame.drift = drift.autoDrift.update(touchFrame.steer);
         // H3 D: the pull-down gesture is ignored, touch drift = re-touch + sideways swipe.
         else if (entry === 'D') touchFrame.drift = drift.retouch?.active ?? false;
         // H3 E: the pull-down gesture is ignored, touch drift = a flick latched until release.

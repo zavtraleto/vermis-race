@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from './baseCarA';
 import { step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState } from '../../src/sim/types';
 import { constTrack, inp, oneCar } from './driving_helpers';

@@ -11,6 +11,7 @@ export interface GameParams {
   track: string; // reserved: track selector (only the default loop exists)
   traffic: boolean; // R70 traffic on the default track; ?traffic=0 turns it off
   ui: boolean; // R28 UI layer (speedometer); ?ui=0 hides it
+  model: 0 | 1 | null; // H14 driving model: ?model=a -> 0, ?model=b -> 1, absent or other -> null (data)
   render: string; // spike E1: '3d' = true 3D renderer (src/render3d), anything else = pseudo-3D
 }
 
@@ -72,6 +73,7 @@ export function parseParams(search: string): GameParams {
     track: q.get('track') ?? 'twisty',
     traffic: q.get('traffic') !== '0',
     ui: q.get('ui') !== '0',
+    model: q.get('model') === 'a' ? 0 : q.get('model') === 'b' ? 1 : null,
     render: q.get('render') ?? 'pseudo',
   };
 }

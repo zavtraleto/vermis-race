@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from './baseCarA';
 import { DT, SEG_PER_UNIT } from '../../src/sim/constants';
 import { nextRandom } from '../../src/sim/rng';
 import type { InputFrame } from '../../src/sim/types';

@@ -1,4 +1,4 @@
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from './baseCarA';
 import { DT, SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';

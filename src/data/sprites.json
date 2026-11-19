@@ -101,7 +101,9 @@
     "rollTau": 0.12,
     "pitchGain": 2.5,
     "pitchMaxDeg": 4,
-    "pitchTau": 0.15
+    "pitchTau": 0.15,
+    "slipDeg": 17,
+    "velDeg": 5
   },
   "driftCamera": {
     "rollDeg": 6,

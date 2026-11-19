@@ -54,6 +54,16 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.bumpTicks = s.bumpTicks;
     d.draft = s.draft;
     d.boostTicks = s.boostTicks;
+    // Model B (R80-R88): the ring buffer is copied element by element (no allocation).
+    d.yaw = s.yaw;
+    d.yawRate = s.yawRate;
+    d.vel = s.vel;
+    d.recover = s.recover;
+    const sh = s.steerHist;
+    const dh = d.steerHist;
+    for (let j = 0; j < sh.length; j++) dh[j] = sh[j]!;
+    d.steerHistHead = s.steerHistHead;
+    d.steerHistCount = s.steerHistCount;
   }
 }
 

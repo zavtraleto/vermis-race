@@ -15,6 +15,8 @@ export interface CarWeightConfig {
   pitchGain: number; // degrees per vmax/s of speed change; speed loss = nose down
   pitchMaxDeg: number;
   pitchTau: number; // s, derivative filter and smoothing of the pitch
+  slipDeg: number; // R89 model B: degrees on screen per unit of slip (yaw - vel)
+  velDeg: number; // R89 model B: degrees on screen per unit of vel
 }
 
 const RAD = 180 / Math.PI;
@@ -54,6 +56,8 @@ export class CarWeight {
    * dt = frame (or tick) seconds; prev/curr = the two last sim states of the player; speed = the
    * interpolated speed; driftYaw = the smoothed R24 yaw in degrees (0 in GRIP); yawMaxDeg /
    * driftRollDeg = R24 / R25 numbers; halfWidth / segmentLength = world units of the road.
+   * bodyYaw = R89 model B: slip*slipDeg + vel*velDeg in degrees (interpolated), replacing the R24/R26
+   * yaw path in both states; null in model A.
    */
   update(
     dt: number,
@@ -65,6 +69,7 @@ export class CarWeight {
     driftRollDeg: number,
     halfWidth: number,
     segmentLength: number,
+    bodyYaw: number | null = null,
   ): void {
     const c = this.cfg;
     const vLat = (curr.x - prev.x) / DT; // half-widths per second, relative to the road
@@ -77,7 +82,8 @@ export class CarWeight {
     const gripYaw = clamp(c.yawGain * Math.atan2(vLat * halfWidth, forward) * RAD, c.yawMaxDeg);
     const drifting = curr.state === 'DRIFT' && curr.dir !== 0;
     this.blend = approach(this.blend, drifting ? 1 : 0, dt, c.blendTau);
-    const yawTarget = this.blend * driftYaw + (1 - this.blend) * gripYaw;
+    const yawTarget =
+      bodyYaw !== null ? bodyYaw : this.blend * driftYaw + (1 - this.blend) * gripYaw;
     this.yaw = approach(this.yaw, yawTarget, dt, c.yawTau);
 
     this.vSmooth = approach(this.vSmooth, vLat, dt, c.rollTau);
