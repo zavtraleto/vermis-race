@@ -81,8 +81,8 @@ describe('R40 contact condition', () => {
     expect(a.bumpTicks + b.bumpTicks + s.cars[0]!.bumpTicks).toBe(0);
   });
 
-  it('a traffic car is never modified by a contact (only R16 moves it)', () => {
-    const s = setup(P(0.8), [{ z: 10.9, x: 0.1, speed: 0.5 }]);
+  it('a traffic car is not modified by a SIDE contact (only R16 moves it; a rear hit pushes it, R41)', () => {
+    const s = setup(P(0.8), [{ z: 10, x: 0.1, speed: 0.5 }]);
     const t = s.cars[1]!;
     const before = { ...t };
     stepOnce(s);
@@ -92,22 +92,24 @@ describe('R40 contact condition', () => {
 });
 
 describe('R41 speed loss', () => {
-  it('rear hit: speed = min(speed, max(speedT - 0.1*vmax, 0.3*vmax))', () => {
-    // dz = zT - z = 0.9 > 0.75 -> rear. min(0.8, max(0.5 - 0.1, 0.3)) = min(0.8, 0.4) = 0.4
+  // R41 (rewritten 2026-11-19): the loss is taken from the hitter's own speed v0, not down to the
+  // traffic speed. Old tests encoded speed = max(speedT - 0.1*vmax, 0.3*vmax); updated here.
+  it('rear hit: speed = min(v0, max(v0 - 0.1*vmax, 0.3*vmax))', () => {
+    // dz = zT - z = 0.9 > 0.75 -> rear. min(0.8, max(0.8 - 0.1, 0.3)) = min(0.8, 0.7) = 0.7
     const s = setup(P(0.8), [{ z: 10.9, x: 0.1, speed: 0.5 }]);
     stepOnce(s);
-    expect(s.cars[0]!.speed).toBeCloseTo(0.4, 12);
+    expect(s.cars[0]!.speed).toBeCloseTo(0.7, 12);
   });
 
-  it('rear hit, floor case: traffic slow -> 0.3*vmax', () => {
-    // min(0.8, max(0.35 - 0.1, 0.3)) = min(0.8, 0.3) = 0.3
-    const s = setup(P(0.8), [{ z: 10.9, x: 0.1, speed: 0.35 }]);
+  it('rear hit, floor case: low v0 -> 0.3*vmax', () => {
+    // v0 = 0.35: min(0.35, max(0.35 - 0.1, 0.3)) = min(0.35, 0.3) = 0.3 (traffic speed is irrelevant)
+    const s = setup(P(0.35), [{ z: 10.9, x: 0.1, speed: 0.2 }]);
     stepOnce(s);
     expect(s.cars[0]!.speed).toBeCloseTo(0.3, 12);
   });
 
   it('rear hit, player already slower: speed unchanged', () => {
-    // min(0.2, max(0.5 - 0.1, 0.3)) = min(0.2, 0.4) = 0.2
+    // min(0.2, max(0.2 - 0.1, 0.3)) = min(0.2, 0.3) = 0.2
     const s = setup(P(0.2), [{ z: 10.9, x: 0.1, speed: 0.5 }]);
     stepOnce(s);
     expect(s.cars[0]!.speed).toBeCloseTo(0.2, 12);
@@ -208,8 +210,8 @@ describe('R43 invulnerability window', () => {
   });
 
   it('decrements by 1 per step down to 0, then stays 0', () => {
-    // After the rear hit the player is at 0.4 vs traffic 0.5: the gap opens by 0.05/tick, so the
-    // cars separate (|dz| >= 1.5) long before tick 96 and nothing re-triggers the counter.
+    // After the rear hit the player is at 0.7 vs traffic max(0.5, 0.8 + 0.1) = 0.9: the gap opens by
+    // 0.1/tick, so the cars separate (|dz| >= 1.5) long before tick 96 and nothing re-triggers the counter.
     const s = setup(P(0.8), [{ z: 10.9, x: 0.1, speed: 0.5 }]);
     stepOnce(s);
     for (let k = 1; k <= BUMP_TICKS; k++) {
@@ -230,6 +232,7 @@ describe('R43 invulnerability window', () => {
     // after the step the player is at p.z + 0.2 (speed 0.4); the car at z + 0.2 + 0.25 - 0.25.
     const t = s.cars[1]!;
     t.speed = 0.4;
+    Object.assign(t, { cruise: 0.4 }); // R41b
     t.x = p.x + 0.05;
     t.z = p.z; // after the step both advanced by 0.2 -> dz = 0
     const speedBefore = p.speed;

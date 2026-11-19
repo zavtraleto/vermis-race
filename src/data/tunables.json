@@ -106,6 +106,8 @@
     "car.trafficHitW": { "min": 0.05, "max": 0.3, "step": 0.01 },
     "car.bumpSpeedLoss": { "min": 0, "max": 0.5, "step": 0.01 },
     "car.bumpSideLoss": { "min": 0, "max": 0.3, "step": 0.01 },
+    "car.bumpPush": { "min": 0, "max": 0.5, "step": 0.01 },
+    "car.bumpPushDecay": { "min": 0, "max": 2, "step": 0.01 },
     "car.bumpFloor": { "min": 0, "max": 0.8, "step": 0.01 },
     "car.bumpKick": { "min": 0, "max": 2, "step": 0.05 },
     "car.bumpInvulnTime": { "min": 0.1, "max": 3, "step": 0.05 },
@@ -140,7 +142,11 @@
     "sprites.driftCamera.rollDeg": { "min": -15, "max": 15, "step": 0.5 },
     "sprites.driftCamera.rollTau": { "min": 0, "max": 1, "step": 0.01 },
     "sprites.traffic.yawGain": { "min": 0, "max": 2, "step": 0.05 },
-    "sprites.speedometer.vmaxKmh": { "min": 100, "max": 500, "step": 10 }
+    "sprites.speedometer.vmaxKmh": { "min": 100, "max": 500, "step": 10 },
+    "sprites.tailLights.size": { "min": 0.05, "max": 0.8, "step": 0.01 },
+    "sprites.tailLights.spread": { "min": 0, "max": 1, "step": 0.01 },
+    "sprites.tailLights.height": { "min": 0, "max": 2, "step": 0.01 },
+    "sprites.tailLights.minPx": { "min": 0, "max": 8, "step": 1 }
   },
   "flags": {
     "hypotheses.H1_driftBoost": ["A", "B"],
@@ -156,7 +162,8 @@
     "hypotheses.H14_model": ["A", "B"],
     "hypotheses.H15_rubberBand": ["A", "B"],
     "hypotheses.H16_driftEntry": ["A", "B", "C"],
-    "sprites.drift.smoke": ["on", "off"]
+    "sprites.drift.smoke": ["on", "off"],
+    "sprites.tailLights.enabled": ["on", "off"]
   },
   "meta": {
     "car.velGripDrift": {
@@ -713,7 +720,7 @@
     },
     "car.bumpSpeedLoss": {
       "title": "Удар сзади: потеря",
-      "hint": "больше — после удара сзади скорость намного ниже скорости трафика",
+      "hint": "больше — удар сзади сильнее тормозит (доля максимума от своей скорости)",
       "tier": "more",
       "group": "Трафик и удар",
       "rule": "R41"
@@ -724,6 +731,20 @@
       "tier": "more",
       "group": "Трафик и удар",
       "rule": "R41"
+    },
+    "car.bumpPush": {
+      "title": "Удар сзади: толчок трафика",
+      "hint": "больше — машину, в которую врезались, сильнее откидывает вперёд",
+      "tier": "more",
+      "group": "Трафик и удар",
+      "rule": "R41"
+    },
+    "car.bumpPushDecay": {
+      "title": "Возврат трафика после толчка",
+      "hint": "больше — откинутая машина быстрее возвращается к своей скорости",
+      "tier": "more",
+      "group": "Трафик и удар",
+      "rule": "R41b"
     },
     "car.bumpFloor": {
       "title": "Мин. скорость после удара",
@@ -836,6 +857,34 @@
       "tier": "more",
       "group": "Трафик и удар",
       "rule": "R49"
+    },
+    "sprites.tailLights.size": {
+      "title": "Размер габаритов",
+      "hint": "больше — красные огни сзади машин трафика и соперников крупнее",
+      "tier": "more",
+      "group": "Трафик и удар",
+      "rule": "R45b"
+    },
+    "sprites.tailLights.spread": {
+      "title": "Разнос габаритов",
+      "hint": "половина расстояния между двумя огнями, единицы модели",
+      "tier": "more",
+      "group": "Трафик и удар",
+      "rule": "R45b"
+    },
+    "sprites.tailLights.height": {
+      "title": "Высота габаритов",
+      "hint": "высота огней над дорогой, единицы модели",
+      "tier": "more",
+      "group": "Трафик и удар",
+      "rule": "R45b"
+    },
+    "sprites.tailLights.minPx": {
+      "title": "Мин. размер габаритов, px",
+      "hint": "огонь на экране не меньше этого, чтобы дальние машины были видны",
+      "tier": "more",
+      "group": "Трафик и удар",
+      "rule": "R45b"
     },
     "sprites.traffic.widthLanes": {
       "title": "Ширина машин трафика",
@@ -1219,6 +1268,13 @@
       "tier": "more",
       "group": "Переключатели",
       "rule": "R24"
+    },
+    "sprites.tailLights.enabled": {
+      "title": "Габаритные огни",
+      "hint": "on — у машин трафика и соперников сзади горят красные огни",
+      "tier": "more",
+      "group": "Переключатели",
+      "rule": "R45b"
     },
     "hypotheses.H3_driftEntry": {
       "title": "Вход в дрифт пальцем (A)",

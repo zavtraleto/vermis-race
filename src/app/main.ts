@@ -29,10 +29,11 @@ import { CarWeight } from '../render/carWeight';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
 import { RivalModels } from '../render/rivalModels';
+import { TailLights } from '../render/tailLights';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
-import { createProjection, project } from '../render/projection';
+import { createProjection, focalPx, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
 import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
@@ -437,6 +438,8 @@ const rivalModels =
       )
     : null;
 if (rivalModels) scene.add(rivalModels.mesh);
+// R45b: tail lights of traffic and rivals, pushed into the sprite batch (no extra draw call).
+const tailLights = new TailLights(spritesConfig.tailLights, view);
 const rivalUiOn = uiOn && rivalCount > 0 && !use3d;
 const nameLabels = rivalUiOn
   ? new NameLabels(document.body, canvas, rivalNames, WIDTH, HEIGHT, spritesConfig.rivals)
@@ -534,6 +537,7 @@ function renderFrame(): void {
   carView.scene.visible = bump.visible; // R45 blink while bumpTicks > 0
   world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
   world.drawRoadside(sprites, proj, roadside, roadsideIndex);
+  tailLights.begin(sprites, focalPx(view), view.screenWidth / 2, view.horizon * view.screenHeight);
   trafficModels.update(
     proj,
     loop.prev.cars,
@@ -542,6 +546,7 @@ function renderFrame(): void {
     playerLineOffset(view, roadConfig, spritesConfig.player.baseY),
     // R45: car width in world units (one lane = 2 * halfWidth / lanes), read live.
     (spritesConfig.traffic.widthLanes * 2 * roadConfig.halfWidth) / roadConfig.lanes,
+    tailLights,
   );
   if (rivalModels) {
     rivalModels.update(
@@ -555,6 +560,7 @@ function renderFrame(): void {
       Math.round(baseCar.crashTime / DT),
       spritesConfig.drift.yawMaxDeg,
       rivalUiConfig.rivalNameDistance,
+      tailLights,
     );
     nameLabels?.draw(rivalModels, loop.curr.cars);
   }

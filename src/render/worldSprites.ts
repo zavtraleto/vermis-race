@@ -4,6 +4,7 @@ import type { SpeedometerConfig } from '../ui/speedometer';
 import type { CarWeightConfig } from './carWeight';
 import type { CrashTumbleConfig } from './crashTumble';
 import type { RivalDrawConfig } from './rivalModels';
+import type { TailLightsConfig } from './tailLights';
 import type { DriftVisual, DriftVisualConfig } from './driftVisual';
 import { placeOnRoad, type Placement } from './placeOnRoad';
 import type { CameraConfig, Projection } from './projection';
@@ -76,6 +77,7 @@ export interface SpritesConfig {
   rivals: RivalDrawConfig;
   driftCamera: ScreenRollConfig;
   speedometer: SpeedometerConfig;
+  tailLights: TailLightsConfig;
 }
 
 /** R45 traffic cars (3D bodies in trafficModels.ts; the bodies themselves live in car3d.json). */
