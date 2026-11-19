@@ -68,7 +68,8 @@ describe('R70 traffic cars on rails', () => {
     const s = setup({ z: 500, x: 0, speed: 0 }, [{ z: 465, x: 0.25, speed: 0.5 }]);
     const rng = s.rng;
     for (let i = 0; i < 400; i++) stepOnce(s); // no traffic argument
-    expect(s.cars[1]!.z).toBeCloseTo(465 + 400 * dz(0.5), 9);
+    // setup() gives z after step 1 (465), so 400 steps in total = 399 further steps: 465 + 399 * 0.25
+    expect(s.cars[1]!.z).toBeCloseTo(465 + 399 * dz(0.5), 9);
     expect(s.rng).toBe(rng);
   });
 });
@@ -196,7 +197,12 @@ describe('R71 respawn in step', () => {
       const s = createRace(42, 1, CFG.trafficMax);
       placeTraffic(s, CFG, 1);
       const p = s.cars[0]!;
-      p.speed = 0.9; // overtakes traffic (<= 0.7), so cars fall behind and respawn
+      // Player starts 150+ ahead of every placed car and sits at x = 1.4, outside every lane's hit
+      // band (lane centres <= 0.875, R40 half-band 0.2 -> max 1.075), so no unintended contact (R40/R41)
+      // can happen. All five cars are > trafficDespawnBehind behind, so they respawn (R71) at once.
+      p.z = 400;
+      p.x = 1.4;
+      p.speed = 0.9;
       return s;
     };
     const track: Track = makeStraightTrack(1000);
