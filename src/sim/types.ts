@@ -50,6 +50,8 @@ export interface CarParams {
 
 export interface Segment {
   curve: number;
+  /** R30 road height at the END of the segment, segment lengths (visual only). Absent = 0. */
+  y?: number;
 }
 
 export interface Track {
@@ -62,6 +64,7 @@ export interface TrackSection {
   hold: number;
   leave: number;
   curve: number;
+  hill?: number; // R30 height change over the whole section, segment lengths (+ up)
 }
 
 export interface TrackDef {
