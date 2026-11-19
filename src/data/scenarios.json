@@ -11,6 +11,33 @@
       { "dz": 14, "lane": 3, "speed": 0.5 }
     ]
   },
+  "traffic-20": {
+    "ticks": 1,
+    "steer": 0,
+    "z": 20,
+    "cars": [
+      { "dz": 2, "lane": 1, "speed": 0.5 },
+      { "dz": 3, "lane": 5, "speed": 0.5 },
+      { "dz": 4, "lane": 2, "speed": 0.5 },
+      { "dz": 5, "lane": 6, "speed": 0.5 },
+      { "dz": 6, "lane": 0, "speed": 0.5 },
+      { "dz": 7, "lane": 4, "speed": 0.5 },
+      { "dz": 8, "lane": 7, "speed": 0.5 },
+      { "dz": 10, "lane": 3, "speed": 0.5 },
+      { "dz": 12, "lane": 1, "speed": 0.5 },
+      { "dz": 14, "lane": 5, "speed": 0.5 },
+      { "dz": 16, "lane": 2, "speed": 0.5 },
+      { "dz": 19, "lane": 6, "speed": 0.5 },
+      { "dz": 22, "lane": 0, "speed": 0.5 },
+      { "dz": 25, "lane": 4, "speed": 0.5 },
+      { "dz": 29, "lane": 7, "speed": 0.5 },
+      { "dz": 33, "lane": 3, "speed": 0.5 },
+      { "dz": 38, "lane": 1, "speed": 0.5 },
+      { "dz": 44, "lane": 5, "speed": 0.5 },
+      { "dz": 50, "lane": 2, "speed": 0.5 },
+      { "dz": 58, "lane": 6, "speed": 0.5 }
+    ]
+  },
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
   "map-curve": { "ticks": 300, "steer": 0.2 },

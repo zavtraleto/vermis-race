@@ -46,6 +46,10 @@ import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
 import { installDev } from '../dev/install';
+import render3dJson from '../data/render3d.json';
+import tunables3d from '../data/tunables3d.json';
+import { Render3d } from '../render3d/render3d';
+import type { Render3dConfig } from '../render3d/road3d';
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -62,10 +66,21 @@ const params = parseParams(window.location.search);
 // H14: ?model=a|b picks the driving model before the dev registry reads its defaults (so it is not
 // saved as a tuning diff); the panel switch car.model still changes it live.
 if (params.model !== null) baseCar.model = params.model;
+// Spike E1: ?render=3d draws the same game as a true 3D scene (src/render3d).
+const render3dConfig: Render3dConfig = render3dJson;
+const use3d = params.render === '3d';
 // Dev tuning: live config objects + saved/URL diff, before anything reads them (T4).
 const tunables = installDev(
-  { car: baseCar, input: inputConfig, camera: cameraConfig, sprites: spritesConfig, hypotheses },
+  {
+    car: baseCar,
+    input: inputConfig,
+    camera: cameraConfig,
+    sprites: spritesConfig,
+    hypotheses,
+    render3d: render3dConfig,
+  },
   window.location.search,
+  use3d ? tunables3d : undefined,
 );
 
 const canvas = document.getElementById('game');
@@ -98,7 +113,11 @@ const straightScenario = params.scenario === 'straight' ? scenarios.straight : n
 // R32 roadside: literal straight track, car placed where a lamp pair, a billboard and buildings are in view.
 const roadsideScenario = params.scenario === 'roadside' ? scenarios.roadside : null;
 // R45 traffic look: literal straight track, traffic cars at fixed positions, no respawn.
-const trafficScenario = params.scenario === 'traffic' ? scenarios.traffic : null;
+// traffic-20 (spike E1 budget check): the same with 20 cars in view.
+const trafficScenario =
+  params.scenario === 'traffic' || params.scenario === 'traffic-20'
+    ? scenarios[params.scenario]
+    : null;
 // drift-right / drift-camera: constant hard curve, drift held from an initial speed (R24 drift look,
 // R27 drift camera screenshots; drift-camera also places traffic and shows the UI).
 const driftScenario =
@@ -266,6 +285,24 @@ if (scenarioCars) {
   });
 }
 const bump = new BumpFeedback(spritesConfig.bump);
+const render3d = use3d
+  ? new Render3d(renderer, {
+      cfg: render3dConfig,
+      track,
+      road: roadConfig,
+      palette: paletteConfig,
+      car3d: car3dConfig,
+      sprites: spritesConfig,
+      screenWidth: WIDTH,
+      screenHeight: HEIGHT,
+      drift: driftVisual,
+      weight,
+      roll: screenRoll,
+      bump,
+      roadside,
+      roadsideIndex,
+    })
+  : null;
 const loop = createLoop(race, {
   track,
   params: race.cars.map(() => baseCar),
@@ -285,7 +322,7 @@ const game: GameDebug = {
     triangles: lastTriangles,
     instances: sprites.count,
     dropped: sprites.dropped,
-    traffic: trafficModels.count,
+    traffic: render3d ? render3d.info().traffic : trafficModels.count,
   }),
   frameStats: () => frameStats.summarize({ p50: 0, p99: 0, max: 0, samples: 0 }),
   get tick() {
@@ -297,8 +334,24 @@ const game: GameDebug = {
   tunables,
 };
 window.__game = game;
+// Spike E1 budget measurement (tools/spike/render3d-shots.mjs): one full render frame on demand.
+(window as unknown as { __spikeFrame: () => void }).__spikeFrame = () => {
+  render3d?.update(loop.prev.cars, loop.curr.cars, 1, DT);
+  renderFrame();
+};
 
 function renderFrame(): void {
+  if (render3d) {
+    render3d.render();
+    const c3 = loop.curr.cars[0]!;
+    const p3 = loop.prev.cars[0]!;
+    const speed3 = p3.speed + (c3.speed - p3.speed) * loop.alpha;
+    if (speedometer) speedometer.update(readSpeed(speedReading, c3, speed3, baseCar.vmax));
+    lastCalls = renderer.info.render.calls;
+    lastTriangles = renderer.info.render.triangles;
+    game.frames += 1;
+    return;
+  }
   rebuildForDrawDistance();
   // Camera follows the player car, interpolated between the last two sim states.
   const a = loop.alpha;
@@ -373,6 +426,7 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
     bodyYaw,
   );
   bump.update(dt, c.bumpTicks);
+  render3d?.update(loop.prev.cars, loop.curr.cars, alpha, dt);
 }
 
 let lastTime = -1;

@@ -1,0 +1,25 @@
+{
+  "k3dCurve": 0.00075,
+  "drawDistance": 300,
+  "capacity": 600,
+  "behind": 3,
+  "vergeWidth": 14,
+  "groundDrop": 20,
+  "liftRoad": 0.25,
+  "liftMark": 0.5,
+  "playerWidth": 155,
+  "camera": {
+    "height": 320,
+    "distance": 397,
+    "fovDeg": 80,
+    "pitchDeg": 0,
+    "horizon": 0.47,
+    "lagTau": 0.15,
+    "slopeFollow": 1,
+    "near": 20
+  },
+  "fog": { "near": 0.5, "far": 1 },
+  "roadsideCapacity": 1536,
+  "windowSegments": 60,
+  "smokeCapacity": 48
+}
