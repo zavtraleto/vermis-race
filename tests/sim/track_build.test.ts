@@ -114,9 +114,10 @@ describe('T10 test-twisty data', () => {
     expect(Math.min(best, n)).toBeLessThanOrEqual(90);
   });
 
-  it('sides alternate between neighbours incl. last -> first', () => {
-    const s = tw.sections;
-    for (let i = 0; i < s.length; i++) expect(s[i]!.side).toBe(-s[(i + 1) % s.length]!.side);
+  it('side sequence is the irregular one from the author playtest 2026-11-19', () => {
+    expect(tw.sections.map((x) => x.side)).toEqual([
+      1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1,
+    ]);
   });
 
   it('all three classes appear on both sides', () => {

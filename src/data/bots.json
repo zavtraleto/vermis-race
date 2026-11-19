@@ -1,5 +1,5 @@
 {
-  "_status": "[старт] T16 bot skill levels, starting values; derivation of the hold limit in src/bot/driver.ts (R11/R13)",
+  "_status": "[старт] T16 bot skill levels, starting values; derivation of the hold limit in src/bot/driver.ts (R11/R13). Drift fields: T23 [старт], expert drifts through corners with |curve| >= driftMinCurve (R20-R22)",
   "novice": {
     "steerLookahead": 0.25,
     "brakeLookahead": 0,
@@ -11,7 +11,16 @@
     "edgeMargin": 0,
     "noiseAmp": 0.15,
     "noiseTau": 0.3,
-    "reactionDelay": 0.25
+    "reactionDelay": 0.25,
+    "drift": "never",
+    "driftMinCurve": 3.5,
+    "driftLookahead": 0,
+    "driftApproach": 0,
+    "driftEntryX": 0,
+    "driftLineX": 0,
+    "driftKickSteer": 0,
+    "driftFeedLookahead": 0,
+    "driftGain": 0
   },
   "average": {
     "steerLookahead": 1,
@@ -24,7 +33,16 @@
     "edgeMargin": 0,
     "noiseAmp": 0.08,
     "noiseTau": 0.3,
-    "reactionDelay": 0
+    "reactionDelay": 0,
+    "drift": "never",
+    "driftMinCurve": 3.5,
+    "driftLookahead": 0,
+    "driftApproach": 0,
+    "driftEntryX": 0,
+    "driftLineX": 0,
+    "driftKickSteer": 0,
+    "driftFeedLookahead": 0,
+    "driftGain": 0
   },
   "expert": {
     "steerLookahead": 0.8,
@@ -37,6 +55,15 @@
     "edgeMargin": 0.15,
     "noiseAmp": 0.04,
     "noiseTau": 0.3,
-    "reactionDelay": 0
+    "reactionDelay": 0,
+    "drift": "corners",
+    "driftMinCurve": 3.5,
+    "driftLookahead": 0.3,
+    "driftApproach": 0.8,
+    "driftEntryX": 0,
+    "driftLineX": 0.4,
+    "driftKickSteer": 0.4,
+    "driftFeedLookahead": 0.3,
+    "driftGain": 1
   }
 }

@@ -1,8 +1,8 @@
 {
   "fovDeg": 80,
-  "height": 1000,
+  "height": 720,
   "drawDistance": 300,
-  "horizon": 0.375,
+  "horizon": 0.44,
   "screenWidth": 360,
   "screenHeight": 640
 }

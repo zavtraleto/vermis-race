@@ -14,6 +14,7 @@ export function createRace(seed: number, carCount: number): RaceState {
       heading: 0,
       state: 'GRIP',
       dir: 0,
+      offTicks: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.
@@ -50,16 +51,55 @@ export function step(
     if (dSteer < -rise) dSteer = -rise;
     car.steer += dSteer;
 
-    // R11/R12: grip lateral speed target, exponential catch-up (drift ignored, state stays GRIP).
-    // R15b: off road (|x| > 1 at the start of the step) the target is scaled by offroadSteerMul
-    // and the catch-up uses offroadGrip; variant A is offroadGrip = grip, offroadSteerMul = 1.
+    // R21: consecutive off-road ticks (|x| > 1 at the start of the step), reset on the asphalt.
     const off = car.x > 1 || car.x < -1;
-    let target = car.steer * p.steerRate * sp0 * (1 - 0.25 * sp0);
-    if (off) target *= p.offroadSteerMul;
-    car.vx += (target - car.vx) * (1 - Math.exp(-(off ? p.offroadGrip : p.grip) * DT));
+    car.offTicks = off ? car.offTicks + 1 : 0;
 
-    // R13/R19: lateral move plus centrifugal push outward (cm = 1 in GRIP).
-    const cm = 1;
+    // R20/R21: GRIP <-> DRIFT transitions on the smoothed steer and the speed before R14.
+    if (car.state === 'GRIP') {
+      if (
+        input.drift &&
+        car.speed > p.driftEnterSpeed * p.vmax &&
+        (car.steer > p.driftEnterSteer || car.steer < -p.driftEnterSteer) &&
+        !off
+      ) {
+        car.state = 'DRIFT';
+        car.dir = car.steer > 0 ? 1 : -1;
+      }
+    } else if (
+      !input.drift ||
+      car.speed < p.driftExitSpeed * p.vmax ||
+      car.offTicks * DT > p.driftOffroadTime
+    ) {
+      car.state = 'GRIP';
+      car.dir = 0;
+    }
+    const drift = car.state === 'DRIFT';
+
+    let target: number;
+    let grip: number;
+    let cm: number;
+    if (drift) {
+      // R22: drift target from steer relative to dir, gripDrift, centMulDrift; no R15b.
+      const t = (car.steer * car.dir + 1) / 2;
+      target =
+        car.dir * (p.driftSteerMin + (p.driftSteerMax - p.driftSteerMin) * t) * p.driftRate * sp0;
+      grip = p.gripDrift;
+      cm = p.centMulDrift;
+    } else {
+      // R11: grip lateral speed target.
+      // R15b: off road (|x| > 1 at the start of the step) the target is scaled by offroadSteerMul
+      // and the catch-up uses offroadGrip; variant A is offroadGrip = grip, offroadSteerMul = 1.
+      target = car.steer * p.steerRate * sp0 * (1 - 0.25 * sp0);
+      if (off) target *= p.offroadSteerMul;
+      grip = off ? p.offroadGrip : p.grip;
+      // R13: cm = 1 in GRIP.
+      cm = 1;
+    }
+    // R12: exponential catch-up.
+    car.vx += (target - car.vx) * (1 - Math.exp(-grip * DT));
+
+    // R13/R19: lateral move plus centrifugal push outward.
     car.x += car.vx * DT - curve * sp0 * sp0 * p.centrifugal * cm * p.kCurve * DT;
 
     // R18: clamp to xLimit, zero vx only if it points into the wall.
@@ -72,7 +112,9 @@ export function step(
     }
 
     // R14: automatic throttle, brake, speed in [0, vmax] (capMul = 1 until stage 4).
-    let speed = input.brake ? car.speed - p.brake * DT : car.speed + p.accel * DT;
+    // R22: in DRIFT the throttle loses driftDrag * vmax.
+    const accel = drift ? p.accel - p.driftDrag * p.vmax : p.accel;
+    let speed = input.brake ? car.speed - p.brake * DT : car.speed + accel * DT;
     if (speed > p.vmax) speed = p.vmax;
     if (speed < 0) speed = 0;
     // R15: offroad slowdown.

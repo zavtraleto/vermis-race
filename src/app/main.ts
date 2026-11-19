@@ -10,18 +10,21 @@ import {
 import hypotheses from '../data/hypotheses.json';
 import { inputConfig } from '../data/input';
 import scenarios from '../data/scenarios.json';
+import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
 import { attachKeyboard } from '../input/keyboardDom';
 import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
 import { resolveTouchScheme } from '../input/scheme';
 import { createTouchStick } from '../input/touchStick';
+import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
 import { createProjection, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
 import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
+import { DT } from '../sim/constants';
 import { createRace } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
 import { curveClasses, loadTestTwisty } from '../data/tracks';
@@ -39,6 +42,8 @@ const HEIGHT = 640;
 const STRAIGHT_TRACK_SEGMENTS = 1000;
 // Frame-time window: ~4 s at 60 Hz.
 const FRAME_STATS_WINDOW = 256;
+// Longest frame time fed to visual smoothing (a background tab returns with a huge dt).
+const MAX_VISUAL_DT = 0.1;
 
 const errors: string[] = [];
 installErrorCollectors(errors);
@@ -74,12 +79,15 @@ const curveScenario =
     ? scenarios[params.scenario]
     : null;
 const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
+// drift-right: constant hard curve, drift held from an initial speed (R24 drift look screenshot).
+const driftScenario = params.scenario === 'drift-right' ? scenarios['drift-right'] : null;
 // map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
 // Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
-const fixedScenario = curveScenario ?? straightScenario ?? mapScenario;
-const track = curveScenario
-  ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curveScenario.curve)
+const fixedScenario = curveScenario ?? straightScenario ?? mapScenario ?? driftScenario;
+const curve = curveScenario ?? driftScenario;
+const track = curve
+  ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
     : straightScenario
@@ -92,6 +100,7 @@ scene.add(road.mesh);
 const sprites = new SpriteBatch(spritesConfig.capacity, view.screenWidth, view.screenHeight);
 scene.add(sprites.mesh);
 let world = new WorldSprites(spritesConfig, view, paletteConfig);
+const driftVisual = new DriftVisual(spritesConfig.drift);
 // drawDistance sizes the projection and road buffers: rebuild them when it is tuned live.
 let builtDrawDistance = view.drawDistance;
 function rebuildForDrawDistance(): void {
@@ -111,7 +120,8 @@ const ribbon = new RibbonMapMesh(
   paletteConfig,
   ribbonThresholds(curveClasses),
 );
-ribbon.enabled = ribbonMapConfig.enabled && params.map;
+// Off by default (author's playtest 2026-11-19); ?map=1 or the map-curve screenshot turns it on.
+ribbon.enabled = ribbonMapConfig.enabled && (params.map || mapScenario !== null);
 scene.add(ribbon.mesh);
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
@@ -124,22 +134,30 @@ const touchStick = createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
 attachPointer(canvas, touchStick, now);
 // Constant input for screenshot scenarios so the frame does not depend on the keyboard.
-function fixedInput(steer: number): PlayerInput {
-  const last: InputFrame = { steer, brake: false, drift: false };
+function fixedInput(steer: number, drift: boolean): PlayerInput {
+  const last: InputFrame = { steer, brake: false, drift };
   return {
     last,
     read(out: InputFrame): void {
       out.steer = steer;
       out.brake = false;
-      out.drift = false;
+      out.drift = drift;
     },
   };
 }
 const player = fixedScenario
-  ? fixedInput(fixedScenario.steer)
-  : createPlayerInput(keyboard, touchStick, now);
+  ? fixedInput(fixedScenario.steer, driftScenario !== null)
+  : createPlayerInput(keyboard, touchStick, now, {
+      // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection.
+      hypotheses,
+      autoDrift: createAutoDrift(inputConfig.touch),
+      warn: (m) => console.warn(m),
+    });
 
-const loop = createLoop(createRace(params.seed, 1), {
+const race = createRace(params.seed, 1);
+// Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
+if (driftScenario) race.cars[0]!.speed = driftScenario.speed;
+const loop = createLoop(race, {
   track,
   params: [baseCar],
   readInput: createReadInput(player),
@@ -170,10 +188,15 @@ function renderFrame(): void {
   const a = loop.alpha;
   const p = loop.prev.cars[0]!;
   const c = loop.curr.cars[0]!;
-  project(proj, track, p.z + (c.z - p.z) * a, p.x + (c.x - p.x) * a, view, roadConfig);
+  // R24: in DRIFT the camera moves toward the inside of the corner; the car is drawn off-centre.
+  const camX = driftVisual.cameraX;
+  project(proj, track, p.z + (c.z - p.z) * a, p.x + (c.x - p.x) * a + camX, view, roadConfig);
   road.update(proj);
   sprites.begin();
-  world.drawPlayer(sprites, c.steer);
+  const carY = spritesConfig.player.baseY * view.screenHeight;
+  const carDx = -camX * roadHalfWidthPxAt(carY, view, roadConfig);
+  world.drawPlayer(sprites, c.steer, driftVisual.yaw, carDx);
+  world.drawSmoke(sprites, driftVisual, carDx, view.drawDistance);
   world.drawPosts(sprites, proj);
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
@@ -196,6 +219,7 @@ function frame(time: number): void {
   lastTime = time;
   if (frameSeconds > 0) frameStats.push(frameSeconds * 1000);
   loop.advance(frameSeconds);
+  driftVisual.update(Math.min(frameSeconds, MAX_VISUAL_DT), loop.curr.cars[0]!);
   renderFrame();
   hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
@@ -209,7 +233,11 @@ function frame(time: number): void {
 const fixedTicks = params.ticks ?? fixedScenario?.ticks ?? null;
 if (fixedTicks !== null) {
   // Deterministic debug run: exact tick count, one rendered frame, no rAF loop.
-  loop.stepTicks(fixedTicks);
+  // Drift visuals follow each tick with the fixed DT, so the frame is deterministic.
+  for (let i = 0; i < fixedTicks; i++) {
+    loop.stepTicks(1);
+    driftVisual.update(DT, loop.curr.cars[0]!);
+  }
   renderFrame();
   game.done = true;
 } else if (params.frames === 0) game.done = true;

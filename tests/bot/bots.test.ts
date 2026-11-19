@@ -15,6 +15,7 @@ interface Trace {
   steer: number[];
   brake: boolean[];
   drift: boolean[];
+  curve: number[]; // curve of the segment under the car when the input was chosen
   x: number[];
   speed: number[];
   ticks: number;
@@ -36,6 +37,7 @@ function drive(name: string, seed: number, laps: number, track: Track, maxTicks:
     steer: [],
     brake: [],
     drift: [],
+    curve: [],
     x: [],
     speed: [],
     ticks: 0,
@@ -47,6 +49,7 @@ function drive(name: string, seed: number, laps: number, track: Track, maxTicks:
     t.steer.push(frame.steer);
     t.brake.push(frame.brake);
     t.drift.push(frame.drift);
+    t.curve.push(track.segments[Math.floor(car.z) % track.segments.length]!.curve);
     step(race, inputs, track, params);
     t.x.push(car.x);
     t.speed.push(car.speed);
@@ -103,7 +106,7 @@ describe('T16 hold speed limit from R11/R13', () => {
 describe('T16 bots output valid InputFrames (R4)', () => {
   const track = twisty();
   for (const name of BOT_NAMES) {
-    it(`${name}: steer finite in [-1, 1], brake boolean, never drift (stage 2)`, () => {
+    it(`${name}: steer finite in [-1, 1], brake and drift boolean`, () => {
       const t = drive(name, 7, 1, track, MAX_TICKS_3_LAPS);
       expect(t.steer.length).toBeGreaterThan(1000);
       for (let i = 0; i < t.steer.length; i++) {
@@ -112,10 +115,29 @@ describe('T16 bots output valid InputFrames (R4)', () => {
         expect(s).toBeGreaterThanOrEqual(-1);
         expect(s).toBeLessThanOrEqual(1);
         expect(typeof t.brake[i]).toBe('boolean');
-        expect(t.drift[i]).toBe(false);
+        expect(typeof t.drift[i]).toBe('boolean');
       }
     });
   }
+  for (const name of ['novice', 'average'] as const) {
+    it(`${name}: never drifts`, () => {
+      const t = drive(name, 7, 1, track, MAX_TICKS_3_LAPS);
+      expect(t.drift.some((d) => d)).toBe(false);
+    });
+  }
+  it('expert: drifts on some ticks, never brakes inside a corner with |curve| >= driftMinCurve', () => {
+    const t = drive('expert', 7, 1, track, MAX_TICKS_3_LAPS);
+    const minCurve = botParams.expert.driftMinCurve;
+    expect(t.drift.some((d) => d)).toBe(true);
+    let sharpTicks = 0;
+    for (let i = 0; i < t.curve.length; i++) {
+      if (Math.abs(t.curve[i]!) >= minCurve) {
+        sharpTicks++;
+        expect(t.brake[i]).toBe(false);
+      }
+    }
+    expect(sharpTicks).toBeGreaterThan(0);
+  });
   it('novice never brakes', () => {
     const t = drive('novice', 3, 1, track, MAX_TICKS_3_LAPS);
     expect(t.brake.some((b) => b)).toBe(false);

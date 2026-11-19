@@ -74,10 +74,12 @@ export interface Entry {
     easyMedium: number;
   };
   steerSaturation: number;
-  // fraction of vmax; min over flying laps; longHardMin = the highest of the per-corner minimum
+  // fraction of vmax; min over flying laps; longHardMin = the lowest of the per-corner minimum
   // speeds over long hard corners (each long hard must be slowed below a bound), null if none
   speed: { mean: number; min: number; longHardMin: number | null };
   brakeFraction: number;
+  driftFraction: number; // share of ticks in DRIFT
+  driftsPerLap: number; // GRIP -> DRIFT entries per lap
   deadTimeFraction: number;
   straightFraction: number;
   wallHits: { total: number; perLap: number };
@@ -123,6 +125,8 @@ export function summarize(
   let off = 0;
   let sat = 0;
   let brake = 0;
+  let drift = 0;
+  let driftEntries = 0;
   let dead = 0;
   let straight = 0;
   let speedSum = 0;
@@ -141,6 +145,8 @@ export function summarize(
     off += r.offroadTicks;
     sat += r.saturationTicks;
     brake += r.brakeTicks;
+    drift += r.driftTicks;
+    driftEntries += r.driftEntries;
     dead += r.deadTicks;
     straight += r.straightTicks;
     speedSum += r.speedSum;
@@ -186,7 +192,7 @@ export function summarize(
   let longHardMin: number | null = null;
   for (const c of corners) {
     if (c.curveClass !== 'hard' || !c.long) continue;
-    if (longHardMin === null || c.minSpeed > longHardMin) longHardMin = c.minSpeed;
+    if (longHardMin === null || c.minSpeed < longHardMin) longHardMin = c.minSpeed;
   }
   return {
     bot,
@@ -207,6 +213,8 @@ export function summarize(
     steerSaturation: sat / ticks,
     speed: { mean: speedSum / ticks, min: minSpeed, longHardMin },
     brakeFraction: brake / ticks,
+    driftFraction: drift / ticks,
+    driftsPerLap: driftEntries / lapCount,
     deadTimeFraction: dead / ticks,
     straightFraction: straight / ticks,
     wallHits: { total: walls, perLap: walls / lapCount },

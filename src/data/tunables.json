@@ -27,6 +27,48 @@
       "label": "offroadSteerMul — руль вне дороги (R15b)"
     },
     "car.xLimit": { "min": 1, "max": 4, "step": 0.05, "label": "xLimit — стенка, полуширин" },
+    "car.driftRate": {
+      "min": 0.1,
+      "max": 3,
+      "step": 0.05,
+      "label": "driftRate — боковая в дрифте (R22)"
+    },
+    "car.driftSteerMin": {
+      "min": 0,
+      "max": 2,
+      "step": 0.05,
+      "label": "driftSteerMin — руль наружу (R22)"
+    },
+    "car.driftSteerMax": {
+      "min": 0.5,
+      "max": 3,
+      "step": 0.05,
+      "label": "driftSteerMax — руль внутрь (R22)"
+    },
+    "car.gripDrift": {
+      "min": 0.5,
+      "max": 20,
+      "step": 0.5,
+      "label": "gripDrift — сцепление в дрифте"
+    },
+    "car.centMulDrift": {
+      "min": 0,
+      "max": 1.5,
+      "step": 0.01,
+      "label": "centMulDrift — снос в дрифте ×"
+    },
+    "car.driftDrag": {
+      "min": 0,
+      "max": 0.3,
+      "step": 0.005,
+      "label": "driftDrag — потеря газа в дрифте"
+    },
+    "car.driftEnterSteer": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "driftEnterSteer — руль для входа (R20)"
+    },
     "input.keyboard.steerRampMs": {
       "min": 10,
       "max": 600,
@@ -69,8 +111,20 @@
       "step": 5,
       "label": "driftPullDownPx — палец вниз, px"
     },
+    "input.touch.autoDriftSteer": {
+      "min": 0.3,
+      "max": 1,
+      "step": 0.01,
+      "label": "autoDriftSteer — руль для авто-дрифта (H3 C)"
+    },
+    "input.touch.autoDriftRelease": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "autoDriftRelease — руль выхода из авто-дрифта (H3 C)"
+    },
     "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
-    "camera.height": { "min": 700, "max": 1600, "step": 10, "label": "height — высота камеры" },
+    "camera.height": { "min": 650, "max": 1600, "step": 10, "label": "height — высота камеры" },
     "camera.horizon": {
       "min": 0.25,
       "max": 0.5,
@@ -88,6 +142,24 @@
       "max": 0.98,
       "step": 0.005,
       "label": "baseY — низ машины / высота"
+    },
+    "sprites.drift.yawMax": {
+      "min": 0,
+      "max": 8,
+      "step": 0.1,
+      "label": "yawMax — разворот в дрифте, руль внутрь (R24)"
+    },
+    "sprites.drift.yawMin": {
+      "min": 0,
+      "max": 8,
+      "step": 0.1,
+      "label": "yawMin — разворот в дрифте, руль наружу (R24)"
+    },
+    "sprites.drift.cameraOffset": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "cameraOffset — камера внутрь дрифта, полуширин (R24)"
     }
   },
   "flags": {
@@ -100,6 +172,7 @@
     "hypotheses.H7_rubberBand": ["off", "trailing", "both"],
     "hypotheses.H8_worldRotation": ["off", "on"],
     "hypotheses.H9_nearPerspective": ["off", "on"],
-    "hypotheses.H10_offroad": ["A", "B"]
+    "hypotheses.H10_offroad": ["A", "B"],
+    "sprites.drift.smoke": ["on", "off"]
   }
 }

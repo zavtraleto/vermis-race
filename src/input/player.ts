@@ -1,6 +1,8 @@
 import type { InputFrame } from '../sim/types';
+import type { AutoDrift } from './autoDrift';
 import { combineInputs } from './combine';
 import type { KeyboardInput } from './keyboard';
+import { resolveDriftEntry, type DriftEntry } from './scheme';
 import type { TouchStick } from './touchStick';
 
 export interface PlayerInput {
@@ -13,20 +15,41 @@ export interface PlayerInput {
   readonly last: InputFrame;
 }
 
+/** H3 touch drift entry, read live from `hypotheses` (dev panel can switch it at runtime). */
+export interface DriftEntryOptions {
+  hypotheses: { H3_driftEntry: string };
+  autoDrift: AutoDrift;
+  warn: (message: string) => void;
+}
+
 export function createPlayerInput(
   keyboard: KeyboardInput,
   touch: TouchStick,
   now: () => number,
+  drift?: DriftEntryOptions,
 ): PlayerInput {
   const kbFrame: InputFrame = { steer: 0, brake: false, drift: false };
   const touchFrame: InputFrame = { steer: 0, brake: false, drift: false };
   const last: InputFrame = { steer: 0, brake: false, drift: false };
+  // Resolved only when the flag changes, so a bad value warns once per change.
+  let flag: string | null = null;
+  let entry: DriftEntry = 'A';
   return {
     last,
     read(out: InputFrame): void {
       const t = now();
       keyboard.read(t, kbFrame);
       touch.read(t, touchFrame);
+      if (drift !== undefined) {
+        const f = drift.hypotheses.H3_driftEntry;
+        if (f !== flag) {
+          flag = f;
+          entry = resolveDriftEntry(f, drift.warn);
+          drift.autoDrift.reset();
+        }
+        // H3 C: the pull-down gesture is ignored, touch drift follows the stick deflection.
+        if (entry === 'C') touchFrame.drift = drift.autoDrift.update(touchFrame.steer);
+      }
       combineInputs(kbFrame, touchFrame, out);
       last.steer = out.steer;
       last.brake = out.brake;
