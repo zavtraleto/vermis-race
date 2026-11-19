@@ -652,7 +652,7 @@ describe('R22 drift speed cap, angle costs speed', () => {
     const finals: number[] = [];
     for (const a of [0.3, 0.9]) {
       const s = drifting({ angle: a, steer: a, speed: 1 });
-      for (let i = 0; i < 600; i++) one(s, inp(a, false, true), track0, PFREE);
+      for (let i = 0; i < 600; i++) one(s, inp(a, false, true), track0, { ...PFREE, driftOffroad: 1 }); // H11 B: the car may leave the road, only the cap is isolated
       expect(car(s).state).toBe('DRIFT');
       finals.push(car(s).speed);
     }

@@ -90,11 +90,10 @@ describe('P2 monotonic projection', () => {
 
 describe('P3 frac = 0 exact values', () => {
   it('y_0 = H and w_0 = halfWidth*(H-horizonY)/height (real config)', () => {
-    // w_0 = 500*(640-300.8)/320 = 530 (author's second feedback 2026-11-19: camera barely above the roof)
+    // w_0 = halfWidth*(H-horizonY)/height, derived from the config (R22c halfWidth 1000: 1000*(640-300.8)/320 = 1060)
     const p = run(makeStraightTrack(50), 5, 0);
     near(p.y[0]!, CAM.screenHeight, 1e-3);
     near(p.w[0]!, (ROAD.halfWidth * (CAM.screenHeight - horizonYReal)) / CAM.height, 1e-3);
-    near(p.w[0]!, 530, 1e-3);
   });
   it('inline config hand values', () => {
     // dz_n = 200 + 100n; scale_n = 100/dz_n; y = 50 + scale*100; w = scale*40

@@ -5,12 +5,22 @@ import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack, makeStraightTrack } from '../../src/sim/track';
 import type { CarParams, InputFrame, RaceState } from '../../src/sim/types';
-import { constSpeed, constTrack, inp, mirrorTrack, oneCar, stepN } from './driving_helpers';
+import { constTrack, inp, mirrorTrack, oneCar, stepN as stepNHelper } from './driving_helpers';
 
 // R22c halved steerRate/centrifugal and xLimit in the data (lateral world speeds kept on a road twice
 // as wide). These unit tests derive their numbers from the rules with the pre-R22c values, pinned here
 // explicitly; the real data are covered by calibration.test.ts and the R22c describe in drift_calibration.
 const baseCar: CarParams = { ...dataCar, steerRate: 2.0, centrifugal: 0.3, xLimit: 2 };
+
+// Pin made effective: the helper's default params and constSpeed are rebuilt from the pinned baseCar.
+const constSpeed: CarParams = { ...baseCar, accel: 0 };
+const stepN = (
+  s: RaceState,
+  n: number,
+  input: InputFrame,
+  track: Parameters<typeof stepNHelper>[3],
+  p: CarParams = baseCar,
+): void => stepNHelper(s, n, input, track, p);
 
 const straight = makeStraightTrack(2000);
 const A = 1 - Math.exp(-baseCar.grip * DT); // per-step catch-up factor of R12
@@ -282,7 +292,15 @@ describe('determinism, serialization, drift ignored', () => {
     runTwisty(a, 0, 200, false);
     runTwisty(b, 0, 200, true);
     expect(a.cars[0]!.speed).toBeLessThan(0.45 * baseCar.vmax);
-    expect(b).toEqual(a);
+    // R20: driftHeld records the previous tick's drift input and legitimately differs.
+    expect(a.cars[0]!.driftHeld).toBe(false);
+    expect(b.cars[0]!.driftHeld).toBe(true);
+    const strip = (r: RaceState): unknown => {
+      const c = JSON.parse(JSON.stringify(r)) as RaceState;
+      for (const car of c.cars) (car as { driftHeld?: boolean }).driftHeld = false;
+      return c;
+    };
+    expect(strip(b)).toEqual(strip(a));
     expect(b.cars[0]!.state).toBe('GRIP');
     expect(b.cars[0]!.dir).toBe(0);
   });
