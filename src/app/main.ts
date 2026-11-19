@@ -4,6 +4,7 @@ import {
   cameraConfig,
   car3dConfig,
   paletteConfig,
+  printData,
   ribbonMapConfig,
   roadConfig,
   spritesConfig,
@@ -48,6 +49,8 @@ import { createLoop } from './loop';
 import { installDev } from '../dev/install';
 import render3dJson from '../data/render3d.json';
 import tunables3d from '../data/tunables3d.json';
+import tunablesPrint from '../data/tunablesPrint.json';
+import { PrintPass, type PrintConfig } from '../render/printPass';
 import { Render3d } from '../render3d/render3d';
 import type { Render3dConfig } from '../render3d/road3d';
 
@@ -69,6 +72,25 @@ if (params.model !== null) baseCar.model = params.model;
 // Spike E1: ?render=3d draws the same game as a true 3D scene (src/render3d).
 const render3dConfig: Render3dConfig = render3dJson;
 const use3d = params.render === '3d';
+// Spike: ?print=<preset> prints the pseudo-3D frame as a risograph comic (src/render/printPass).
+const usePrint = params.print !== '' && params.print !== '0' && !use3d;
+const printPreset = usePrint ? (printData.presets[params.print] ?? printData.presets['1']!) : null;
+if (usePrint && !(params.print in printData.presets))
+  console.warn(`print: unknown preset '${params.print}', using 1`);
+// Live print numbers (dev panel root 'print'): shared params + the preset's sky object.
+const printConfig: PrintConfig | null = printPreset
+  ? { ...printData.params, palette: printData.palette, sky: printPreset.sky }
+  : null;
+// Print pass: colours stay raw sRGB bytes end to end, also in the built-in car material.
+if (usePrint) THREE.ColorManagement.enabled = false;
+const palette = printPreset ? printPreset.colours : paletteConfig;
+// Two-tone bodies in print: player / traffic colour toward one shadow colour.
+const playerDuo = printPreset
+  ? { shadow: printPreset.shadow.player, amount: printPreset.shadow.amount }
+  : undefined;
+const trafficDuo = printPreset
+  ? { shadow: printPreset.shadow.traffic, amount: printPreset.shadow.amount }
+  : undefined;
 // Dev tuning: live config objects + saved/URL diff, before anything reads them (T4).
 const tunables = installDev(
   {
@@ -78,9 +100,10 @@ const tunables = installDev(
     sprites: spritesConfig,
     hypotheses,
     render3d: render3dConfig,
+    ...(printConfig ? { print: printConfig } : {}),
   },
   window.location.search,
-  use3d ? tunables3d : undefined,
+  use3d ? tunables3d : usePrint ? tunablesPrint : undefined,
 );
 
 const canvas = document.getElementById('game');
@@ -89,7 +112,8 @@ if (!(canvas instanceof HTMLCanvasElement)) throw new Error('canvas #game missin
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(1);
 renderer.setSize(WIDTH, HEIGHT, false);
-renderer.setClearColor(paletteConfig.sky, 1);
+// Print: the target clears to alpha 0 so the print pass sees where nothing was drawn (sky).
+renderer.setClearColor(palette.sky, usePrint ? 0 : 1);
 renderer.info.autoReset = false;
 // Two passes per frame (road, then the 3D car over a cleared depth buffer): clear manually.
 renderer.autoClear = false;
@@ -155,7 +179,7 @@ const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : c
 const screenRoll = new ScreenRoll(spritesConfig.driftCamera, view.screenWidth / view.screenHeight);
 const overscan = spritesConfig.driftCamera;
 let proj = createProjection(view, roadConfig);
-let road = new RoadMesh(view, roadConfig, paletteConfig, screenRoll.uniform, overscan);
+let road = new RoadMesh(view, roadConfig, palette, screenRoll.uniform, overscan);
 scene.add(road.mesh);
 const sprites = new SpriteBatch(
   spritesConfig.capacity,
@@ -164,13 +188,13 @@ const sprites = new SpriteBatch(
   screenRoll.uniform,
 );
 scene.add(sprites.mesh);
-let world = new WorldSprites(spritesConfig, view, paletteConfig);
+let world = new WorldSprites(spritesConfig, view, palette);
 // R32: roadside placement is built once per track (deterministic from the seed).
 const roadside = buildRoadside(track.segments.length, spritesConfig.roadside, params.seed);
 const roadsideIndex = indexBySegment(roadside, track.segments.length);
 const driftVisual = new DriftVisual(spritesConfig.drift);
 // R25: the player car is a 3D model in its own scene, drawn after the road pass.
-const carView = new CarView(car3dConfig, spritesConfig.player, view, paletteConfig);
+const carView = new CarView(car3dConfig, spritesConfig.player, view, palette, playerDuo);
 // R26: yaw from the real lateral motion, roll and pitch with weight.
 const weight = new CarWeight(spritesConfig.weight);
 // R45: traffic as 3D bodies, one instanced draw call in the road pass.
@@ -179,9 +203,10 @@ const trafficModels = new TrafficModels(
   spritesConfig.traffic,
   view,
   roadConfig,
-  paletteConfig,
+  palette,
   screenRoll.uniform,
   overscan,
+  trafficDuo,
 );
 scene.add(trafficModels.mesh);
 // drawDistance sizes the projection and road buffers: rebuild them when it is tuned live.
@@ -193,16 +218,11 @@ function rebuildForDrawDistance(): void {
   road.mesh.geometry.dispose();
   road.mesh.material.dispose();
   proj = createProjection(view, roadConfig);
-  road = new RoadMesh(view, roadConfig, paletteConfig, screenRoll.uniform, overscan);
+  road = new RoadMesh(view, roadConfig, palette, screenRoll.uniform, overscan);
   scene.add(road.mesh);
-  world = new WorldSprites(spritesConfig, view, paletteConfig);
+  world = new WorldSprites(spritesConfig, view, palette);
 }
-const ribbon = new RibbonMapMesh(
-  ribbonMapConfig,
-  view,
-  paletteConfig,
-  ribbonThresholds(curveClasses),
-);
+const ribbon = new RibbonMapMesh(ribbonMapConfig, view, palette, ribbonThresholds(curveClasses));
 // Off by default (author's playtest 2026-11-19); ?map=1 or the map-curve screenshot turns it on.
 ribbon.enabled = ribbonMapConfig.enabled && (params.map || mapScenario !== null);
 scene.add(ribbon.mesh);
@@ -285,6 +305,16 @@ if (scenarioCars) {
   });
 }
 const bump = new BumpFeedback(spritesConfig.bump);
+const printPass =
+  printConfig && printPreset
+    ? new PrintPass(renderer, printConfig, WIDTH, HEIGHT, screenRoll.uniform, view, [
+        [printPreset.colours.player, printPreset.shadow.player],
+        ...printPreset.colours.traffic.map((c): [string, string] => [
+          c,
+          printPreset.shadow.traffic,
+        ]),
+      ])
+    : null;
 const render3d = use3d
   ? new Render3d(renderer, {
       cfg: render3dConfig,
@@ -390,10 +420,12 @@ function renderFrame(): void {
     p.x + (c.x - p.x) * a,
   );
   renderer.info.reset();
+  printPass?.begin();
   renderer.clear();
   renderer.render(scene, camera);
   renderer.clearDepth();
   renderer.render(carView.scene, carView.camera);
+  printPass?.end();
   lastCalls = renderer.info.render.calls;
   lastTriangles = renderer.info.render.triangles;
   game.frames += 1;

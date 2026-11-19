@@ -13,6 +13,7 @@ export interface GameParams {
   ui: boolean; // R28 UI layer (speedometer); ?ui=0 hides it
   model: 0 | 1 | null; // H14 driving model: ?model=a -> 0, ?model=b -> 1, absent or other -> null (data)
   render: string; // spike E1: '3d' = true 3D renderer (src/render3d), anything else = pseudo-3D
+  print: string; // spike: ?print=<preset> printed-comic look (src/render/printPass); '' = off
 }
 
 export interface RendererStats {
@@ -75,6 +76,7 @@ export function parseParams(search: string): GameParams {
     ui: q.get('ui') !== '0',
     model: q.get('model') === 'a' ? 0 : q.get('model') === 'b' ? 1 : null,
     render: q.get('render') ?? 'pseudo',
+    print: q.get('print') ?? '',
   };
 }
 
