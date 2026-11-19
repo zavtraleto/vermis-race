@@ -217,9 +217,6 @@ if (trafficScenario) {
     c.speed = t.speed;
   });
 }
-// R45: traffic car width in world units (one lane = 2 * halfWidth / lanes).
-const trafficCarW =
-  (spritesConfig.traffic.widthLanes * 2 * roadConfig.halfWidth) / roadConfig.lanes;
 const bump = new BumpFeedback(spritesConfig.bump);
 const loop = createLoop(race, {
   track,
@@ -283,7 +280,8 @@ function renderFrame(): void {
     loop.curr.cars,
     a,
     playerLineOffset(view, roadConfig, spritesConfig.player.baseY),
-    trafficCarW,
+    // R45: car width in world units (one lane = 2 * halfWidth / lanes), read live.
+    (spritesConfig.traffic.widthLanes * 2 * roadConfig.halfWidth) / roadConfig.lanes,
   );
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
