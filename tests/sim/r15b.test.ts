@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar as dataCar } from '../../src/data/cars';
+import { baseCarA as dataCar } from './baseCarA';
 import { loadTestTwisty } from '../../src/data/tracks';
 import { DT, K_HEADING, SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';

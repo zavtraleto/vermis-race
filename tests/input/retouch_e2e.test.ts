@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from '../sim/baseCarA';
 import { inputConfig } from '../../src/data/input';
 import { createAutoDrift } from '../../src/input/autoDrift';
 import { createKeyboardInput } from '../../src/input/keyboard';

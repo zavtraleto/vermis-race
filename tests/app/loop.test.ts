@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_STEPS_PER_FRAME, copyRaceState, createLoop } from '../../src/app/loop';
 import type { InputSource, Loop } from '../../src/app/loop';
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from '../sim/baseCarA';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
 import type { InputFrame, RaceState } from '../../src/sim/types';

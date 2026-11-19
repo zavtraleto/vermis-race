@@ -1,4 +1,4 @@
-import { DT, K_HEADING, SEG_PER_UNIT } from './constants';
+import { DT, K_HEADING, SEG_PER_UNIT, STEER_HIST } from './constants';
 import { nextRandom } from './rng';
 import type { Car, CarParams, InputFrame, RaceState, Track, TrafficConfig } from './types';
 
@@ -24,6 +24,13 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       bumpTicks: 0,
       draft: 0,
       boostTicks: 0,
+      yaw: 0,
+      yawRate: 0,
+      vel: 0,
+      recover: 0,
+      steerHist: new Array<number>(STEER_HIST).fill(0),
+      steerHistHead: 0,
+      steerHistCount: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar } from '../../src/data/cars';
+import { baseCarA as baseCar } from './baseCarA';
 import { parseSections, resolveSections } from '../../src/data/tracks';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';

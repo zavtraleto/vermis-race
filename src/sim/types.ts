@@ -22,6 +22,14 @@ export interface Car {
   bumpTicks: number; // R43 remaining invulnerability ticks after a contact
   draft: number; // R51 slipstream charge in [0, 1]
   boostTicks: number; // R52 (H5 B) remaining boost ticks after leaving the cone with a full charge
+  // Model B (R80-R89, H14):
+  yaw: number; // R83 body heading relative to the road tangent, lateral units
+  yawRate: number; // R83
+  vel: number; // R84 direction of motion relative to the road tangent, lateral units
+  recover: number; // R82/R83 seconds since leaving DRIFT
+  steerHist: number[]; // R81 ring buffer of raw steer, fixed length STEER_HIST
+  steerHistHead: number; // R81 next write index
+  steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
 }
 
 export interface RaceState {
@@ -31,6 +39,33 @@ export interface RaceState {
 }
 
 export interface CarParams {
+  model: number; // H14: 0 = model A (R10-R22d), 1 = model B (R80-R89)
+  // Model B parameters (R80-R89b), see docs/research/yaw-slip-spike.md section 2.
+  kYaw: number;
+  latScale: number;
+  yawFullSpeed: number;
+  yawRateMax: number;
+  yawAlign: number;
+  yawResponse: number;
+  velGrip: number;
+  slipGripMax: number;
+  slipGripLimit: number;
+  yawRateMaxDrift: number;
+  yawAlignDrift: number;
+  yawResponseDrift: number;
+  velGripDrift: number;
+  slipDriftMax: number;
+  slipHardMax: number;
+  slipDrag: number;
+  flickDelta: number; // R81 steer change that enters a drift (car param, distinct from the H3 E input config)
+  flickWindow: number; // R81 seconds
+  kickBase: number;
+  kickGain: number;
+  gripRecoverTime: number;
+  slipSnapMax: number;
+  snapLoss: number;
+  snapCatch: number;
+  slipViewFull: number;
   vmax: number;
   accel: number;
   brake: number;
