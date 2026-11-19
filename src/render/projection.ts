@@ -40,14 +40,14 @@ function nearDistance(camera: CameraConfig, f: number): number {
   return (f * camera.height) / (camera.screenHeight - camera.horizon * camera.screenHeight);
 }
 
+// Low camera: line 0 can come nearer than the bottom of the screen, even behind the camera.
+// Relative epsilon absorbs tan() rounding (tan(pi/4) = 0.9999999999999999).
+function isLowCamera(d0: number, road: RoadConfig): boolean {
+  return !(d0 - road.segmentLength > 1e-9 * d0);
+}
+
 export function createProjection(camera: CameraConfig, road: RoadConfig): Projection {
-  const d0 = nearDistance(camera, focalPx(camera));
-  // Relative epsilon absorbs tan() rounding (tan(pi/4) = 0.9999999999999999).
-  if (!(d0 - road.segmentLength > 1e-9 * d0)) {
-    throw new Error(
-      `projection: d0 (${d0}) must exceed segmentLength (${road.segmentLength}), otherwise line 0 falls behind the camera`,
-    );
-  }
+  void road;
   const n = camera.drawDistance + 1;
   return {
     count: 0,
@@ -98,6 +98,17 @@ export function project(
     out.x[n] = halfW + scale * (off - camX);
     off += dx;
     dx += segs[seg]!.curve;
+  }
+  if (frac > 0 && isLowCamera(d0, road)) {
+    // Clamp line 0 onto the near plane (depth d0, the bottom of the screen). Depth is linear
+    // in n, so depth d0 lies frac of the way from line 0 to line 1; the world offset is
+    // interpolated there (line 0: c0*frac, line 1: 0) and then projected.
+    const s = f / d0;
+    const offNear = c0 * frac * (1 - frac);
+    out.scale[0] = s;
+    out.y[0] = horizonY + s * camera.height;
+    out.w[0] = s * road.halfWidth;
+    out.x[0] = halfW + s * (offNear - camX);
   }
   out.count = count;
   out.base = base;
