@@ -8,6 +8,8 @@ import type { Car, CarParams, InputFrame, Track } from '../sim/types';
 export type AimMode = 'centre' | 'inside';
 /** never: no brake; hold: brake while the curve ahead exceeds the hold limit; late: brake at the last point that still reaches the limit. */
 export type SpeedMode = 'never' | 'hold' | 'late';
+/** never: no drift input; corners: drift through corners with |curve| >= driftMinCurve (R20-R22). */
+export type DriftMode = 'never' | 'corners';
 
 export interface BotParams {
   steerLookahead: number; // s of road ahead used for steering, also the x-correction time constant
@@ -21,6 +23,12 @@ export interface BotParams {
   noiseAmp: number; // std of the low-passed steering noise, steer units; 0 = off
   noiseTau: number; // s, low-pass time constant of the noise
   reactionDelay: number; // s between deciding a steer value and applying it, <= MAX_DELAY_TICKS*DT
+  drift: DriftMode;
+  driftMinCurve: number; // drift only through corners at least this sharp (|curve|)
+  driftLookahead: number; // s of road ahead: drift is held while such a corner is this close
+  driftKickSteer: number; // |steer| used in GRIP to pass driftEnterSteer (R20)
+  driftFeedLookahead: number; // s of road ahead averaged for the drift equilibrium feed-forward
+  driftGain: number; // 1/s, lateral speed per unit x error toward the target line in DRIFT
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -99,9 +107,48 @@ export function botInput(
     if (r < -1) r = -1;
     xTarget = bp.insideX * r; // + curve = right turn, inside = +x (R19 signs)
   }
-  const vxReq = (xTarget - car.x) / bp.steerLookahead + cMean * sp * sp * k;
-  const authority = p.steerRate * sp * (1 - 0.25 * sp); // R11 vx per unit steer
-  let steer = authority > 0 ? vxReq / authority : 0;
+  // Drift corners (R20): the nearest corner with |curve| >= driftMinCurve within driftLookahead.
+  let driftSign = 0;
+  if (bp.drift === 'corners') {
+    let dDrift = Math.round(segPerSec * bp.driftLookahead);
+    if (dDrift < 1) dDrift = 1;
+    for (let i = 0; i < dDrift; i++) {
+      const c = segs[wrap(seg0 + i, n)]!.curve;
+      if (c >= bp.driftMinCurve) {
+        driftSign = 1;
+        break;
+      }
+      if (c <= -bp.driftMinCurve) {
+        driftSign = -1;
+        break;
+      }
+    }
+  }
+  const inDrift = car.state === 'DRIFT';
+  // dir is fixed until exit (R20): a drift corner the other way releases first.
+  const wantDrift = driftSign !== 0 && (!inDrift || driftSign === car.dir);
+
+  let steer: number;
+  if (inDrift && wantDrift && sp > 0) {
+    // R22: steer around the equilibrium (target = push) for the curve just ahead, plus a
+    // proportional pull toward the target line. target = dir*lerp(min, max, (steer*dir+1)/2)*driftRate*sp.
+    let dFeed = Math.round(segPerSec * bp.driftFeedLookahead);
+    if (dFeed < 1) dFeed = 1;
+    let feed = 0;
+    for (let i = 0; i < dFeed; i++) feed += segs[wrap(seg0 + i, n)]!.curve;
+    feed /= dFeed;
+    const push = feed * sp * sp * p.centrifugal * p.centMulDrift * p.kCurve;
+    const vxReq = push + bp.driftGain * (xTarget - car.x);
+    const lerp = (vxReq * car.dir) / (p.driftRate * sp);
+    const t = (lerp - p.driftSteerMin) / (p.driftSteerMax - p.driftSteerMin);
+    steer = car.dir * (2 * t - 1);
+  } else {
+    const vxReq = (xTarget - car.x) / bp.steerLookahead + cMean * sp * sp * k;
+    const authority = p.steerRate * sp * (1 - 0.25 * sp); // R11 vx per unit steer
+    steer = authority > 0 ? vxReq / authority : 0;
+    // R20: in GRIP, turn into the coming drift corner past driftEnterSteer.
+    if (wantDrift && steer * driftSign < bp.driftKickSteer) steer = driftSign * bp.driftKickSteer;
+  }
 
   if (bp.noiseAmp > 0) {
     // Low-passed uniform noise, scaled so its stationary std equals noiseAmp.
@@ -119,20 +166,21 @@ export function botInput(
   let delay = Math.round(bp.reactionDelay / DT);
   if (delay > qn - 1) delay = qn - 1;
   out.steer = q[wrap(bot.head - delay, qn)]!;
-  out.drift = false; // drift is stage 2 (R20+), not implemented
+  out.drift = wantDrift;
 
-  // Speed.
+  // Speed. Drift corners are taken without braking: their segments are ignored here.
   out.brake = false;
   if (bp.speed === 'never') return;
   let dBrake = Math.round(segPerSec * bp.brakeLookahead);
   if (dBrake < 1) dBrake = 1;
   const sHold = 1 - bp.steerReserve;
+  const cSkip = bp.drift === 'corners' ? bp.driftMinCurve : Infinity;
   if (bp.speed === 'hold') {
     let cMax = 0;
     for (let i = 0; i < dBrake; i++) {
       const c = segs[wrap(seg0 + i, n)]!.curve;
       const ac = c < 0 ? -c : c;
-      if (ac > cMax) cMax = ac;
+      if (ac > cMax && ac < cSkip) cMax = ac;
     }
     out.brake = sp > holdSpeedLimit(cMax, sHold, 0, p);
     return;
@@ -145,7 +193,7 @@ export function botInput(
   for (let i = 0; i < dBrake; i++) {
     const c = segs[wrap(seg0 + i, n)]!.curve;
     const ac = c < 0 ? -c : c;
-    if (ac > cMax) {
+    if (ac > cMax && ac < cSkip) {
       cMax = ac;
       iMax = i;
     }
@@ -171,7 +219,9 @@ export function botInput(
   const frac = car.z - Math.floor(car.z);
   const next = car.speed + p.accel * DT; // speed after one more tick without brake (R14)
   for (let i = 0; i < dBrake; i++) {
-    const lim = holdSpeedLimit(segs[wrap(seg0 + i, n)]!.curve, sHold, allowance, p);
+    const c = segs[wrap(seg0 + i, n)]!.curve;
+    if ((c < 0 ? -c : c) >= cSkip) continue;
+    const lim = holdSpeedLimit(c, sHold, allowance, p);
     if (lim >= 1) continue;
     const v = lim * p.vmax;
     let d = i - frac; // segments until that segment starts

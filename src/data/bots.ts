@@ -1,4 +1,10 @@
-import { MAX_DELAY_TICKS, type AimMode, type BotParams, type SpeedMode } from '../bot/driver';
+import {
+  MAX_DELAY_TICKS,
+  type AimMode,
+  type BotParams,
+  type DriftMode,
+  type SpeedMode,
+} from '../bot/driver';
 import { DT } from '../sim/constants';
 import raw from './bots.json';
 
@@ -22,6 +28,10 @@ export function parseBot(name: string, v: unknown): BotParams {
   if (speed !== 'never' && speed !== 'hold' && speed !== 'late') {
     throw new Error(`bots.${name}.speed: never | hold | late`);
   }
+  const drift = r.drift;
+  if (drift !== 'never' && drift !== 'corners') {
+    throw new Error(`bots.${name}.drift: never | corners`);
+  }
   const bp: BotParams = {
     steerLookahead: num(r, 'steerLookahead', name),
     brakeLookahead: num(r, 'brakeLookahead', name),
@@ -34,6 +44,12 @@ export function parseBot(name: string, v: unknown): BotParams {
     noiseAmp: num(r, 'noiseAmp', name),
     noiseTau: num(r, 'noiseTau', name),
     reactionDelay: num(r, 'reactionDelay', name),
+    drift: drift as DriftMode,
+    driftMinCurve: num(r, 'driftMinCurve', name),
+    driftLookahead: num(r, 'driftLookahead', name),
+    driftKickSteer: num(r, 'driftKickSteer', name),
+    driftFeedLookahead: num(r, 'driftFeedLookahead', name),
+    driftGain: num(r, 'driftGain', name),
   };
   if (bp.steerLookahead <= 0) throw new Error(`bots.${name}.steerLookahead must be > 0`);
   if (bp.reactionDelay < 0 || bp.reactionDelay > MAX_DELAY_TICKS * DT) {

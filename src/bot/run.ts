@@ -34,6 +34,8 @@ export interface RunResult {
   offroadEventsByClass: Record<CurveClass, number>;
   saturationTicks: number;
   brakeTicks: number;
+  driftTicks: number; // ticks ending in DRIFT (R20-R22)
+  driftEntries: number; // GRIP -> DRIFT transitions
   straightTicks: number;
   deadTicks: number;
   speedSum: number; // sum of speed/vmax per tick
@@ -91,6 +93,8 @@ export function runBot(
     offroadEventsByClass: { easy: 0, medium: 0, hard: 0 },
     saturationTicks: 0,
     brakeTicks: 0,
+    driftTicks: 0,
+    driftEntries: 0,
     straightTicks: 0,
     deadTicks: 0,
     speedSum: 0,
@@ -112,6 +116,7 @@ export function runBot(
   let lapStartTick = 0;
   let wasOff = false;
   let wasWall = false;
+  let wasDrift = false;
   let hash = 2166136261;
 
   while (car.z < goal && race.tick < maxTicks) {
@@ -131,6 +136,10 @@ export function runBot(
     const as = frame.steer < 0 ? -frame.steer : frame.steer;
     if (as > m.saturationSteer) r.saturationTicks++;
     if (frame.brake) r.brakeTicks++;
+    const drifting = car.state === 'DRIFT';
+    if (drifting) r.driftTicks++;
+    if (drifting && !wasDrift) r.driftEntries++;
+    wasDrift = drifting;
     const c = track.segments[segBefore]!.curve;
     if ((c < 0 ? -c : c) <= m.straightCurveMax) {
       r.straightTicks++;

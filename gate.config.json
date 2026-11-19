@@ -1,5 +1,5 @@
 {
-  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rules novice-not-faster, expert-brakes, expert-long-hard-slows: director 2026-11-18 (T16). Rule offroad-recovery: director 2026-11-18 (R15b).",
+  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rule novice-not-faster: director 2026-11-18 (T16). Stage 2 (T23, director 2026-11-19): expert-brakes and expert-long-hard-slows removed (author rejected the lift in hard corners); expert-drift-holds-speed, expert-drift-used, expert-offroad-time, average-never-drifts added; expert-gap widened to 10-35%. Rule offroad-recovery: director 2026-11-18 (R15b).",
   "measure": {
     "laps": 3,
     "maxSecondsPerLap": 180,
@@ -49,10 +49,10 @@
       "fast": "expert",
       "slow": "average",
       "metric": "lapTime.mean",
-      "min": 0.03,
-      "max": 0.15,
+      "min": 0.1,
+      "max": 0.35,
       "severity": "no-go",
-      "note": "expert 3-15% faster than average: a skill ceiling exists but is not absurd"
+      "note": "expert 10-35% faster than average: drift through hard corners is the skill ceiling (stage 2)"
     },
     {
       "id": "novice-not-faster",
@@ -65,20 +65,37 @@
       "note": "novice lap >= average lap: leaving the road costs more than braking (pillar 3)"
     },
     {
-      "id": "expert-brakes",
-      "bot": "expert",
-      "metric": "brakeFraction",
-      "above": 0,
-      "severity": "no-go",
-      "note": "a hard corner needs a lift even for the expert"
-    },
-    {
-      "id": "expert-long-hard-slows",
+      "id": "expert-drift-holds-speed",
       "bot": "expert",
       "metric": "speed.longHardMin",
-      "max": 0.9,
+      "min": 0.95,
       "severity": "no-go",
-      "note": "every hard corner with hold >= measure.longHoldSeconds forces the expert below 0.9 vmax; missing = no such corner on the track"
+      "note": "the expert drifts through every long hard corner (hold >= measure.longHoldSeconds) at >= 0.95 vmax: no lift mid-corner (pillar 3, author 2026-11-19); missing = no such corner on the track"
+    },
+    {
+      "id": "expert-drift-used",
+      "bot": "expert",
+      "metric": "driftFraction",
+      "min": 0.1,
+      "max": 0.6,
+      "severity": "no-go",
+      "note": "the expert drifts 10-60% of the time: drift is a technique for sharp corners, not the whole lap"
+    },
+    {
+      "id": "expert-offroad-time",
+      "bot": "expert",
+      "metric": "offroadFraction",
+      "max": 0.02,
+      "severity": "no-go",
+      "note": "the expert's drift stays on asphalt >= 98% of the time"
+    },
+    {
+      "id": "average-never-drifts",
+      "bot": "average",
+      "metric": "driftFraction",
+      "max": 0,
+      "severity": "no-go",
+      "note": "sanity: the average bot does not drift"
     },
     {
       "id": "average-saturation",
