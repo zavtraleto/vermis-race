@@ -87,6 +87,12 @@
       "step": 0.01,
       "label": "driftEnterSteer — руль для входа (R20)"
     },
+    "car.driftArmTime": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "driftArmTime — окно взвода входа, с (R20)"
+    },
     "car.driftOffroad": {
       "min": 0,
       "max": 1,
