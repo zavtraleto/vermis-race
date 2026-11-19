@@ -80,6 +80,7 @@ export interface CarParams {
   offroadMul: number;
   offroadGrip: number; // R15b grip in R12 while |x| > 1
   offroadSteerMul: number; // R15b multiplier of the R11 target while |x| > 1
+  offroadVelMul: number; // R84 model B: g and smax multiplier in GRIP while |x| > 1 (1 = none)
   kCurve: number; // R13 K_CURVE, tuning (brief section 3)
   xLimit: number; // R18 lateral limit, half-widths
   driftEnterSpeed: number; // R20 enter only above driftEnterSpeed * vmax

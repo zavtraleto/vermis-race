@@ -39,6 +39,7 @@
   "offroadMul": 0.99,
   "offroadGrip": 12,
   "offroadSteerMul": 0.6,
+  "offroadVelMul": 1,
   "kCurve": 1.5,
   "xLimit": 1.5,
   "driftEnterSpeed": 0.45,

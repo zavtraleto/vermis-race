@@ -8,6 +8,7 @@
 // All rule tests run with Q (accel 0, slipDrag 0) unless the rule is about speed, so speed is
 // constant over a tick. Cars start with recover = 10 (full grip) unless a test says otherwise.
 import { describe, expect, it } from 'vitest';
+import { baseCar } from '../../src/data/cars';
 import { DT, STEER_HIST } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import type { CarParams, RaceState } from '../../src/sim/types';
@@ -394,16 +395,51 @@ describe('R84 motion', () => {
       expect(car(s).yaw).toBeCloseTo(vel1 + 2.05, 9);
     });
   });
-  it('R84 off road (|x| > 1) g and smax are scaled by offroadSteerMul (0.6)', () => {
-    // yaw 0.5, vel 0, steer 0, GRIP: yaw1 = 0.5 - 12.5*0.5*chase(50)/120 = 0.48225
-    // on road: slip > smax 0.42 -> vel1 = 22*0.42*DT = 0.077
-    // off road: g = 13.2, smax = 0.252 -> vel1 = 13.2*0.252*DT = 0.02772
-    const on = mk({ speed: 0.5, yaw: 0.5, x: 0.5 });
-    stepB(on, inp(0));
-    const off = mk({ speed: 0.5, yaw: 0.5, x: 1.2 });
-    stepB(off, inp(0));
-    expect(car(on).vel).toBeCloseTo(22 * 0.42 * DT, 9);
-    expect(car(off).vel).toBeCloseTo(22 * 0.6 * (0.42 * 0.6) * DT, 9);
+  describe('R84 off road scaling by offroadVelMul (GRIP only)', () => {
+    const P06: CarParams = { ...Q, offroadVelMul: 0.6 };
+    it('R84 off road (|x| > 1) g and smax are scaled by offroadVelMul (0.6)', () => {
+      // yaw 0.5, vel 0, steer 0, GRIP: yaw1 = 0.5 - 12.5*0.5*chase(50)/120 = 0.48225
+      // on road: slip > smax 0.42 -> vel1 = 22*0.42*DT = 0.077
+      // off road: g = 22*0.6 = 13.2, smax = 0.42*0.6 = 0.252 -> vel1 = 13.2*0.252*DT = 0.02772
+      const on = mk({ speed: 0.5, yaw: 0.5, x: 0.5 });
+      stepB(on, inp(0), P06);
+      const off = mk({ speed: 0.5, yaw: 0.5, x: 1.2 });
+      stepB(off, inp(0), P06);
+      expect(car(on).vel).toBeCloseTo(22 * 0.42 * DT, 9);
+      expect(car(off).vel).toBeCloseTo(22 * 0.6 * (0.42 * 0.6) * DT, 9);
+    });
+    it('R84 offroadVelMul = 1: off-road vel equals the on-road value', () => {
+      const p1: CarParams = { ...Q, offroadVelMul: 1 };
+      const on = mk({ speed: 0.5, yaw: 0.5, x: 0.5 });
+      stepB(on, inp(0), p1);
+      const off = mk({ speed: 0.5, yaw: 0.5, x: 1.2 });
+      stepB(off, inp(0), p1);
+      expect(car(off).vel).toBeCloseTo(22 * 0.42 * DT, 9);
+      expect(car(off).vel).toBeCloseTo(car(on).vel, 12);
+    });
+    it('R84 in DRIFT off road there is no scaling even with offroadVelMul 0.6', () => {
+      const st = { speed: 0.8, state: 'DRIFT' as const, dir: 1 as const, yaw: 1, vel: 0.5 };
+      const on = mk({ ...st, x: 0.5 });
+      stepB(on, inp(1, true), P06);
+      const off = mk({ ...st, x: 1.2 });
+      stepB(off, inp(1, true), P06);
+      expect(car(off).state).toBe('DRIFT');
+      expect(car(off).vel).toBeCloseTo(car(on).vel, 12);
+      expect(car(off).yaw).toBeCloseTo(car(on).yaw, 12);
+    });
+    it('R84 offroadSteerMul has no effect in model B', () => {
+      const run = (m: number): number => {
+        const s = mk({ speed: 0.5, yaw: 0.5, x: 1.2 });
+        stepB(s, inp(0), { ...P06, offroadSteerMul: m });
+        return car(s).vel;
+      };
+      expect(run(0.1)).toBe(run(1));
+      expect(run(0.3)).toBeCloseTo(22 * 0.6 * (0.42 * 0.6) * DT, 9);
+    });
+    it('R84 data: base.json offroadVelMul is within (0, 1]', () => {
+      expect(baseCar.offroadVelMul).toBeGreaterThan(0);
+      expect(baseCar.offroadVelMul).toBeLessThanOrEqual(1);
+    });
   });
 });
 

@@ -14,6 +14,7 @@ export const PB: CarParams = {
   driftBrake: 0.3,
   offroadMul: 0.99,
   offroadSteerMul: 0.6,
+  offroadVelMul: 1,
   xLimit: 1.5,
   driftEnterSpeed: 0.45,
   driftExitSpeed: 0.3,
