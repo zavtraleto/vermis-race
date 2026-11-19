@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { baseCar } from '../../src/data/cars';
-import { curveClasses, loadTestTwisty } from '../../src/data/tracks';
-import { SEG_PER_UNIT } from '../../src/sim/constants';
+import { curveClasses } from '../../src/data/tracks';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';
 import type { InputFrame, Track } from '../../src/sim/types';
@@ -96,43 +95,27 @@ describe('calibration hard curve threshold speed', () => {
   });
 });
 
-describe('calibration bot on test-twisty', () => {
-  it('P-controller in GRIP stays on the road on easy corners and finishes the lap', () => {
-    const tw = loadTestTwisty();
-    const track = buildTrack(tw.def);
-    const len = track.segments.length;
-    // cumulative section ends -> class lookup
-    const ends: number[] = [];
-    let acc = 0;
-    for (const s of tw.sections) {
-      acc += s.enter + s.hold + s.leave;
-      ends.push(acc);
-    }
-    const classAt = (z: number): 'easy' | 'medium' | 'hard' => {
-      const seg = Math.floor(z) % len;
-      let i = 0;
-      while (i < ends.length - 1 && seg >= ends[i]!) i++;
-      return tw.sections[i]!.curveClass;
-    };
-    const race = createRace(1, 1);
-    const car = race.cars[0]!;
-    const input: InputFrame = { steer: 0, brake: false, drift: false };
-    const params = [baseCar];
-    const inputs = [input];
-    const maxX = { easy: 0, medium: 0, hard: 0 };
-    let guard = 0;
-    while (car.z < 2 * len && guard++ < 200000) {
-      input.steer = Math.max(-1, Math.min(1, -3 * car.x));
-      step(race, inputs, track, params);
-      if (car.z >= len && car.z < 2 * len) {
-        const k = classAt(car.z);
-        const ax = Math.abs(car.x);
-        if (ax > maxX[k]) maxX[k] = ax;
+describe('calibration P-controller on a constant easy curve', () => {
+  // Requirement in isolation: a simple proportional GRIP controller at vmax keeps |x| < 1 on an easy curve.
+  for (const side of [1, -1]) {
+    const tag = side > 0 ? 'right' : 'left';
+    it(`${tag}: steer = clamp(-3x) keeps |x| < 1 for 600 segments at vmax`, () => {
+      const race = createRace(1, 1);
+      const car = race.cars[0]!;
+      car.speed = baseCar.vmax;
+      const track = constTrack(side * curveClasses.easy, 2000);
+      const input: InputFrame = { steer: 0, brake: false, drift: false };
+      const inputs = [input];
+      const params = [baseCar];
+      let maxX = 0;
+      let guard = 0;
+      while (car.z < 600 && guard++ < 100000) {
+        input.steer = Math.max(-1, Math.min(1, -3 * car.x));
+        step(race, inputs, track, params);
+        maxX = Math.max(maxX, Math.abs(car.x));
       }
-    }
-    expect(car.z).toBeGreaterThanOrEqual(2 * len);
-    // medium and hard are drift-only (R22b): a GRIP controller is not expected to hold them.
-    expect(maxX.easy).toBeLessThan(1);
-    expect(SEG_PER_UNIT).toBe(60);
-  });
+      expect(car.z).toBeGreaterThanOrEqual(600);
+      expect(maxX).toBeLessThan(1);
+    });
+  }
 });

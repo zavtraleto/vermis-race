@@ -5,6 +5,7 @@ import { botParams, BOT_NAMES } from '../../src/data/bots';
 import { baseCar } from '../../src/data/cars';
 import { curveClasses, loadTestTwisty } from '../../src/data/tracks';
 import { botInput, createBot, holdSpeedLimit } from '../../src/bot/driver';
+import { SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';
 import type { InputFrame, Track } from '../../src/sim/types';
@@ -60,7 +61,8 @@ function drive(name: string, seed: number, laps: number, track: Track, maxTicks:
   return t;
 }
 
-const MAX_TICKS_3_LAPS = 120 * 60 * 6; // 6 minutes of virtual time, far above any sane 3-lap run
+// Cap derived from the track: 3 laps at vmax take 3 * len / SEG_PER_UNIT seconds (60 seg/s); x3 margin; 120 ticks/s.
+const MAX_TICKS_3_LAPS = Math.ceil(3 * (twisty().segments.length / SEG_PER_UNIT) * 3 * 120);
 const AVERAGE_MAX_OFFROAD_FRACTION = 0.05; // stated bound (stage 1 starting corridor)
 
 describe('T16 bot set', () => {

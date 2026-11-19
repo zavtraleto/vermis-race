@@ -201,7 +201,7 @@ describe('R21 DRIFT -> GRIP', () => {
   });
   it('R21 forced exit after driftOffroadTime (0.4 s = 48 ticks) of consecutive off-road time', () => {
     // x = 1.5, steer right, dir +1: the target pushes outward, the car stays off road (x clamps at 2).
-    // Speed starts at vmax; R15 0.97^0.5 per tick keeps it above 0.3 for 52 ticks (0.985^52 ~ 0.46).
+    // Speed starts at vmax; R15 offroadMul^0.5 per tick must keep it above 0.3 for 52 ticks.
     // Exact counter convention (before/after the check) is not pinned: 40 ticks must still be DRIFT,
     // 52 ticks must be GRIP (48 ticks = 0.4 s, "longer than" => 49th tick or so).
     const s = drifting({ x: 1.5, speed: 1 });
@@ -312,11 +312,12 @@ describe('R21b H11 variant B (driftOffroad = 1): drift on the shoulder', () => {
     expect(car(b).state).toBe('GRIP');
   });
   it('R21b R15 speed loss still applies off road in DRIFT', () => {
-    // speed = (0.8 + 0.19/120) * 0.97^(60/120), as in the R22 off-road test.
+    // speed = (0.8 + 0.19/120) * offroadMul^(60/120), as in the R22 off-road test (offroadMul from the params).
     const s = drifting({ x: 1.5, vx: 0.3 });
-    one(s, inp(0.6, false, true), track0, { ...PB, accel: P.accel } as DP);
+    const p = { ...PB, accel: P.accel } as DP;
+    one(s, inp(0.6, false, true), track0, p);
     expect(car(s).state).toBe('DRIFT');
-    expect(car(s).speed).toBeCloseTo((0.8 + 0.19 * DT) * Math.pow(0.97, 60 * DT), 10);
+    expect(car(s).speed).toBeCloseTo((0.8 + 0.19 * DT) * Math.pow(p.offroadMul, 60 * DT), 10);
   });
   it('R21b offTicks keeps counting with driftOffroad 1', () => {
     const p = { ...PB, offroadMul: 1 } as DP;
@@ -424,14 +425,14 @@ describe('R22 drift physics', () => {
   it('R22 R15b multipliers are not applied in DRIFT off road, R15 slowdown is', () => {
     // x = 1.5, offroadGrip 20 and offroadSteerMul 0.5 must be ignored in DRIFT.
     // vx = 0.3 + (0.812-0.3)*(1-exp(-3/120)) = 0.312641 (gripDrift, full target)
-    // x = 1.5 + 0.312641/120. speed = (0.8 + 0.19/120) * 0.97^(60/120) (R15, x > 1).
+    // x = 1.5 + 0.312641/120. speed = (0.8 + 0.19/120) * offroadMul^(60/120) (R15, x > 1).
     const p = { ...P, offroadGrip: 20, offroadSteerMul: 0.5 } as DP;
     const s = drifting({ x: 1.5, vx: 0.3 });
     one(s, inp(0.6, false, true), track0, p);
     const vx = r12(0.3, 0.812, 3);
     expect(car(s).vx).toBeCloseTo(vx, 10);
     expect(car(s).x).toBeCloseTo(1.5 + vx * DT, 10);
-    expect(car(s).speed).toBeCloseTo((0.8 + 0.19 * DT) * Math.pow(0.97, 60 * DT), 10);
+    expect(car(s).speed).toBeCloseTo((0.8 + 0.19 * DT) * Math.pow(p.offroadMul, 60 * DT), 10);
   });
   it('R22 steer inward gives a larger |target| than steer outward (same dir)', () => {
     // inward steer*dir = +0.8: lerp = 0.25+1.5*0.9 = 1.6; outward -0.8: 0.25+1.5*0.1 = 0.4
