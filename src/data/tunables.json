@@ -165,6 +165,72 @@
       "step": 1,
       "label": "retouchSwipePx — свайп вбок после касания, px (H3 D)"
     },
+    "input.touch.flickDelta": {
+      "min": 0.1,
+      "max": 1.5,
+      "step": 0.05,
+      "label": "flickDelta — рывок руля для дрифта (H3 E)"
+    },
+    "input.touch.flickWindowMs": {
+      "min": 30,
+      "max": 400,
+      "step": 10,
+      "label": "flickWindowMs — окно рывка, мс (H3 E)"
+    },
+    "car.driftAutoExit": {
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "driftAutoExit — срыв дрифта по малому углу: 1 = A, 0 = B (H12, R21c)"
+    },
+    "car.draftLength": {
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "label": "draftLength — длина потока, сегм. (R50)"
+    },
+    "car.draftWidth": {
+      "min": 0.05,
+      "max": 1,
+      "step": 0.01,
+      "label": "draftWidth — ширина потока, полуширины (R50)"
+    },
+    "car.draftChargeTime": {
+      "min": 0.1,
+      "max": 5,
+      "step": 0.05,
+      "label": "draftChargeTime — заряд потока 0→1, с (R51)"
+    },
+    "car.draftDecayTime": {
+      "min": 0.1,
+      "max": 5,
+      "step": 0.05,
+      "label": "draftDecayTime — спад заряда 1→0, с (R51)"
+    },
+    "car.draftCapMul": {
+      "min": 1,
+      "max": 1.5,
+      "step": 0.01,
+      "label": "draftCapMul — потолок скорости в ускорении ×vmax (R52)"
+    },
+    "car.draftAccelMul": {
+      "min": 1,
+      "max": 4,
+      "step": 0.05,
+      "label": "draftAccelMul — разгон в ускорении ×accel (R52)"
+    },
+    "car.boostTime": {
+      "min": 0,
+      "max": 6,
+      "step": 0.1,
+      "label": "boostTime — ускорение после выхода из потока, с (R52, H5 B)"
+    },
+    "car.draftBoost": {
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "draftBoost — ускорение после потока: 1 = B, 0 = A (H5, R52)"
+    },
     "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
     "camera.height": { "min": 200, "max": 1600, "step": 10, "label": "height — высота камеры" },
     "camera.horizon": {
@@ -388,12 +454,96 @@
       "max": 40,
       "step": 1,
       "label": "bump.shakeHz — частота тряски, Гц (R45)"
+    },
+    "sprites.weight.yawGain": {
+      "min": 0,
+      "max": 6,
+      "step": 0.1,
+      "label": "weight.yawGain — рыскание от бокового движения, × курс (R26)"
+    },
+    "sprites.weight.yawMaxDeg": {
+      "min": 0,
+      "max": 40,
+      "step": 1,
+      "label": "weight.yawMaxDeg — предел рыскания вне дрифта, град (R26)"
+    },
+    "sprites.weight.yawTau": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "weight.yawTau — сглаживание рыскания, с (R26)"
+    },
+    "sprites.weight.blendTau": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "weight.blendTau — переход рыскания сцепление/дрифт, с (R26)"
+    },
+    "sprites.weight.rollGain": {
+      "min": 0,
+      "max": 5,
+      "step": 0.1,
+      "label": "weight.rollGain — крен, град на полуширину/с² (R26)"
+    },
+    "sprites.weight.rollMaxDeg": {
+      "min": 0,
+      "max": 15,
+      "step": 0.5,
+      "label": "weight.rollMaxDeg — предел крена, град (R26)"
+    },
+    "sprites.weight.rollTau": {
+      "min": 0.02,
+      "max": 0.6,
+      "step": 0.01,
+      "label": "weight.rollTau — сглаживание крена, с (R26)"
+    },
+    "sprites.weight.pitchGain": {
+      "min": 0,
+      "max": 10,
+      "step": 0.1,
+      "label": "weight.pitchGain — тангаж, град на vmax/с (R26)"
+    },
+    "sprites.weight.pitchMaxDeg": {
+      "min": 0,
+      "max": 10,
+      "step": 0.5,
+      "label": "weight.pitchMaxDeg — предел тангажа, град (R26)"
+    },
+    "sprites.weight.pitchTau": {
+      "min": 0.02,
+      "max": 0.6,
+      "step": 0.01,
+      "label": "weight.pitchTau — сглаживание тангажа, с (R26)"
+    },
+    "sprites.driftCamera.rollDeg": {
+      "min": -15,
+      "max": 15,
+      "step": 0.5,
+      "label": "driftCamera.rollDeg — наклон картинки при угле 1, град; знак — сторона (R27)"
+    },
+    "sprites.driftCamera.rollTau": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "driftCamera.rollTau — сглаживание наклона, с (R27)"
+    },
+    "sprites.traffic.yawGain": {
+      "min": 0,
+      "max": 2,
+      "step": 0.05,
+      "label": "traffic.yawGain — поворот трафика по дороге, × курс (R45)"
+    },
+    "sprites.speedometer.vmaxKmh": {
+      "min": 100,
+      "max": 500,
+      "step": 10,
+      "label": "speedometer.vmaxKmh — км/ч на vmax (R28)"
     }
   },
   "flags": {
     "hypotheses.H1_driftBoost": ["A", "B"],
     "hypotheses.H2_touchSteering": ["A", "B", "C"],
-    "hypotheses.H3_driftEntry": ["A", "B", "C", "D"],
+    "hypotheses.H3_driftEntry": ["A", "B", "C", "D", "E"],
     "hypotheses.H4_fingerVertical": ["A", "B"],
     "hypotheses.H5_slipstream": ["A", "B"],
     "hypotheses.H6_trackFormat": ["P2P", "ring"],

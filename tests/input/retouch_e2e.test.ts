@@ -57,6 +57,9 @@ function rig(): Rig {
   });
   const state = createRace(1, 1);
   const car = state.cars[0]!;
+  // R21c: this test describes leaving the drift by taking the finger to the centre (small-angle
+  // exit), which is H12 A (driftAutoExit 1); the data default is now 0.
+  const params = { ...baseCar, driftAutoExit: 1 };
   car.speed = 0.9 * baseCar.vmax;
   const frame: InputFrame = { steer: 0, brake: false, drift: false };
   const queue: Ev[] = [];
@@ -86,7 +89,7 @@ function rig(): Rig {
         clock.t = t;
         while (next < queue.length && queue[next]!.t <= t) deliver(queue[next++]!);
         player.read(frame);
-        step(state, [frame], track, [baseCar]);
+        step(state, [frame], track, [params]);
         onTick?.(car, t);
       }
     },

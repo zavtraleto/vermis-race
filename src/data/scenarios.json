@@ -7,13 +7,26 @@
     "z": 20,
     "cars": [
       { "dz": 3, "lane": 2, "speed": 0.5 },
-      { "dz": 8, "lane": 5, "speed": 0.5 }
+      { "dz": 8, "lane": 5, "speed": 0.5 },
+      { "dz": 14, "lane": 3, "speed": 0.5 }
     ]
   },
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
   "map-curve": { "ticks": 300, "steer": 0.2 },
   "drift-right": { "ticks": 60, "curve": 4.5, "steer": 0.5, "speed": 0.9 },
+  "drift-camera": {
+    "ticks": 90,
+    "curve": 4.5,
+    "steer": 0.9,
+    "speed": 0.9,
+    "ui": true,
+    "z": 0,
+    "cars": [
+      { "dz": 27, "lane": 5, "speed": 0.5 },
+      { "dz": 40, "lane": 2, "speed": 0.5 }
+    ]
+  },
   "hill-crest": {
     "ticks": 1,
     "steer": 0,

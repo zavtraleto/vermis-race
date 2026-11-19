@@ -2,7 +2,7 @@
   "vmax": 1,
   "accel": 0.22,
   "brake": 0.6,
-  "steerRate": 1.0,
+  "steerRate": 1.4,
   "steerRise": 10,
   "grip": 12,
   "gripDrift": 3,
@@ -34,5 +34,14 @@
   "bumpFloor": 0.3,
   "bumpKick": 0.6,
   "bumpInvulnTime": 0.8,
-  "bumpAngleLoss": 0.3
+  "bumpAngleLoss": 0.3,
+  "driftAutoExit": 0,
+  "draftLength": 80,
+  "draftWidth": 0.25,
+  "draftChargeTime": 0.8,
+  "draftDecayTime": 0.6,
+  "draftCapMul": 1.13,
+  "draftAccelMul": 1.6,
+  "boostTime": 2.0,
+  "draftBoost": 1
 }

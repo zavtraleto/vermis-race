@@ -206,6 +206,11 @@ export function botInput(
   const k = p.centrifugal * p.kCurve;
   const segPerSec = car.speed * SEG_PER_UNIT;
   const seg0 = wrap(Math.floor(car.z), n);
+  // R22d: a corner GRIP holds at vmax with the bot's usable steer (1 - steerReserve) is faster
+  // without the drift cap (R22), so only sharper corners are drift corners:
+  // R11/R13 at sp = 1: 0.75 * s * steerRate >= |c| * centrifugal * kCurve.
+  const cGrip = k > 0 ? (0.75 * (1 - bp.steerReserve) * p.steerRate) / k : Infinity;
+  const cDrift = cGrip > bp.driftMinCurve ? cGrip : bp.driftMinCurve;
 
   // Steering: aim at a target x within steerLookahead, feed forward the mean R13 push ahead.
   let dSteer = Math.round(segPerSec * bp.steerLookahead);
@@ -233,7 +238,7 @@ export function botInput(
     if (dScan < dDrift) dScan = dDrift;
     for (let i = 0; i < dScan; i++) {
       const c = segs[wrap(seg0 + i, n)]!.curve;
-      if (c >= bp.driftMinCurve || c <= -bp.driftMinCurve) {
+      if (c >= cDrift || c <= -cDrift) {
         driftSign = c > 0 ? 1 : -1;
         driftAt = i;
         break;
@@ -275,7 +280,7 @@ export function botInput(
       for (let i = 0; i < n; i++) {
         const c = segs[wrap(seg0 + i, n)]!.curve;
         if (c * car.dir < 0 || i - last > dGap) break;
-        if (c * car.dir >= bp.driftMinCurve) last = i;
+        if (c * car.dir >= cDrift) last = i;
       }
       let tLeft = last / segPerSec;
       if (tLeft < bp.driftPlanMin) tLeft = bp.driftPlanMin;
@@ -356,7 +361,7 @@ export function botInput(
   let dBrake = Math.round(segPerSec * bp.brakeLookahead);
   if (dBrake < 1) dBrake = 1;
   const sHold = 1 - bp.steerReserve;
-  const cSkip = bp.drift === 'corners' ? bp.driftMinCurve : Infinity;
+  const cSkip = bp.drift === 'corners' ? cDrift : Infinity;
   if (bp.speed === 'hold') {
     let cMax = 0;
     for (let i = 0; i < dBrake; i++) {

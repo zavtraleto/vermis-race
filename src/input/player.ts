@@ -1,6 +1,7 @@
 import type { InputFrame } from '../sim/types';
 import type { AutoDrift } from './autoDrift';
 import { combineInputs } from './combine';
+import type { FlickDrift } from './flickDrift';
 import type { RetouchDrift } from './retouchDrift';
 import type { KeyboardInput } from './keyboard';
 import { resolveDriftEntry, type DriftEntry } from './scheme';
@@ -22,6 +23,8 @@ export interface DriftEntryOptions {
   autoDrift: AutoDrift;
   /** H3 D: fed by the pointer adapter with the active touch's events. */
   retouch?: RetouchDrift;
+  /** H3 E: flick detector fed by the pointer adapter / the poll. */
+  flick?: FlickDrift;
   warn: (message: string) => void;
 }
 
@@ -54,6 +57,8 @@ export function createPlayerInput(
         if (entry === 'C') touchFrame.drift = drift.autoDrift.update(touchFrame.steer);
         // H3 D: the pull-down gesture is ignored, touch drift = re-touch + sideways swipe.
         else if (entry === 'D') touchFrame.drift = drift.retouch?.active ?? false;
+        // H3 E: the pull-down gesture is ignored, touch drift = a flick latched until release.
+        else if (entry === 'E') touchFrame.drift = drift.flick?.active ?? false;
       }
       combineInputs(kbFrame, touchFrame, out);
       last.steer = out.steer;

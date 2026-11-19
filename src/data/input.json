@@ -10,6 +10,8 @@
     "autoDriftSteer": 0.85,
     "autoDriftRelease": 0.1,
     "retouchWindowMs": 450,
-    "retouchSwipePx": 14
+    "retouchSwipePx": 14,
+    "flickDelta": 0.5,
+    "flickWindowMs": 120
   }
 }

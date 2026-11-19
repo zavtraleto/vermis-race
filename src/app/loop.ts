@@ -52,6 +52,8 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.armTicks = s.armTicks;
     d.lowTicks = s.lowTicks;
     d.bumpTicks = s.bumpTicks;
+    d.draft = s.draft;
+    d.boostTicks = s.boostTicks;
   }
 }
 

@@ -20,6 +20,8 @@ export interface Car {
   armTicks: number; // R20 ticks since the rising edge of the drift input while armed, 0 otherwise
   lowTicks: number; // R21 consecutive DRIFT ticks with angle*dir < driftAngleExit
   bumpTicks: number; // R43 remaining invulnerability ticks after a contact
+  draft: number; // R51 slipstream charge in [0, 1]
+  boostTicks: number; // R52 (H5 B) remaining boost ticks after leaving the cone with a full charge
 }
 
 export interface RaceState {
@@ -65,6 +67,15 @@ export interface CarParams {
   bumpKick: number; // R42 lateral speed kick
   bumpInvulnTime: number; // R43 seconds
   bumpAngleLoss: number; // R44 drift angle loss
+  driftAutoExit: number; // R21c / H12: 1 = small-angle exit on (H12 A), 0 = off (H12 B)
+  draftLength: number; // R50 cone length ahead, segments
+  draftWidth: number; // R50 cone width, half-widths
+  draftChargeTime: number; // R51 seconds to charge 0 -> 1 in the cone
+  draftDecayTime: number; // R51 seconds to decay 1 -> 0 outside the cone
+  draftCapMul: number; // R52 speed cap multiplier while boosted
+  draftAccelMul: number; // R52 acceleration multiplier while boosted
+  boostTime: number; // R52 (H5 B) seconds the boost lasts after leaving the cone
+  draftBoost: number; // H5: 0 = A, 1 = B
 }
 
 /** R71 traffic pool config (src/data/traffic.json) plus the lane count of the road. */

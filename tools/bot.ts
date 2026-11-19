@@ -25,7 +25,7 @@ function trafficLine(label: string, tr: TrafficEntry): string {
     `(x${tr.lapTime.ratio.toFixed(3)})  bumps/lap ${tr.bumpsPerLap.toFixed(2)}  ` +
     `in drift/lap ${tr.bumpsInDriftPerLap.toFixed(2)}  ` +
     `runs w/o drift bump ${(100 * tr.zeroDriftBumpRuns).toFixed(0)}%  ` +
-    `passed/lap ${tr.passedPerLap.toFixed(1)}  finished ${tr.finishedFraction * tr.runs}/${tr.runs}`
+    `passed/lap ${tr.passedPerLap.toFixed(1)}  boosts/lap ${tr.boostsPerLap.toFixed(2)}  finished ${tr.finishedFraction * tr.runs}/${tr.runs}`
   );
 }
 
