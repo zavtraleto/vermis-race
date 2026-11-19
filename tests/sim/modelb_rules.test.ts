@@ -189,29 +189,38 @@ describe('R81 flick entry', () => {
     stepB(fast, inp(0.3, true));
     expect(car(fast).state).toBe('DRIFT'); // 0.5 > 0.45
   });
-  it('R81 the buffer is written every tick, also with drift input released', () => {
-    // history recorded with drift released; the flick is found on the first drift-held tick.
-    const s = withHistory({ speed: 0.8 }, Array<number>(5).fill(-0.3), false);
+  it('R81 the buffer is cleared and not written while input.drift is released', () => {
+    const s = withHistory({ speed: 0.8 }, Array<number>(5).fill(-0.3), true);
     expect(car(s).steerHistCount).toBe(5);
-    stepB(s, inp(0.3, true));
-    expect(car(s).state).toBe('DRIFT');
+    stepB(s, inp(-0.3, false));
+    expect(car(s).steerHistCount).toBe(0);
+    stepN(s, 3, inp(-0.3, false));
+    expect(car(s).steerHistCount).toBe(0);
+    // history recorded with drift released does not give a flick on the first held tick
+    const t = withHistory({ speed: 0.8 }, Array<number>(5).fill(-0.3), false);
+    expect(car(t).steerHistCount).toBe(0);
+    stepB(t, inp(0.3, true));
+    expect(car(t).state).toBe('GRIP');
   });
-  it('R81 the buffer is written every tick, also in DRIFT', () => {
-    // DRIFT with steer -0.3 for 5 ticks, release (-> GRIP, steer 0.3), press again with steer 0.3.
-    // Look-back at the last tick finds -0.3 recorded during DRIFT: d = 0.6 -> entry.
+  it('R81 the buffer is written every tick of a hold, also in DRIFT', () => {
+    // DRIFT with steer -0.3 for 5 held ticks: the samples are recorded although the state is DRIFT.
     const s = mk({ speed: 0.8, state: 'DRIFT', dir: -1 });
     stepN(s, 5, inp(-0.3, true));
     expect(car(s).state).toBe('DRIFT');
+    expect(car(s).steerHistCount).toBe(5);
+    // release clears the buffer (-> GRIP); a new hold starts with no history, so a jump gives no flick
     stepB(s, inp(0.3, false));
     expect(car(s).state).toBe('GRIP');
+    expect(car(s).steerHistCount).toBe(0);
     stepB(s, inp(0.3, true));
-    expect(car(s).state).toBe('DRIFT');
-    expect(car(s).dir).toBe(1);
+    expect(car(s).state).toBe('GRIP');
   });
   it('R81 only samples inside flickWindow count (0.12 s = 14.4 ticks)', () => {
     // one -0.3 sample, then n ticks of +0.3, then the flick tick: the old sample is n+1 ticks back.
     const run = (n: number) => {
-      const s = withHistory({ speed: 0.8 }, [-0.3, ...Array<number>(n).fill(0.3)], false);
+      // recorded under driftEnterSpeed (no entry while building the history), then speed 0.8
+      const s = withHistory({ speed: 0.44 }, [-0.3, ...Array<number>(n).fill(0.3)], true);
+      car(s).speed = 0.8;
       stepB(s, inp(0.3, true));
       return car(s).state;
     };
@@ -232,7 +241,7 @@ describe('R81 flick entry', () => {
   it('R81 steerHistCount grows by one per tick up to STEER_HIST; head stays in range', () => {
     const s = mk({ speed: 0.8 });
     for (let i = 1; i <= STEER_HIST + 5; i++) {
-      stepB(s, inp(0.1));
+      stepB(s, inp(0.1, true));
       expect(car(s).steerHistCount).toBe(Math.min(i, STEER_HIST));
       expect(car(s).steerHistHead).toBeGreaterThanOrEqual(0);
       expect(car(s).steerHistHead).toBeLessThan(STEER_HIST);

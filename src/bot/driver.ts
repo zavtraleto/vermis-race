@@ -334,8 +334,8 @@ function botInputB(
       bp.bSteerGain * lineMul * (xTarget - car.x) -
       bp.bSteerDamp * car.vx;
 
-  // R81 planned flick: counter-steer for bDipTime with the drift input still up (else the dip itself
-  // is a flick the wrong way), then full steer into the corner for bKickTime with it held, then the
+  // R81 planned flick: counter-steer for bDipTime with the drift input up until its last tick (else
+  // the dip itself is a flick the wrong way), then full steer into the corner for bKickTime with it held, then the
   // line controller; held until DRIFT, or until the flick has had time to reach the car (reaction
   // delay + dip + kick + flickWindow) and failed. The drift input goes through the same delay.
   if (!inDrift && bot.flick === 0 && driftSign !== 0 && car.speed > p.driftEnterSpeed * p.vmax) {
@@ -344,14 +344,17 @@ function botInputB(
   }
   let drift = holdDrift;
   if (!inDrift && bot.flick > 0) {
+    // R81: a flick counts only inside one hold, so the hold starts on the last pre-kick tick (the
+    // dip steer, or the line steer without a dip) and the kick follows inside it.
     const dip = Math.round(bp.bDipTime / DT);
+    const pre = dip < 1 ? 1 : dip;
     const kick = Math.round(bp.bKickTime / DT);
     const f = bot.flick;
     if (f <= dip) steer = -bot.flickDir * bp.bDipSteer;
-    else if (f <= dip + kick) steer = bot.flickDir;
+    else if (f > pre && f <= pre + kick) steer = bot.flickDir;
     const timeout =
-      delayTicks(bp, bot.steerQueue.length) + dip + kick + Math.round(p.flickWindow / DT);
-    drift = f > dip;
+      delayTicks(bp, bot.steerQueue.length) + pre + kick + Math.round(p.flickWindow / DT);
+    drift = f >= pre;
     bot.flick = f >= timeout ? 0 : f + 1;
   }
   out.steer = humanize(bot, bp, steer);

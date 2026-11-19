@@ -24,6 +24,7 @@ import { createTouchStick } from '../input/touchStick';
 import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
 import { CarWeight } from '../render/carWeight';
+import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
@@ -82,6 +83,11 @@ const tunables = installDev(
   window.location.search,
   use3d ? tunables3d : undefined,
 );
+// R47: the sim hits the lamps the roadside layout draws. The layout is built once below from the
+// (dev-diffed) sprites config and its lamp sliders apply after a reload, so one copy here at load
+// keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
+baseCar.lampEvery = spritesConfig.roadside.lamps.every;
+baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
 
 const canvas = document.getElementById('game');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('canvas #game missing');
@@ -112,6 +118,8 @@ const curveScenario =
 const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
 // R32 roadside: literal straight track, car placed where a lamp pair, a billboard and buildings are in view.
 const roadsideScenario = params.scenario === 'roadside' ? scenarios.roadside : null;
+// R49 crash look: literal straight track, car aimed at the right lamp pair, frozen mid-crash.
+const crashScenario = params.scenario === 'crash' ? scenarios.crash : null;
 // R45 traffic look: literal straight track, traffic cars at fixed positions, no respawn.
 // traffic-20 (spike E1 budget check): the same with 20 cars in view.
 const trafficScenario =
@@ -136,6 +144,7 @@ const fixedScenario =
   curveScenario ??
   straightScenario ??
   roadsideScenario ??
+  crashScenario ??
   trafficScenario ??
   mapScenario ??
   driftScenario ??
@@ -145,7 +154,7 @@ const track = curve
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
-    : straightScenario || roadsideScenario || trafficScenario
+    : straightScenario || roadsideScenario || crashScenario || trafficScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : hillScenario
         ? buildTrack({ sections: hillScenario.sections })
@@ -275,6 +284,11 @@ if (driftScenario) {
 }
 if (hillScenario) race.cars[0]!.z = hillScenario.z;
 if (roadsideScenario) race.cars[0]!.z = roadsideScenario.z;
+if (crashScenario) {
+  race.cars[0]!.z = crashScenario.z;
+  race.cars[0]!.x = crashScenario.x;
+  race.cars[0]!.speed = crashScenario.speed;
+}
 if (scenarioCars) {
   race.cars[0]!.z = scenarioCars.z;
   scenarioCars.cars.forEach((t, i) => {
@@ -284,7 +298,9 @@ if (scenarioCars) {
     c.speed = t.speed;
   });
 }
-const bump = new BumpFeedback(spritesConfig.bump);
+// R49: the crash shake is stronger than the bump shake (own numbers in sprites.json "crash").
+const bump = new BumpFeedback(spritesConfig.bump, spritesConfig.crash);
+const tumble = new CrashTumble(spritesConfig.crash);
 const render3d = use3d
   ? new Render3d(renderer, {
       cfg: render3dConfig,
@@ -366,7 +382,17 @@ function renderFrame(): void {
   const carY = spritesConfig.player.baseY * view.screenHeight;
   const carDx = -camX * roadHalfWidthPxAt(carY, view, roadConfig);
   // R26 weight (yaw from the real lateral motion, roll, pitch); R27 the car rolls with the picture.
-  carView.update(weight.yaw, weight.roll, carDx, weight.pitch, screenRoll.deg);
+  // R49: while crashTicks > 0 the car tumbles (roll and spin) and hops above the road.
+  carView.update(
+    weight.yaw + tumble.yawDeg,
+    weight.roll,
+    carDx,
+    weight.pitch,
+    screenRoll.deg,
+    tumble.rollDeg,
+    tumble.hop,
+    spritesConfig.crash.pivotY,
+  );
   carView.scene.visible = bump.visible; // R45 blink while bumpTicks > 0
   world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
   world.drawRoadside(sprites, proj, roadside, roadsideIndex);
@@ -426,7 +452,15 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
     roadConfig.segmentLength,
     bodyYaw,
   );
-  bump.update(dt, c.bumpTicks);
+  bump.update(dt, c.bumpTicks, c.crashTicks);
+  // R49: tumble from crashTicks (interpolated) and the side of the lamp (sign of crashX0).
+  tumble.update(
+    p.crashTicks,
+    c.crashTicks,
+    Math.round(baseCar.crashTime / DT),
+    c.crashX0 < 0 ? -1 : 1,
+    alpha,
+  );
   render3d?.update(loop.prev.cars, loop.curr.cars, alpha, dt);
 }
 

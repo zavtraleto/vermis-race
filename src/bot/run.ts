@@ -41,6 +41,7 @@ export interface RunResult {
   speedSum: number; // sum of speed/vmax per tick
   minSpeedFlying: number; // min speed/vmax over laps 2..N (lap 1 starts from standstill)
   wallHits: number; // entries into |x| = xLimit (R18)
+  crashes?: number; // R47 lamp-post crashes (absent = 0)
   nan: boolean;
   corners: CornerRun[]; // one per track section
   fingerprint: string; // FNV-1a over the per-tick state, for determinism checks
@@ -103,6 +104,7 @@ export function runBot(
     speedSum: 0,
     minSpeedFlying: Infinity,
     wallHits: 0,
+    crashes: 0,
     nan: false,
     corners,
     fingerprint: '',
@@ -124,6 +126,7 @@ export function runBot(
   let lapStartTick = 0;
   let wasOff = false;
   let wasWall = false;
+  let wasCrash = false;
   let wasDrift = false;
   let hash = 2166136261;
 
@@ -189,6 +192,10 @@ export function runBot(
     const wall = ax >= p.xLimit;
     if (wall && !wasWall) r.wallHits++;
     wasWall = wall;
+    // R49 criterion: lamp-post crashes (R47), counted on the hit tick.
+    const crashing = car.crashTicks > 0;
+    if (crashing && !wasCrash) r.crashes = (r.crashes ?? 0) + 1;
+    wasCrash = crashing;
 
     // Hold start crossed this tick (z may cross a lap boundary: compare positions in lap space).
     const hs = holdStart[si]!;

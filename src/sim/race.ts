@@ -31,6 +31,9 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       steerHist: new Array<number>(STEER_HIST).fill(0),
       steerHistHead: 0,
       steerHistCount: 0,
+      crashTicks: 0,
+      crashSpeed0: 0,
+      crashX0: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.
@@ -62,6 +65,13 @@ export function step(
     // R43: the invulnerability window counts down in the car's own update.
     if (car.bumpTicks > 0) car.bumpTicks--;
 
+    // R48: during a crash input and the driving rules (R10-R22, R80-R87, R50-R52) do not apply.
+    if (car.crashTicks > 0) {
+      crashStep(car, p);
+      continue;
+    }
+    const z0 = car.z;
+
     // R11/R13: sp uses the speed before R14 updates it.
     const sp0 = car.speed / p.vmax;
     // R13/R17/R19: segment under the car, before z advances.
@@ -78,6 +88,7 @@ export function step(
       const speedB = stepModelB(car, input, p, cars, curve, off);
       car.heading += curve * speedB * K_HEADING * DT; // R17
       car.z += speedB * DT * SEG_PER_UNIT; // R16
+      if (car.kind === 'player') lampHit(car, z0, p, segCount); // R47: after R16, before R40
       continue;
     }
 
@@ -198,6 +209,7 @@ export function step(
 
     // R16: z advances by post-update speed.
     car.z += speed * DT * SEG_PER_UNIT;
+    if (car.kind === 'player') lampHit(car, z0, p, segCount); // R47: after R16, before R40
   }
   const player = cars[0];
   if (player !== undefined && player.kind === 'player') {
@@ -231,6 +243,62 @@ function throttle(
     if (speed > cap) speed = cap;
   }
   return speed < 0 ? 0 : speed;
+}
+
+/**
+ * R47: the player hits a lamp post when z crossed (or reached) a boundary of a segment whose track
+ * index is a multiple of lampEvery (the lamps R32 draws), |x| is inside the hit band around
+ * lampOffset and the speed is above crashMinSpeed*vmax. Values are those of the end of the step.
+ */
+function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
+  const halfW = (p.carHitW + p.lampHitW) / 2;
+  const ax = car.x < 0 ? -car.x : car.x;
+  const d = ax - p.lampOffset;
+  if (!(d < halfW && d > -halfW) || !(car.speed > p.crashMinSpeed * p.vmax)) return;
+  // Segment boundaries b with z0 < b <= z (at most one per tick at road speeds).
+  for (let b = Math.floor(z0) + 1; b <= car.z; b++) {
+    let seg = b % segCount;
+    if (seg < 0) seg += segCount;
+    if (seg % p.lampEvery !== 0) continue;
+    // R48: the crash starts with the speed and x of the end of this step.
+    car.crashTicks = Math.round(p.crashTime / DT);
+    car.crashSpeed0 = car.speed;
+    car.crashX0 = car.x;
+    car.state = 'GRIP';
+    car.dir = 0;
+    car.vel = 0;
+    car.yaw = 0;
+    car.yawRate = 0;
+    car.carry = 0;
+    car.angle = 0;
+    car.vx = 0;
+    car.draft = 0;
+    car.boostTicks = 0;
+    car.steerHistCount = 0;
+    return;
+  }
+}
+
+/**
+ * R48 crash tick: input ignored, speed falls linearly from crashSpeed0 to 0 and x moves linearly
+ * from crashX0 to sign(crashX0)*crashReturnX over crashTime; z advances as R16. The last tick
+ * lands exactly on the road point with speed 0 and starts the R43 invulnerability.
+ */
+function crashStep(car: Car, p: CarParams): void {
+  car.steer = 0;
+  car.driftHeld = false;
+  car.crashTicks--;
+  const target = car.crashX0 < 0 ? -p.crashReturnX : p.crashReturnX;
+  if (car.crashTicks === 0) {
+    car.speed = 0;
+    car.x = target;
+    car.bumpTicks = Math.round(p.bumpInvulnTime / DT);
+  } else {
+    const f = car.crashTicks / Math.round(p.crashTime / DT);
+    car.speed = car.crashSpeed0 * f;
+    car.x = target + (car.crashX0 - target) * f;
+  }
+  car.z += car.speed * DT * SEG_PER_UNIT; // R16
 }
 
 /** R87: angle = slip/slipFull in DRIFT, 0 in GRIP. */
@@ -292,10 +360,15 @@ function stepModelB(
       car.yawRate = dir * (p.kickBase + p.kickGain * (abs - p.flickDelta)); // R81: rate of slip
     }
   }
-  // R81: the current steer is recorded every tick, in any state.
-  hist[car.steerHistHead] = steer;
-  car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
-  if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
+  // R81: the current steer is recorded every held tick, in any state; a flick counts only within
+  // one hold, so a tick without input.drift clears the buffer and records nothing.
+  if (input.drift) {
+    hist[car.steerHistHead] = steer;
+    car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
+    if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
+  } else {
+    car.steerHistCount = 0;
+  }
 
   // R83-R85: sp is the speed before R86 updates it; A = the road turning under the car (R83).
   const sp = car.speed / p.vmax;
@@ -380,8 +453,17 @@ function stepModelB(
     slip = car.yaw - car.vel;
   }
 
-  // R85: lateral shift; R18 walls zero vel toward the wall, vx follows the clamped vel.
-  car.x += car.vel * sp * p.latScale * DT;
+  // R85: lateral shift; in DRIFT plus the lead dir*driftLead*e, e = the part of the finger the
+  // body angle has not caught yet (0 in steady drift). The lead never feeds back into vel or yaw.
+  let lead = 0;
+  if (drift) {
+    const dir = car.dir;
+    const u = steer * dir;
+    const uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    lead = dir * p.driftLead * (uc - (slip * dir) / p.slipFull) * sp * p.latScale;
+  }
+  // R18: walls zero vel toward the wall, vx follows the clamped vel.
+  car.x += (car.vel * sp * p.latScale + lead) * DT;
   if (car.x > p.xLimit) {
     car.x = p.xLimit;
     if (car.vel > 0) car.vel = 0;
@@ -391,7 +473,7 @@ function stepModelB(
   }
   // R84: in DRIFT yaw = vel + slip also holds after the wall (the slip keeps its side, R83).
   if (drift) car.yaw = car.vel + slip;
-  car.vx = car.vel * sp * p.latScale;
+  car.vx = car.vel * sp * p.latScale + lead;
 
   // R86: R14 with the cap vmax*capMul (R52); in DRIFT the cap also falls with the angle (as R22)
   // and the carry costs nothing; in GRIP the visible slip costs speed. Then R15.
@@ -491,6 +573,7 @@ function respawnTraffic(state: RaceState, cfg: TrafficConfig, playerZ: number, v
 /** R40-R44: at most one contact per step, traffic in index order. */
 function bumpPlayer(car: Car, cars: readonly Car[], p: CarParams): void {
   if (car.bumpTicks !== 0) return; // R43
+  if (car.crashTicks > 0) return; // R48: no contacts during a crash
   const halfW = (p.carHitW + p.trafficHitW) / 2;
   for (let i = 0; i < cars.length; i++) {
     const t = cars[i]!;

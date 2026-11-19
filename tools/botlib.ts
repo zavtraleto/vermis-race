@@ -85,6 +85,7 @@ export interface TrafficEntry {
   zeroDriftBumpRuns: number; // share of runs with no contact in DRIFT
   passedPerLap: number; // traffic cars overtaken per lap
   boostsPerLap: number; // R52 (H5 B) slipstream boosts started per lap
+  crashesPerLap: number; // R47 lamp-post crashes per lap
   lapTime: { traffic: number; clear: number; ratio: number }; // mean lap, s; ratio = traffic / clear
   /** expert-blind only: its lap with traffic / the weaving expert's lap with traffic (R46 >= 1.05). */
   vsWeaving?: number;
@@ -102,6 +103,7 @@ export function summarizeTraffic(
   let zero = 0;
   let passed = 0;
   let boosts = 0;
+  let crashes = 0;
   let finished = 0;
   const laps: number[] = [];
   for (const r of runs) {
@@ -111,6 +113,7 @@ export function summarizeTraffic(
     passed += t.passed;
     boosts += t.boosts;
     if (t.bumpsInDrift === 0) zero++;
+    crashes += r.crashes ?? 0;
     if (r.finished) finished++;
     laps.push(...r.lapTimes);
   }
@@ -126,6 +129,7 @@ export function summarizeTraffic(
     zeroDriftBumpRuns: zero / runs.length,
     passedPerLap: passed / lapCount,
     boostsPerLap: boosts / lapCount,
+    crashesPerLap: crashes / lapCount,
     lapTime: { traffic: lap, clear: clear.lapTime.mean, ratio: lap / clear.lapTime.mean },
   };
 }
@@ -173,6 +177,7 @@ export interface Entry {
   deadTimeFraction: number;
   straightFraction: number;
   wallHits: { total: number; perLap: number };
+  crashesPerLap: number; // R47 lamp-post crashes per lap (R49 criterion: expert and average 0)
   nan: boolean;
   corners: CornerSummary[];
   fingerprints: Record<string, string>;
@@ -224,6 +229,7 @@ export function summarize(
   let speedSum = 0;
   let minSpeed = Infinity;
   let walls = 0;
+  let crashes = 0;
   let nan = false;
   let finished = 0;
   const ev = { easy: 0, medium: 0, hard: 0 };
@@ -244,6 +250,7 @@ export function summarize(
     speedSum += r.speedSum;
     if (r.minSpeedFlying < minSpeed) minSpeed = r.minSpeedFlying;
     walls += r.wallHits;
+    crashes += r.crashes ?? 0;
     nan = nan || r.nan;
     if (r.finished) finished++;
     evTotal += r.offroadEvents;
@@ -310,6 +317,7 @@ export function summarize(
     deadTimeFraction: dead / ticks,
     straightFraction: straight / ticks,
     wallHits: { total: walls, perLap: walls / lapCount },
+    crashesPerLap: crashes / lapCount,
     nan,
     corners,
     fingerprints,

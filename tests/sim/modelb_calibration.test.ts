@@ -25,6 +25,7 @@ const free = (p: CarParams): CarParams => ({
   offroadMul: 1,
   offroadSteerMul: 1,
   offroadGrip: p.grip,
+  crashMinSpeed: 1e9, // R47 lamps off: this test is about R89b
 });
 const FB = free(REAL); // model B without walls
 const FA = free(baseCarA); // model A without walls
@@ -393,7 +394,7 @@ describe('R89b calibration: DRIFT entry (spike T5)', () => {
   ] as const;
   function enter(p: CarParams, curve: number, from: number, holdSteer: number, drift: boolean) {
     const r = new Rig(p, 0, 1);
-    for (let i = 0; i < Math.round(0.13 / DT); i++) r.step(from, false);
+    for (let i = 0; i < Math.round(0.13 / DT); i++) r.step(from, true); // R81: history only counts inside a hold
     r.curve = curve;
     const xs: number[] = [];
     const vis: number[] = [];
@@ -492,10 +493,15 @@ describe('R89b calibration: closeness to model A (spike T9)', () => {
     const h = hold('A', C.hard, 'free').steer;
     const seq = (t: number) => (t < 2 ? h : t < 2.5 ? h + 0.2 : h - 0.2);
     const a = new Rig(FA, 0, 1);
-    const b = new Rig(FB, 0, 1);
-    for (let i = 0; i < 36; i++) {
+    const b = new Rig({ ...FB, driftLead: 0 }, 0, 1); // brief: closeness is measured with driftLead = 0
+    for (let i = 0; i < 30; i++) {
       a.step(0, false);
       b.step(0, false);
+    }
+    // R81: the hold starts on the straight at steer 0, so the flick has history of the current hold
+    for (let i = 0; i < 6; i++) {
+      a.step(0, true);
+      b.step(0, true);
     }
     a.curve = C.hard;
     b.curve = C.hard;
@@ -684,5 +690,77 @@ describe('model B createRace fields', () => {
     expect(c.steerHist).toEqual(new Array<number>(STEER_HIST).fill(0));
     expect(c.steerHistHead).toBe(0);
     expect(c.steerHistCount).toBe(0);
+  });
+});
+
+describe('R89b calibration: agility (lane = 0.25 half-widths, targets named in advance)', () => {
+  const LANE = 0.25;
+  /** Steer moves toward `target` at 1/rampS per second, never past it. */
+  const approach = (cur: number, target: number, rampS: number): number => {
+    const d = DT / rampS;
+    return cur < target ? Math.min(target, cur + d) : Math.max(target, cur - d);
+  };
+
+  it('R89b straight, smooth steer 0 -> 1 in 250 ms (no drift): one lane in at most 0.46 s', () => {
+    const r = new Rig(FB, 0, 1);
+    let st = 0;
+    let t1 = NaN;
+    for (let i = 1; i <= 360 && Number.isNaN(t1); i++) {
+      st = approach(st, 1, 0.25);
+      r.step(st, false, 1);
+      if (r.car.x >= LANE) t1 = i * DT;
+    }
+    expect(r.car.state).toBe('GRIP');
+    expect(t1).toBeLessThanOrEqual(0.46);
+  });
+
+  /** Straight, finger held at steer 0 (history of the hold), then steer 0 -> 1 in 80 ms. */
+  function sharp(rampBack: boolean) {
+    const r = new Rig(FB, 0, 1);
+    for (let i = 0; i < 36; i++) r.step(0, true); // 0.3 s of hold at steer 0, no flick
+    let st = 0;
+    let t1 = NaN;
+    let drifted = false;
+    let xStop = NaN;
+    let maxAfter = -Infinity;
+    for (let i = 1; i <= 480; i++) {
+      const back = !Number.isNaN(t1) && rampBack;
+      st = approach(st, back ? 0 : 1, 0.08);
+      r.step(st, true);
+      if (r.car.state === 'DRIFT') drifted = true;
+      if (Number.isNaN(t1) && r.car.x >= LANE) t1 = i * DT;
+      if (back) {
+        if (Number.isNaN(xStop) && st === 0) xStop = r.car.x;
+        if (!Number.isNaN(xStop)) maxAfter = Math.max(maxAfter, r.car.x);
+      }
+      if (!rampBack && !Number.isNaN(t1)) break;
+    }
+    return { t1, drifted, coast: maxAfter - xStop };
+  }
+  it('R89b straight, sharp steer 0 -> 1 in 80 ms with the finger held (becomes a drift): one lane in at most 0.45 s', () => {
+    const m = sharp(false);
+    expect(m.drifted).toBe(true);
+    expect(m.t1).toBeLessThanOrEqual(0.45);
+  });
+  it('R89b the same, finger returned to the centre (steer back to 0 in 80 ms, finger kept): coasts at most 0.06 further', () => {
+    const m = sharp(true);
+    expect(m.drifted).toBe(true);
+    expect(Number.isNaN(m.coast)).toBe(false);
+    expect(m.coast).toBeLessThanOrEqual(0.06);
+  });
+
+  it('R89b steady DRIFT on hard, steer 0.5 outward from the hold steer: one lane outward in at most 1.0 s', () => {
+    const h = hold('B', C.hard, 'free').steer;
+    const r = new Rig(FB, C.hard, 1);
+    r.enterDrift(1, h);
+    for (let i = 0; i < 720; i++) r.step(h, true); // 6 s to the own steady state
+    const x0 = r.car.x;
+    let t1 = NaN;
+    for (let i = 1; i <= 360 && Number.isNaN(t1); i++) {
+      r.step(h - 0.5, true); // outward = against dir (+1 is inward, +x)
+      if (x0 - r.car.x >= LANE) t1 = i * DT;
+    }
+    expect(r.car.state).toBe('DRIFT');
+    expect(t1).toBeLessThanOrEqual(1.0);
   });
 });

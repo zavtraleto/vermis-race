@@ -90,6 +90,16 @@
     "shakeTime": 0.25,
     "shakeHz": 18
   },
+  "crash": {
+    "rollTurns": 2,
+    "yawTurns": 1,
+    "hopHeight": 1.6,
+    "hops": 3,
+    "pivotY": 0.7,
+    "shakeAmp": 0.08,
+    "shakeTime": 0.5,
+    "shakeHz": 14
+  },
   "weight": {
     "yawGain": 2,
     "yawMaxDeg": 14,
@@ -111,7 +121,7 @@
     "overscanPx": 80
   },
   "speedometer": {
-    "vmaxKmh": 280,
+    "vmaxKmh": 140,
     "segments": 14,
     "boostSegments": 4
   }
