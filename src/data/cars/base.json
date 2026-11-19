@@ -34,5 +34,14 @@
   "bumpFloor": 0.3,
   "bumpKick": 0.6,
   "bumpInvulnTime": 0.8,
-  "bumpAngleLoss": 0.3
+  "bumpAngleLoss": 0.3,
+  "driftAutoExit": 0,
+  "draftLength": 40,
+  "draftWidth": 0.2,
+  "draftChargeTime": 1.0,
+  "draftDecayTime": 0.6,
+  "draftCapMul": 1.13,
+  "draftAccelMul": 1.6,
+  "boostTime": 2.0,
+  "draftBoost": 1
 }

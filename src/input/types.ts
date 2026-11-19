@@ -26,6 +26,10 @@ export interface TouchStickConfig {
   retouchWindowMs: number;
   /** H3 D: an armed touch moved this many CSS px sideways from its touch-down point drifts. */
   retouchSwipePx: number;
+  /** H3 E: steer changing by at least this much within flickWindowMs is a flick (drift). */
+  flickDelta: number;
+  /** H3 E: flick time window, ms. */
+  flickWindowMs: number;
 }
 
 export interface InputConfig {

@@ -8,8 +8,8 @@ import { constSpeed, constTrack } from './driving_helpers';
 
 // Derivation: steady vx = s*steerRate*sp*(1-0.25*sp); push = c*sp^2*centrifugal*kCurve.
 // Hold x at sp=1: s*2*0.75 = c*0.3*kCurve  =>  s = c*centrifugal*kCurve/(steerRate*0.75).
-// Author decision 2026-11-19: easy (c=2) needs 55-65% steer at vmax: 2*0.3*1.5/1.5 = 0.6.
-// medium (4.5): 4.5*0.45/1.5 = 1.35 > 1 and hard (7): 2.1 > 1, so neither is holdable in GRIP.
+// R22d (author decision 2026-11-19): easy needs 40-50% steer at vmax, medium 90-100% (the edge),
+// hard > 100% (not holdable in GRIP). Medium and hard are in tests/sim/r22d.test.ts.
 
 const arc = (c: number): Track =>
   buildTrack({ sections: [{ enter: 0, hold: 1000, leave: 0, curve: c }] });
@@ -28,21 +28,22 @@ function drift(c: number, s: number, sp: number, seconds: number): number {
   return car.x;
 }
 
+const sEasy =
+  (baseCar.kCurve * baseCar.centrifugal * curveClasses.easy) / (baseCar.steerRate * 0.75);
+
 describe('calibration easy curve at vmax in GRIP', () => {
-  it('required steer ratio c*centrifugal*kCurve/(steerRate*0.75) lies in [0.55, 0.65]', () => {
-    const r =
-      (baseCar.kCurve * baseCar.centrifugal * curveClasses.easy) / (baseCar.steerRate * 0.75);
-    expect(r).toBeGreaterThanOrEqual(0.55);
-    expect(r).toBeLessThanOrEqual(0.65);
+  it('R22d required steer ratio c*centrifugal*kCurve/(steerRate*0.75) lies in [0.4, 0.5] (was 0.55-0.65)', () => {
+    expect(sEasy).toBeGreaterThanOrEqual(0.4);
+    expect(sEasy).toBeLessThanOrEqual(0.5);
   });
   for (const side of [1, -1]) {
     const c = side * curveClasses.easy;
     const tag = side > 0 ? 'right' : 'left';
-    it(`${tag}: steer 0.6 holds the line (|dx| < 0.02 in 2 s)`, () => {
-      expect(Math.abs(drift(c, side * 0.6, 1, 2))).toBeLessThan(0.02);
+    it(`${tag}: the derived steer holds the line (|dx| < 0.02 in 2 s)`, () => {
+      expect(Math.abs(drift(c, side * sEasy, 1, 2))).toBeLessThan(0.02);
     });
-    it(`${tag}: steer 0.45 drifts outward by > 0.15 in 2 s`, () => {
-      expect(side * drift(c, side * 0.45, 1, 2)).toBeLessThan(-0.15);
+    it(`${tag}: 0.2 less steer drifts outward by > 0.15 in 2 s (0.2 * 0.75 * 2 = 0.3)`, () => {
+      expect(side * drift(c, side * (sEasy - 0.2), 1, 2)).toBeLessThan(-0.15);
     });
     it(`${tag}: steer 0.8 pulls inward`, () => {
       expect(side * drift(c, side * 0.8, 1, 2)).toBeGreaterThan(0);
@@ -50,9 +51,8 @@ describe('calibration easy curve at vmax in GRIP', () => {
   }
 });
 
-describe('calibration medium and hard are not passable in GRIP at vmax', () => {
-  // Full steer at sp = 1 gives steady vx = 1.5 (inward); push is 0.45*c > 1.5 for c >= 4.5.
-  for (const cls of ['medium', 'hard'] as const) {
+describe('calibration hard is not passable in GRIP at vmax (R22d: medium is, at the edge)', () => {
+  for (const cls of ['hard'] as const) {
     for (const side of [1, -1]) {
       const tag = side > 0 ? 'right' : 'left';
       it(`${cls} ${tag}: full steer in GRIP leaves the asphalt within the corner`, () => {
