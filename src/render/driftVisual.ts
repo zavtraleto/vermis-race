@@ -3,8 +3,8 @@ import type { CameraConfig, RoadConfig } from './projection';
 
 /** R24 drift look (render only; numbers in src/data/sprites.json "drift"). */
 export interface DriftVisualConfig {
-  yawMin: number; // car yaw with full counter-steer, in steer-lean units (1 = the plain steer frame)
-  yawMax: number; // car yaw with full steer into the drift
+  yawMinDeg: number; // R25 car yaw with full counter-steer, degrees about the vertical axis
+  yawMaxDeg: number; // car yaw with full steer into the drift, degrees
   yawTau: number; // s, smoothing time constant of the yaw
   cameraOffset: number; // road half-widths the camera moves toward the inside of the drift
   cameraTau: number; // s, smoothing time constant of the camera offset
@@ -33,7 +33,7 @@ export function driftYawTarget(
   state: Car['state'],
   dir: number,
   steer: number,
-  cfg: Pick<DriftVisualConfig, 'yawMin' | 'yawMax'>,
+  cfg: { yawMin: number; yawMax: number },
 ): number {
   if (state !== 'DRIFT' || dir === 0) return 0;
   const t = (steer * dir + 1) / 2;
@@ -114,6 +114,7 @@ export class SmokePool {
  * Jitter comes from a local LCG, so the same call sequence gives the same picture.
  */
 export class DriftVisual {
+  /** Degrees; > 0 = nose to the right. */
   yaw = 0;
   cameraX = 0;
   /** dir of the last drift that emitted smoke: the puffs drift outward of it. */
@@ -121,6 +122,7 @@ export class DriftVisual {
   readonly smoke: SmokePool;
   private emitAcc = 0;
   private rng = 1;
+  private readonly yawRange = { yawMin: 0, yawMax: 0 };
 
   constructor(private readonly cfg: DriftVisualConfig) {
     this.smoke = new SmokePool(cfg.smokeCapacity);
@@ -129,9 +131,12 @@ export class DriftVisual {
   update(dt: number, car: Car): void {
     const cfg = this.cfg;
     const drifting = car.state === 'DRIFT' && car.dir !== 0;
+    // Read live (dev tuning panel).
+    this.yawRange.yawMin = cfg.yawMinDeg;
+    this.yawRange.yawMax = cfg.yawMaxDeg;
     this.yaw = approach(
       this.yaw,
-      driftYawTarget(car.state, car.dir, car.steer, cfg),
+      driftYawTarget(car.state, car.dir, car.steer, this.yawRange),
       dt,
       cfg.yawTau,
     );

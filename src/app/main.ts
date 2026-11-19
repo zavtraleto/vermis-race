@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { baseCar } from '../data/cars';
 import {
   cameraConfig,
+  car3dConfig,
   paletteConfig,
   ribbonMapConfig,
   roadConfig,
@@ -17,6 +18,7 @@ import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
 import { resolveTouchScheme } from '../input/scheme';
 import { createTouchStick } from '../input/touchStick';
+import { CarView } from '../render/carModel';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
 import { createProjection, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
@@ -62,6 +64,8 @@ renderer.setPixelRatio(1);
 renderer.setSize(WIDTH, HEIGHT, false);
 renderer.setClearColor(paletteConfig.sky, 1);
 renderer.info.autoReset = false;
+// Two passes per frame (road, then the 3D car over a cleared depth buffer): clear manually.
+renderer.autoClear = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
@@ -101,6 +105,8 @@ const sprites = new SpriteBatch(spritesConfig.capacity, view.screenWidth, view.s
 scene.add(sprites.mesh);
 let world = new WorldSprites(spritesConfig, view, paletteConfig);
 const driftVisual = new DriftVisual(spritesConfig.drift);
+// R25: the player car is a 3D model in its own scene, drawn after the road pass.
+const carView = new CarView(car3dConfig, spritesConfig.player, view, paletteConfig);
 // drawDistance sizes the projection and road buffers: rebuild them when it is tuned live.
 let builtDrawDistance = view.drawDistance;
 function rebuildForDrawDistance(): void {
@@ -195,8 +201,14 @@ function renderFrame(): void {
   sprites.begin();
   const carY = spritesConfig.player.baseY * view.screenHeight;
   const carDx = -camX * roadHalfWidthPxAt(carY, view, roadConfig);
-  world.drawPlayer(sprites, c.steer, driftVisual.yaw, carDx);
-  world.drawSmoke(sprites, driftVisual, carDx, view.drawDistance);
+  // R25: GRIP lean from steer; DRIFT adds the smoothed drift yaw (degrees) and rolls outward.
+  const steer = p.steer + (c.steer - p.steer) * a;
+  const yaw = steer * car3dConfig.leanYawDeg + driftVisual.yaw;
+  const roll =
+    steer * car3dConfig.leanRollDeg -
+    (driftVisual.yaw / spritesConfig.drift.yawMaxDeg) * car3dConfig.driftRollDeg;
+  carView.update(yaw, roll, carDx);
+  world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
   world.drawPosts(sprites, proj);
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
@@ -207,7 +219,10 @@ function renderFrame(): void {
     p.x + (c.x - p.x) * a,
   );
   renderer.info.reset();
+  renderer.clear();
   renderer.render(scene, camera);
+  renderer.clearDepth();
+  renderer.render(carView.scene, carView.camera);
   lastCalls = renderer.info.render.calls;
   lastTriangles = renderer.info.render.triangles;
   game.frames += 1;

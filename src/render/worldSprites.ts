@@ -1,28 +1,17 @@
 import type { Palette } from '../data/render';
+import type { CarView } from './carModel';
 import type { DriftVisual, DriftVisualConfig } from './driftVisual';
 import { placeOnRoad, type Placement } from './placeOnRoad';
 import type { CameraConfig, Projection } from './projection';
 import { writeHex } from './roadMesh';
 import type { SpriteBatch } from './spriteBatch';
 
-/** One rectangle of the player silhouette, in car units (x from centre / width, y up from base / height). */
-export interface CarPart {
-  color: string; // Palette key
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  shift: number; // x offset per steer frame (car widths), multiplied by -1 / 0 / +1
-}
-
 export interface SpritesConfig {
   capacity: number;
   player: {
-    baseY: number; // fraction of screen height, from the top
-    width: number; // fraction of screen width
-    height: number; // fraction of screen height
-    steerThreshold: number; // |steer| above this picks the left/right frame
-    parts: CarPart[];
+    baseY: number; // R25 rear-axle ground point of the 3D car, fraction of screen height from the top
+    width: number; // car width on screen, fraction of screen width (fits the 3D car; smoke x unit)
+    height: number; // smoke y unit, fraction of screen height
   };
   posts: {
     enabled: boolean;
@@ -46,88 +35,49 @@ export interface StressFill {
 const POST = 0;
 const POST_CAP = 3;
 const SMOKE = 6;
-const PARTS = 9;
-
-/** Placeholder sprites of layers 3-4: player car, shoulder posts, stress filler. */
+/** Placeholder sprites of layers 3-4: shoulder posts, drift smoke, stress filler. */
 export class WorldSprites {
-  private readonly rgb: Float32Array;
-  private readonly partColor: Int32Array;
+  private readonly rgb = new Float32Array(9);
   private readonly placement: Placement = { x: 0, y: 0, w: 0, h: 0, depth: 0 };
-  private readonly carX: number;
+  private readonly screenW: number;
   private readonly screenH: number;
-  private readonly carW: number;
-  private readonly carH: number;
-  private readonly carDepth: number;
 
   constructor(
     private readonly cfg: SpritesConfig,
     camera: CameraConfig,
     palette: Palette,
   ) {
-    const parts = cfg.player.parts;
-    this.rgb = new Float32Array(PARTS + parts.length * 3);
     writeHex(this.rgb, POST, palette.post);
     writeHex(this.rgb, POST_CAP, palette.postCap);
     writeHex(this.rgb, SMOKE, palette.smoke);
-    this.partColor = new Int32Array(parts.length);
-    for (let i = 0; i < parts.length; i++) {
-      const key = parts[i]!.color as keyof Palette;
-      const hex = palette[key];
-      if (typeof hex !== 'string') throw new Error(`sprites: unknown palette colour '${key}'`);
-      this.partColor[i] = PARTS + i * 3;
-      writeHex(this.rgb, PARTS + i * 3, hex);
-    }
-    this.carX = camera.screenWidth / 2;
+    this.screenW = camera.screenWidth;
     this.screenH = camera.screenHeight;
-    this.carW = cfg.player.width * camera.screenWidth;
-    this.carH = cfg.player.height * camera.screenHeight;
-    // Nearer than anything on the road (strip 0 sprites start at +0.05 step): never covered.
-    this.carDepth = -1 + (2 / camera.drawDistance) * 0.01;
   }
 
   /**
-   * Player car at a fixed screen spot (+ dxPx); frame chosen from steer of the same frame, no
-   * smoothing. R24: `yaw` (steer-lean units, smoothed by DriftVisual) adds to the lean, so in DRIFT
-   * the roof swings into the drift and the rear outward; yaw 0 = the plain GRIP look.
+   * R24 smoke puffs from the rear wheels of the 3D car (R25: contact points projected by CarView,
+   * pool x = ±smokeWheelX maps onto the left / right wheel): they move down the screen (back),
+   * rise, drift outward of the drift, grow, then shrink to 0 at the end of life. Drawn in the road
+   * pass, in front of the road; the car pass draws over them.
    */
-  drawPlayer(batch: SpriteBatch, steer: number, yaw = 0, dxPx = 0): void {
-    const th = this.cfg.player.steerThreshold;
-    const frame = (steer > th ? 1 : steer < -th ? -1 : 0) + yaw;
-    const parts = this.cfg.player.parts;
-    // baseY read live (dev tuning panel).
-    const carY = this.cfg.player.baseY * this.screenH;
-    // Later parts overdraw earlier ones: equal depth + LessEqual depth test, instances drawn in order.
-    for (let i = 0; i < parts.length; i++) {
-      const p = parts[i]!;
-      batch.push(
-        this.carX + dxPx + (p.x + p.shift * frame) * this.carW,
-        carY - p.y * this.carH,
-        p.w * this.carW,
-        p.h * this.carH,
-        this.carDepth,
-        this.rgb,
-        this.partColor[i]!,
-      );
-    }
-  }
-
-  /**
-   * R24 smoke puffs around the rear wheels, relative to the car on screen (+ dxPx): they move down
-   * the screen (back), rise, drift outward of the drift, grow, then shrink to 0 at the end of life.
-   * Drawn just behind the car and in front of the road.
-   */
-  drawSmoke(batch: SpriteBatch, drift: DriftVisual, dxPx: number, drawDistance: number): void {
+  drawSmoke(batch: SpriteBatch, drift: DriftVisual, car: CarView, drawDistance: number): void {
     const d = this.cfg.drift;
     const pool = drift.smoke;
-    const carY = this.cfg.player.baseY * this.screenH;
+    const carW = this.cfg.player.width * this.screenW;
+    const carH = this.cfg.player.height * this.screenH;
+    const midX = (car.rearLX + car.rearRX) * 0.5;
+    const midY = (car.rearLY + car.rearRY) * 0.5;
+    const halfX = (car.rearRX - car.rearLX) * 0.5;
+    const halfY = (car.rearRY - car.rearLY) * 0.5;
     const depth = -1 + (2 / drawDistance) * 0.03;
     const shrink = d.smokeShrink;
     for (let i = 0; i < pool.count; i++) {
       const a = pool.age01(i);
+      const k = pool.x(i) / d.smokeWheelX;
       const fade = a > shrink ? (1 - a) / (1 - shrink) : 1;
-      const size = d.smokeSize * this.carW * (1 + d.smokeGrow * a) * fade;
-      const x = this.carX + dxPx + (pool.x(i) - drift.smokeDir * d.smokeSpread * a) * this.carW;
-      const y = carY + (pool.y(i) + (d.smokeBack - d.smokeRise) * a) * this.carH + size * 0.5;
+      const size = d.smokeSize * carW * (1 + d.smokeGrow * a) * fade;
+      const x = midX + k * halfX - drift.smokeDir * d.smokeSpread * a * carW;
+      const y = midY + k * halfY + (pool.y(i) + (d.smokeBack - d.smokeRise) * a) * carH + size * 0.5;
       batch.push(x, y, size, size, depth, this.rgb, SMOKE);
     }
   }
