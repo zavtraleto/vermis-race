@@ -41,8 +41,11 @@ function gapIn(rng: () => number, min: number, max: number): number {
   return min + Math.floor(rng() * (max - min + 1));
 }
 
-/** Billboard variants are colour variants; the count lives with the drawing config. */
-const BILLBOARD_VARIANTS = 256;
+/**
+ * Billboard variant = a raw pick over the whole Uint8 storage range; the drawing takes it modulo
+ * the palette size (worldSprites: variant % panels), so no count is duplicated here.
+ */
+const BILLBOARD_VARIANTS = 2 ** (8 * Uint8Array.BYTES_PER_ELEMENT);
 
 export const buildRoadside: BuildRoadside = (segmentCount, cfg, seed) => {
   const rng = makeRng(seed);

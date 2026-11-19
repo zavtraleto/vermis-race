@@ -34,12 +34,14 @@ export interface RoadsideDrawConfig extends RoadsideConfig {
     frame: number; // frame thickness, fraction of the panel height
     stripeY: number; // stripe bottom above the panel bottom, fraction of the panel height
     stripeHeight: number; // fraction of the panel height
+    depthStep: number; // depth offset in segment steps: just behind a lamp on the same line
   };
   buildings: RoadsideConfig['buildings'] & {
     drawDistance: number;
     windowMinPx: number; // windows only when the building is at least this tall on screen
     windowMargin: number; // window area inset, fraction of the body width / height
     windowGap: number; // dark part of each window pitch
+    depthStep: number; // depth offset in segment steps: behind lamps and billboards on the same line
     shapes: { width: number; height: number; cols: number; rows: number }[];
   };
 }
@@ -221,7 +223,7 @@ export class WorldSprites {
     const s = p.h;
     const w = c.width * s;
     if (!this.visible(p.x - w * 0.5, p.x + w * 0.5)) return;
-    const depth = p.depth + step * 0.05; // just behind a lamp on the same line
+    const depth = p.depth + step * c.depthStep; // just behind a lamp on the same line
     const h = c.height * s;
     const legH = c.legHeight * s;
     const legDx = w * (0.5 - c.legInset);
@@ -254,7 +256,7 @@ export class WorldSprites {
     const w = shape.width * s;
     const h = shape.height * s;
     if (!this.visible(p.x - w * 0.5, p.x + w * 0.5)) return;
-    const depth = p.depth + step * 0.1; // behind lamps and billboards on the same line
+    const depth = p.depth + step * c.depthStep; // behind lamps and billboards on the same line
     const body = this.buildingAt + (variant % this.buildings) * 3;
     this.rect(batch, p.x, p.y, w, h, depth, body);
     if (h < c.windowMinPx || shape.cols < 1 || shape.rows < 1) return;

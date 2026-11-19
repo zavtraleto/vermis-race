@@ -29,7 +29,8 @@
       "legInset": 0.2,
       "frame": 0.06,
       "stripeY": 0.55,
-      "stripeHeight": 0.14
+      "stripeHeight": 0.14,
+      "depthStep": 0.05
     },
     "buildings": {
       "everyMin": 6,
@@ -41,6 +42,7 @@
       "windowMinPx": 24,
       "windowMargin": 0.14,
       "windowGap": 0.45,
+      "depthStep": 0.1,
       "shapes": [
         { "width": 1600, "height": 2400, "cols": 3, "rows": 5 },
         { "width": 2400, "height": 1400, "cols": 5, "rows": 3 },
