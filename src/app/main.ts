@@ -42,6 +42,8 @@ const HEIGHT = 640;
 const STRAIGHT_TRACK_SEGMENTS = 1000;
 // Frame-time window: ~4 s at 60 Hz.
 const FRAME_STATS_WINDOW = 256;
+// Longest frame time fed to visual smoothing (a background tab returns with a huge dt).
+const MAX_VISUAL_DT = 0.1;
 
 const errors: string[] = [];
 installErrorCollectors(errors);
@@ -217,7 +219,7 @@ function frame(time: number): void {
   lastTime = time;
   if (frameSeconds > 0) frameStats.push(frameSeconds * 1000);
   loop.advance(frameSeconds);
-  driftVisual.update(frameSeconds, loop.curr.cars[0]!);
+  driftVisual.update(Math.min(frameSeconds, MAX_VISUAL_DT), loop.curr.cars[0]!);
   renderFrame();
   hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
