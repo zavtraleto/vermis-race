@@ -17,6 +17,7 @@ export interface Car {
   offTicks: number; // R21 consecutive ticks with |x| > 1, 0 on road
   angle: number; // R22 drift angle, signed (+ right), angle*dir in [0, 1]; 0 in GRIP
   driftHeld: boolean; // R20 drift input of the previous tick (rising-edge detection)
+  armTicks: number; // R20 ticks since the rising edge of the drift input while armed, 0 otherwise
   lowTicks: number; // R21 consecutive DRIFT ticks with angle*dir < driftAngleExit
 }
 
@@ -37,6 +38,7 @@ export interface CarParams {
   centrifugal: number;
   centMulDrift: number;
   driftRate: number;
+  driftArmTime: number; // R20 seconds after the rising edge during which drift entry is armed
   offroadMul: number;
   offroadGrip: number; // R15b grip in R12 while |x| > 1
   offroadSteerMul: number; // R15b multiplier of the R11 target while |x| > 1

@@ -9,6 +9,7 @@
   "centrifugal": 0.15,
   "centMulDrift": 0.255,
   "driftRate": 0.45,
+  "driftArmTime": 0.3,
   "offroadMul": 0.99,
   "offroadGrip": 12,
   "offroadSteerMul": 0.6,

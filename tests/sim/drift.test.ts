@@ -33,6 +33,7 @@ const P: CarParams = {
   offroadMul: 0.99,
   xLimit: 1.5,
   driftRate: 0.45,
+  driftArmTime: 0.3, // 36 ticks (R20 armed entry)
   driftEnterSpeed: 0.45,
   driftEnterSteer: 0.2,
   driftExitSpeed: 0.3,
@@ -75,11 +76,12 @@ const kA = 1 - Math.exp(-P.driftAngleResponse * DT);
 describe('R20 GRIP -> DRIFT, rising edge of the drift input', () => {
   const base = (over: Partial<Car> = {}): RaceState => oneCar({ speed: 0.8, steer: 0.5, ...over });
 
-  it('R20 createRace initialises angle 0, driftHeld false, lowTicks 0', () => {
+  it('R20 createRace initialises angle 0, driftHeld false, armTicks 0, lowTicks 0', () => {
     const s = createRace(7, 3);
     for (const c of s.cars) {
       expect(c.angle).toBe(0);
       expect(c.driftHeld).toBe(false);
+      expect(c.armTicks).toBe(0);
       expect(c.lowTicks).toBe(0);
     }
   });
@@ -147,14 +149,109 @@ describe('R20 GRIP -> DRIFT, rising edge of the drift input', () => {
     one(s, inp(0.6, false, true), track0, PC); // ... and press: new edge
     expect(car(s).state).toBe('DRIFT');
   });
-  it('R20 the edge is consumed: pressing while conditions are unmet and meeting them later does not enter', () => {
-    // steerRise 10/s: smoothed steer 0.0833, 0.1667, 0.25 on steps 1..3. Edge at step 1 (steer too
-    // small), drift held on; at step 3 steer 0.25 > 0.2 but there is no rising edge any more.
+  // R20 armed entry (rule changed 2026-11-19). Replaces the former test 'the edge is consumed:
+  // pressing while conditions are unmet and meeting them later does not enter' (edge-tick-only).
+  // driftArmTime 0.3 s = 36 ticks. steerRise 10/s: smoothed steer from 0 with input 1 is
+  // 0.0833, 0.1667, 0.25 on its 1st..3rd step, so it exceeds 0.2 on the 3rd step.
+  it('R20 armTicks: 1 on the edge tick, grows while held, resets to 0 on release', () => {
     const s = oneCar({ speed: 0.8, steer: 0 });
-    for (let i = 0; i < 20; i++) {
+    one(s, inp(0, false, true), track0, PC);
+    expect(car(s).armTicks).toBe(1);
+    one(s, inp(0, false, true), track0, PC);
+    one(s, inp(0, false, true), track0, PC);
+    expect(car(s).armTicks).toBe(3);
+    one(s, inp(0, false, false), track0, PC);
+    expect(car(s).armTicks).toBe(0);
+    expect(car(s).state).toBe('GRIP');
+  });
+  it.each([1, -1])('R20 steer crosses the threshold inside driftArmTime (side %i): enters on that tick', (side) => {
+    // edge on tick 1 with steer 0; steer input 0 for ticks 1..10, then side*1: crossing on tick 13.
+    const s = oneCar({ speed: 0.8, steer: 0 });
+    for (let i = 0; i < 10; i++) {
+      one(s, inp(0, false, true), track0, PC);
+      expect(car(s).state).toBe('GRIP');
+    }
+    one(s, inp(side, false, true), track0, PC); // tick 11: 0.0833
+    one(s, inp(side, false, true), track0, PC); // tick 12: 0.1667
+    expect(car(s).state).toBe('GRIP');
+    one(s, inp(side, false, true), track0, PC); // tick 13: 0.25 > 0.2, armTicks 13, 13*DT=0.108 <= 0.3
+    expect(car(s).state).toBe('DRIFT');
+    expect(car(s).dir).toBe(side);
+    expect(car(s).angle).toBeCloseTo(side * PC.driftAngleStart, 12);
+    expect(car(s).armTicks).toBe(0); // entry resets the arm
+  });
+  it('R20 dir = sign(steer) on the entry tick even if the early steer had the other sign', () => {
+    const s = oneCar({ speed: 0.8, steer: 0.1 }); // small right steer at the edge: too small to enter
+    one(s, inp(-1, false, true), track0, PC); // steer 0.1 -> 0.0167
+    for (let i = 0; i < 6; i++) one(s, inp(-1, false, true), track0, PC);
+    expect(car(s).state).toBe('DRIFT');
+    expect(car(s).dir).toBe(-1);
+  });
+  it('R20 steer crosses the threshold after driftArmTime: never enters while the input is held', () => {
+    // 40 ticks of steer 0 (40*DT = 0.333 s > 0.3 s), then full steer for 120 ticks.
+    const s = oneCar({ speed: 0.8, steer: 0 });
+    for (let i = 0; i < 40; i++) one(s, inp(0, false, true), track0, PC);
+    for (let i = 0; i < 120; i++) {
       one(s, inp(1, false, true), track0, PC);
       expect(car(s).state).toBe('GRIP');
     }
+  });
+  it('R20 release before the conditions are met: arm reset, later steer does not enter', () => {
+    const s = oneCar({ speed: 0.8, steer: 0 });
+    one(s, inp(1, false, true), track0, PC); // edge, steer 0.0833
+    one(s, inp(1, false, true), track0, PC); // 0.1667
+    one(s, inp(1, false, false), track0, PC); // release on tick 3 (steer 0.25 but no drift input)
+    expect(car(s).armTicks).toBe(0);
+    for (let i = 0; i < 10; i++) {
+      one(s, inp(1, false, false), track0, PC);
+      expect(car(s).state).toBe('GRIP');
+      expect(car(s).armTicks).toBe(0);
+    }
+  });
+  it('R20 a new press after the arm expired arms again and enters', () => {
+    const s = oneCar({ speed: 0.8, steer: 0 });
+    for (let i = 0; i < 40; i++) one(s, inp(0, false, true), track0, PC); // arm expires
+    one(s, inp(1, false, false), track0, PC);
+    one(s, inp(1, false, false), track0, PC);
+    one(s, inp(1, false, false), track0, PC); // steer 0.25 now, drift released
+    one(s, inp(1, false, true), track0, PC); // new edge: conditions met on the edge tick
+    expect(car(s).state).toBe('DRIFT');
+  });
+  it('R20 speed condition met late inside the window also enters', () => {
+    const s = oneCar({ speed: 0.4, steer: 0.5 }); // below 0.45 at the edge
+    for (let i = 0; i < 10; i++) {
+      one(s, inp(0.5, false, true), track0, PC);
+      expect(car(s).state).toBe('GRIP');
+    }
+    car(s).speed = 0.8; // tick 11 sees speed 0.8, armTicks 11
+    one(s, inp(0.5, false, true), track0, PC);
+    expect(car(s).state).toBe('DRIFT');
+    expect(car(s).dir).toBe(1);
+  });
+  it('R20 speed condition met after driftArmTime does not enter', () => {
+    const s = oneCar({ speed: 0.4, steer: 0.5 });
+    for (let i = 0; i < 40; i++) one(s, inp(0.5, false, true), track0, PC);
+    car(s).speed = 0.8;
+    for (let i = 0; i < 20; i++) {
+      one(s, inp(0.5, false, true), track0, PC);
+      expect(car(s).state).toBe('GRIP');
+    }
+  });
+  it('R20 armed entry is deterministic and serializable (armTicks in JSON round trip)', () => {
+    const mk = (): RaceState => {
+      const s = oneCar({ speed: 0.8, steer: 0 });
+      for (let i = 0; i < 5; i++) one(s, inp(0, false, true), track0, PC);
+      return s;
+    };
+    const a = mk();
+    const b = JSON.parse(JSON.stringify(mk())) as RaceState;
+    expect(car(a).armTicks).toBe(5);
+    for (let i = 0; i < 10; i++) {
+      one(a, inp(1, false, true), track0, PC);
+      one(b, inp(1, false, true), track0, PC);
+    }
+    expect(b).toEqual(a);
+    expect(car(a).state).toBe('DRIFT');
   });
   it('R20 speed <= driftEnterSpeed*vmax (0.45): stays GRIP; just above enters', () => {
     const a = base({ speed: 0.44 });

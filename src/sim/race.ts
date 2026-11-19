@@ -17,6 +17,7 @@ export function createRace(seed: number, carCount: number): RaceState {
       offTicks: 0,
       angle: 0,
       driftHeld: false,
+      armTicks: 0,
       lowTicks: 0,
     });
   }
