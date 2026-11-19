@@ -14,6 +14,7 @@ export interface Car {
   heading: number;
   state: 'GRIP' | 'DRIFT';
   dir: -1 | 0 | 1;
+  offTicks: number; // R21 consecutive ticks with |x| > 1, 0 on road
 }
 
 export interface RaceState {
@@ -39,6 +40,12 @@ export interface CarParams {
   offroadSteerMul: number; // R15b multiplier of the R11 target while |x| > 1
   kCurve: number; // R13 K_CURVE, tuning (brief section 3)
   xLimit: number; // R18 lateral limit, half-widths
+  driftEnterSpeed: number; // R20 enter only above driftEnterSpeed * vmax
+  driftEnterSteer: number; // R20 enter only with |steer| above this
+  driftExitSpeed: number; // R21 forced exit below driftExitSpeed * vmax
+  driftOffroadTime: number; // R21 forced exit after this many seconds off road in a row
+  driftSteerMin: number; // R22 lerp end for full outward steer
+  driftSteerMax: number; // R22 lerp end for full inward steer
 }
 
 export interface Segment {

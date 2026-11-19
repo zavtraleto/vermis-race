@@ -261,11 +261,22 @@ describe('determinism, serialization, drift ignored', () => {
     runTwisty(b, 800, 1600);
     expect(b).toEqual(a);
   });
-  it('drift flag is ignored: state stays GRIP, dir 0, results identical', () => {
+  it('without drift input the run never leaves GRIP and dir stays 0 (R20)', () => {
+    const s = createRace(7, 1);
+    const track = buildTrack(loadTestTwisty().def);
+    for (let i = 0; i < 1500; i++) {
+      step(s, [{ ...varied(i, 1), drift: false }], track, [baseCar]);
+      expect(s.cars[0]!.state).toBe('GRIP');
+      expect(s.cars[0]!.dir).toBe(0);
+    }
+  });
+  it('drift input below driftEnterSpeed*vmax changes nothing (R20)', () => {
+    // accel 0.22 from standstill: after 200 ticks (1.67 s) speed ~0.37 < 0.45.
     const a = createRace(7, 1);
     const b = createRace(7, 1);
-    runTwisty(a, 0, 1500, false);
-    runTwisty(b, 0, 1500, true);
+    runTwisty(a, 0, 200, false);
+    runTwisty(b, 0, 200, true);
+    expect(a.cars[0]!.speed).toBeLessThan(0.45 * baseCar.vmax);
     expect(b).toEqual(a);
     expect(b.cars[0]!.state).toBe('GRIP');
     expect(b.cars[0]!.dir).toBe(0);
