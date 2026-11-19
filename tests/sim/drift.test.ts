@@ -376,9 +376,11 @@ describe('R22 drift physics', () => {
 describe('R2 determinism with drift input', () => {
   it('R2 two identical runs with drift on twisty are bit-identical, and drift actually happens', () => {
     const track = buildTrack(loadTestTwisty().def);
+    // Steer held on one side for 180 ticks (1.5 s), then the other; drift held 150 of every 200
+    // ticks, no braking. Smoothed steer reaches +-0.5 and stays there once the car is up to speed.
     const script = (t: number): InputFrame => ({
-      steer: ((t * 7) % 40) / 20 - 1,
-      brake: t % 313 > 300,
+      steer: Math.floor(t / 180) % 2 === 0 ? 0.5 : -0.5,
+      brake: false,
       drift: t % 200 < 150,
     });
     const runOnce = (): { s: RaceState; sawDrift: boolean } => {
