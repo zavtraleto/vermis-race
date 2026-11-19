@@ -498,7 +498,7 @@ function diag(io: Io, p: P, dt: number): void {
     rows,
   );
   io.log(
-    `analytic current B slope: yawRateMaxDrift/yawAlignDrift = ${f2(baseCar.yawRateMaxDrift / baseCar.yawAlignDrift)}; model A driftRate = ${baseCar.driftRate}`,
+    `analytic old B slope: yawRateMaxDrift/yawAlignDrift = ${f2(43.6 / 6)} (params removed since); model A driftRate = ${baseCar.driftRate}`,
   );
   // two-sidedness: DRIFT right on a straight at full steer, then full counter-steer
   for (const m of ['A', 'B'] as const) {

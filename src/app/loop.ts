@@ -58,7 +58,7 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.yaw = s.yaw;
     d.yawRate = s.yawRate;
     d.vel = s.vel;
-    d.recover = s.recover;
+    d.carry = s.carry;
     const sh = s.steerHist;
     const dh = d.steerHist;
     for (let j = 0; j < sh.length; j++) dh[j] = sh[j]!;
