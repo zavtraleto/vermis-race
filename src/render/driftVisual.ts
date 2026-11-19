@@ -27,22 +27,6 @@ export function approach(current: number, target: number, dt: number, tau: numbe
   return current + (target - current) * (1 - Math.exp(-dt / tau));
 }
 
-/**
- * Old R24 yaw target from steer (before the sim drift angle): 0 in GRIP; in DRIFT
- * dir * lerp(yawMin, yawMax, (steer*dir+1)/2). No longer used by DriftVisual (R24 now takes the
- * sim angle); kept only because tests/render/driftVisual.test.ts still covers it.
- */
-export function driftYawTarget(
-  state: Car['state'],
-  dir: number,
-  steer: number,
-  cfg: { yawMin: number; yawMax: number },
-): number {
-  if (state !== 'DRIFT' || dir === 0) return 0;
-  const t = (steer * dir + 1) / 2;
-  return dir * (cfg.yawMin + (cfg.yawMax - cfg.yawMin) * t);
-}
-
 /** Road half-width on screen (px) at screen y, from the projection formulas. */
 export function roadHalfWidthPxAt(y: number, camera: CameraConfig, road: RoadConfig): number {
   return ((y - camera.horizon * camera.screenHeight) / camera.height) * road.halfWidth;
