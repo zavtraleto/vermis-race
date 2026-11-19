@@ -33,9 +33,9 @@ describe('R22c road and units', () => {
     expect(road.halfWidth).toBe(1000);
     expect(road.lanes).toBe(8);
   });
-  it('R22c steerRate and centrifugal are the old values halved (2.0 -> 1.0, 0.3 -> 0.15)', () => {
-    expect(P.steerRate).toBeCloseTo(1.0, 12);
+  it('R22c centrifugal is the old value halved (0.3 -> 0.15); steerRate was halved to 1.0 then raised by R22d (windows in r22d.test.ts)', () => {
     expect(P.centrifugal).toBeCloseTo(0.15, 12);
+    expect(P.steerRate).toBeGreaterThan(1.0);
   });
   it('R22c the old drift params are gone, the new ones are positive numbers', () => {
     const rec = P as unknown as Record<string, unknown>;
