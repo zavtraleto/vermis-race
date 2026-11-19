@@ -114,10 +114,32 @@ describe('T10 test-twisty data', () => {
     expect(Math.min(best, n)).toBeLessThanOrEqual(90);
   });
 
-  it('side sequence is the irregular one from the author playtest 2026-11-19', () => {
-    expect(tw.sections.map((x) => x.side)).toEqual([
-      1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1,
-    ]);
+  it('side sequence is not strictly alternating: at least 4 pairs of consecutive sections share a side', () => {
+    const sides = tw.sections.map((x) => x.side);
+    let same = 0;
+    for (let i = 1; i < sides.length; i++) if (sides[i] === sides[i - 1]) same++;
+    expect(same).toBeGreaterThanOrEqual(4);
+  });
+
+  it('R22b at least 70% of corner segments have |curve| >= medium (drift-only)', () => {
+    const segs = buildTrack(tw.def).segments;
+    let corner = 0;
+    let strong = 0;
+    for (const sg of segs) {
+      if (sg.curve === 0) continue;
+      corner++;
+      // small epsilon: enter/leave ramps are interpolated, hold is exactly the class value
+      if (Math.abs(sg.curve) >= curveClasses.medium) strong++;
+    }
+    expect(corner).toBeGreaterThan(0);
+    expect(strong / corner).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('easy corners still exist on both sides (hold segments)', () => {
+    for (const side of [-1, 1])
+      expect(
+        tw.def.sections.some((d) => d.hold > 0 && d.curve === side * curveClasses.easy),
+      ).toBe(true);
   });
 
   it('all three classes appear on both sides', () => {

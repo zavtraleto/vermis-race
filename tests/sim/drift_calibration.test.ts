@@ -9,8 +9,11 @@ import { constTrack } from './driving_helpers';
  * R22b: the real base car must make a drift HOLDABLE at vmax.
  * At sp = 1 the equilibrium steer s* solves
  *   lerp(min, max, (s+1)/2) * driftRate = curve * centrifugal * centMulDrift * kCurve.
- * Real numbers (base.json after stage 2: driftRate 0.7): hard 4.5 -> rhs = 0.70875 -> lerp = 1.0125
- * -> (s+1)/2 = 0.5083 -> s* = 0.0167; medium 2.5 -> rhs = 0.39375 -> lerp = 0.5625 -> s* = -0.583.
+ * Target numbers (author decision 2026-11-19: driftRate 0.9, driftSteerMin -0.2, driftSteerMax 2.2,
+ * easy 2 / medium 4.5 / hard 7): rhs = curve*0.3*0.35*1.5 = 0.1575*curve.
+ * hard 7 -> 1.1025 -> lerp = 1.225 -> (s+1)/2 = 1.425/2.4 = 0.594 -> s* = 0.1875;
+ * medium 4.5 -> 0.70875 -> lerp = 0.7875 -> (s+1)/2 = 0.9875/2.4 = 0.4115 -> s* = -0.177;
+ * easy 2 -> 0.315 -> lerp = 0.35 -> (s+1)/2 = 0.55/2.4 = 0.229 -> s* = -0.542.
  */
 type DP = CarParams & {
   driftEnterSpeed: number;
@@ -34,28 +37,43 @@ describe('R22b drift calibration, equilibrium steer at sp = 1', () => {
     expect(s).toBeGreaterThanOrEqual(-0.35);
     expect(s).toBeLessThanOrEqual(0.35);
   });
-  it('R22b medium: s* within [-0.95, -0.3]', () => {
+  it('R22b medium: s* within [-0.35, 0.35]', () => {
     const s = sStar(curveClasses.medium);
     expect(Number.isFinite(s)).toBe(true);
-    expect(s).toBeGreaterThanOrEqual(-0.95);
-    expect(s).toBeLessThanOrEqual(-0.3);
+    expect(s).toBeGreaterThanOrEqual(-0.35);
+    expect(s).toBeLessThanOrEqual(0.35);
   });
-  it('R22b easy: needs more counter-steer than medium (drift pulls inward)', () => {
-    // brief: "in easy the drift pulls inward". Weakest checkable form: s*(easy) < s*(medium).
-    expect(Number.isFinite(sStar(curveClasses.easy))).toBe(true);
+  it('R22b s*(medium) < 0 < s*(hard): medium needs a little counter-steer, hard a little inward steer', () => {
+    expect(sStar(curveClasses.medium)).toBeLessThan(0);
+    expect(sStar(curveClasses.hard)).toBeGreaterThan(0);
+  });
+  it('R22b easy: s* in [-1, s*(medium)) (drift pulls inward, needs counter-steer)', () => {
+    const e = sStar(curveClasses.easy);
+    expect(Number.isFinite(e)).toBe(true);
+    expect(e).toBeGreaterThanOrEqual(-1);
+    expect(e).toBeLessThan(sStar(curveClasses.medium));
+  });
+  it('R22b s* is monotonic in curve: easy < medium < hard', () => {
     expect(sStar(curveClasses.easy)).toBeLessThan(sStar(curveClasses.medium));
+    expect(sStar(curveClasses.medium)).toBeLessThan(sStar(curveClasses.hard));
+  });
+  it('R22b full counter-steer (steer*dir = -1): lateral target is negative (car can move outward)', () => {
+    // lerp(min, max, 0) * driftRate = driftSteerMin * driftRate
+    expect(P.driftSteerMin).toBeLessThan(0);
+    expect(P.driftSteerMin * P.driftRate).toBeLessThan(0);
   });
 });
 
-describe('R22b run on a constant hard curve at vmax', () => {
+describe('R22b run on a constant medium and hard curve at vmax', () => {
   const K = 1.0; // gain on x; loop x'' + 3x' + 1.575 K x = 0 is overdamped for K = 1
   const SEGMENTS = 330; // 5.5 s at vmax
 
+  for (const cls of ['medium', 'hard'] as const)
   for (const side of [1, -1] as const) {
     const tag = side > 0 ? 'right' : 'left';
-    it(`R22b ${tag}: held drift stays on asphalt, in DRIFT, at >= 0.95 vmax for 330 segments`, () => {
-      const hard = side * curveClasses.hard;
-      const base = sStar(curveClasses.hard);
+    it(`R22b ${cls} ${tag}: held drift stays on asphalt, in DRIFT, at >= 0.95 vmax for 330 segments`, () => {
+      const hard = side * curveClasses[cls];
+      const base = sStar(curveClasses[cls]);
       expect(Number.isFinite(base)).toBe(true);
       const race = createRace(1, 1);
       const car: Car = race.cars[0]!;
@@ -92,8 +110,8 @@ describe('R22b run on a constant hard curve at vmax', () => {
       expect(minSpeed).toBeGreaterThanOrEqual(0.95 * P.vmax);
     });
 
-    it(`R22b ${tag}: GRIP at vmax with full steer leaves the asphalt (why drift is needed)`, () => {
-      const hard = side * curveClasses.hard;
+    it(`R22b ${cls} ${tag}: GRIP at vmax with full steer leaves the asphalt (why drift is needed)`, () => {
+      const hard = side * curveClasses[cls];
       const race = createRace(1, 1);
       const car = race.cars[0]!;
       car.speed = P.vmax;
@@ -104,7 +122,7 @@ describe('R22b run on a constant hard curve at vmax', () => {
       let left = false;
       for (let i = 0; i < 700 && car.z < 330; i++) {
         step(race, [input], track, [baseCar]);
-        if (Math.abs(car.x) > 1) left = true;
+        if (side * car.x < -1) left = true; // outward, not inward overshoot
       }
       expect(left).toBe(true);
       expect(car.state).toBe('GRIP');
