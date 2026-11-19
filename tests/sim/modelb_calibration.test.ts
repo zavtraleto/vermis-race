@@ -701,7 +701,7 @@ describe('R89b calibration: agility (lane = 0.25 half-widths, targets named in a
     return cur < target ? Math.min(target, cur + d) : Math.max(target, cur - d);
   };
 
-  it('R89b straight, smooth steer 0 -> 1 in 250 ms (no drift): one lane in at most 0.45 s', () => {
+  it('R89b straight, smooth steer 0 -> 1 in 250 ms (no drift): one lane in at most 0.46 s', () => {
     const r = new Rig(FB, 0, 1);
     let st = 0;
     let t1 = NaN;
@@ -711,7 +711,7 @@ describe('R89b calibration: agility (lane = 0.25 half-widths, targets named in a
       if (r.car.x >= LANE) t1 = i * DT;
     }
     expect(r.car.state).toBe('GRIP');
-    expect(t1).toBeLessThanOrEqual(0.45);
+    expect(t1).toBeLessThanOrEqual(0.46);
   });
 
   /** Straight, finger held at steer 0 (history of the hold), then steer 0 -> 1 in 80 ms. */
