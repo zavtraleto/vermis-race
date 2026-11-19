@@ -64,8 +64,8 @@ export const BASE: P = {
   yawAlign: 15,
   yawResponse: 60,
   velGrip: 22,
-  slipGripMax: 0.42,
-  slipGripLimit: 0.6,
+  slipGripMax: 0.75,
+  slipGripLimit: 0.8,
   slipFull: 2.64,
   slipResponse: 8,
   driftLat: 0.46,
@@ -1058,9 +1058,11 @@ function t9(io: Io, p: P, dt: number, own = false): number {
   }
   const rows: (string | number)[][] = [];
   let maxD = 0;
+  let maxPost = 0;
   for (let i = 0; i < out.A!.x.length; i++) {
     const dx = out.C!.x[i]! - out.A!.x[i]!;
     if (i < 30) maxD = Math.max(maxD, Math.abs(dx));
+    else maxPost = Math.max(maxPost, Math.abs(dx));
     rows.push([
       f2((i + 1) * 0.1, 1),
       out.A!.x[i]!,
@@ -1082,7 +1084,7 @@ function t9(io: Io, p: P, dt: number, own = false): number {
     io,
     own ? 'T9 trace close to A (own hold)' : 'T9 trace close to A (same input)',
     maxD <= 0.15,
-    `max |x_C - x_A| up to the release (3.0 s) ${f2(maxD)} (<= 0.15)`,
+    `max |x_C - x_A| up to the release (3.0 s) ${f2(maxD)} (<= 0.15); after the release (3.0-4.0 s, info) ${f2(maxPost)}`,
   );
   return maxD;
 }
@@ -1230,7 +1232,9 @@ function botStep(
 ): { steer: number; drift: boolean } {
   const sp = s.speed / p.vmax;
   const segPerS = s.speed * SEG_PER_UNIT;
-  const gripCap = p.velGrip * p.slipGripMax * c.gripMargin;
+  // A at which GRIP needs the full steer gripMargin (R83/R84 steady state), not the force cap
+  const gripCap =
+    (c.gripMargin * p.yawRateMax * Math.min(1, sp / p.yawFullSpeed)) / (1 + p.yawAlign / p.velGrip);
   const turn = sp * p.kYaw;
   let driftSign = 0;
   const look = Math.max(1, Math.round(segPerS * (s.drift ? c.releaseLook : c.flickLook)));
@@ -1339,6 +1343,190 @@ function t11(io: Io, p: P, dt: number): void {
   );
 }
 
+// ---------------------------------------------------------------- T12-T14 GRIP saturation
+/** Lateral speed dx/dt (+ inward) in GRIP from x = 0, steer held, at vmax: at 0.5 s, 1 s, 2 s, 3 s. */
+function gripOut(m: ModelName, p: P, curve: number, steer: number, dt: number): number[] {
+  const sim = makeSim(m, p, curve, 1, dtOf(m, dt));
+  const d = dtOf(m, dt);
+  const out: number[] = [];
+  const marks = [0.5, 1, 2, 3];
+  let k = 0;
+  for (let t = d; t <= 3 + 1e-9; t += d) {
+    sim.step(steer, false, 1);
+    if (k < marks.length && t >= marks[k]! - 1e-9) {
+      out.push(sim.lastDx);
+      k++;
+    }
+  }
+  return out;
+}
+function t12(io: Io, p: P, dt: number): void {
+  io.log(
+    '\n## T12 GRIP understeer at pinned vmax from x = 0: dx/dt (+ inward) at 0.5 / 1 / 2 / 3 s',
+  );
+  const rows: (string | number)[][] = [];
+  const r: Record<string, number[]> = {};
+  for (const [k, c, s] of [
+    ['hard, full steer', C.hard, 1],
+    ['hard, steer 0', C.hard, 0],
+    ['medium, steer 0', C.medium, 0],
+  ] as const) {
+    for (const m of ['A', 'B', 'C'] as const) {
+      const v = gripOut(m, p, c, s, dt);
+      r[k + m] = v;
+      rows.push([k, m, ...v]);
+    }
+  }
+  table(io, ['case', 'model', '0.5 s', '1 s', '2 s', '3 s'], rows);
+  const settled = (v: number[]): boolean =>
+    Math.abs(v[0]! - v[3]!) <= 0.1 * Math.abs(v[3]!) && Math.abs(v[2]! - v[3]!) <= 0.01;
+  const hf = r['hard, full steerC']!;
+  const h0 = r['hard, steer 0C']!;
+  const m0 = r['medium, steer 0C']!;
+  verdict(
+    io,
+    'T12 hard full steer',
+    settled(hf) && -hf[3]! >= 0.4 && -hf[3]! <= 0.7,
+    `out ${f2(-hf[3]!)} (0.4-0.7), at 0.5 s ${f2(-hf[0]!)} (settled within 10%)`,
+  );
+  verdict(
+    io,
+    'T12 hard steer 0',
+    settled(h0) && -h0[3]! >= 1.3 && -h0[3]! <= 1.8,
+    `out ${f2(-h0[3]!)} (1.3-1.8; A 1.575)`,
+  );
+  verdict(
+    io,
+    'T12 medium steer 0',
+    settled(m0) && -m0[3]! >= 0.9 && -m0[3]! <= 1.1,
+    `out ${f2(-m0[3]!)} (0.9-1.1; A 1.01)`,
+  );
+}
+function t13(io: Io, p: P, dt: number): void {
+  io.log(
+    '\n## T13 release from a steady drift (4 s at the free hold steer), then GRIP steer; dx over the next 1.0 s',
+  );
+  const rows: (string | number)[][] = [];
+  const res: Record<string, number> = {};
+  for (const [k, c] of [
+    ['hard', C.hard],
+    ['medium', C.medium],
+  ] as const) {
+    const gh = gripHold(p, c, dt);
+    for (const m of ['A', 'B', 'C'] as const) {
+      const hold = driftHold(m, p, c, dt, null, 8).steer;
+      const after = k === 'hard' ? 1 : m === 'C' ? gh : m === 'A' ? 1 : gh;
+      const sim = makeSim(m, p, c, 1, dtOf(m, dt));
+      const d = dtOf(m, dt);
+      sim.enterDrift(1, hold);
+      for (let t = 0; t < 4; t += d) sim.step(hold, true);
+      const x0 = sim.x;
+      const sp0 = sim.speed;
+      let x03 = 0;
+      for (let t = d; t <= 1 + 1e-9; t += d) {
+        sim.step(after, false);
+        if (Math.abs(t - 0.3) < d / 2) x03 = sim.x - x0;
+      }
+      res[k + m] = sim.x - x0;
+      rows.push([k, m, f2(after, 3), sp0, x03, sim.x - x0, sim.lastDx]);
+    }
+  }
+  table(
+    io,
+    ['curve', 'model', 'steer after', 'speed at release', 'dx 0.3 s', 'dx 1.0 s', 'dx/dt at 1 s'],
+    rows,
+  );
+  const h = res.hardC!;
+  const m = res.mediumC!;
+  verdict(
+    io,
+    'T13 hard release + full steer',
+    h >= -0.9 && h <= -0.4,
+    `dx in 1 s ${f2(h)} (-0.9..-0.4; A ${f2(res.hardA!)})`,
+  );
+  verdict(
+    io,
+    'T13 medium release + GRIP hold',
+    Math.abs(m) <= 0.15,
+    `dx in 1 s ${f2(m)} (|.| <= 0.15) with the GRIP hold steer at vmax`,
+  );
+}
+function t14(io: Io, p: P, dt: number): void {
+  io.log('\n## T14 GRIP checks after the change');
+  // S1: 0.5 for 0.4 s on a straight, then 0
+  const s = new CSim(p, 0, 1, dt);
+  let peakVx = 0;
+  let maxX = 0;
+  let osc = 0;
+  let lastSign = 0;
+  let settle = NaN;
+  let peakYaw = 0;
+  for (let t = 0; t <= 1.6 + 1e-9; t += dt) {
+    s.step(t < 0.4 ? 0.5 : 0, false, 1);
+    peakVx = Math.max(peakVx, Math.abs(s.vx));
+    peakYaw = Math.max(peakYaw, Math.abs(s.s.yaw));
+    maxX = Math.max(maxX, s.x);
+    if (t > 0.4) {
+      const sg = Math.sign(s.vx);
+      if (sg !== 0 && lastSign !== 0 && sg !== lastSign && Math.abs(s.vx) > 0.02 * peakVx) osc++;
+      if (sg !== 0) lastSign = sg;
+      if (
+        Number.isNaN(settle) &&
+        Math.abs(s.s.yaw) < 0.02 * peakYaw &&
+        Math.abs(s.vx) < 0.02 * peakVx
+      )
+        settle = t - 0.4;
+    }
+  }
+  const over = (maxX - s.x) / s.x;
+  // visible understeer on hard, full steer, steady
+  const u = new CSim(p, C.hard, 1, dt);
+  for (let t = 0; t < 3; t += dt) u.step(1, false, 1);
+  const holds = (['easy', 'medium', 'hard'] as const).map((k) => gripHold(p, C[k], dt));
+  const hs = new CSim(p, C.hard, 1, dt);
+  for (let t = 0; t < 1.5; t += dt) hs.step(1, false, 1);
+  table(
+    io,
+    ['quantity', 'C', 'target'],
+    [
+      ['S1 shift', s.x, 'about a lane'],
+      ['S1 settle (2%) after release', settle, '<= 0.6 s'],
+      ['S1 overshoot', over, '< 0.1'],
+      ['S1 vx sign changes', String(osc), '0'],
+      ['easy / medium hold', `${f2(holds[0]!)} / ${f2(holds[1]!)}`, '0.4-0.5 / 0.9-1.0'],
+      ['hard hold (bisection, 1 = not holdable)', holds[2]!, '> 1 or runs out'],
+      ['hard full steer x after 1.5 s', hs.x, '< -0.5'],
+      [
+        'hard full steer steady slip (deg on screen)',
+        `${f2(visSlip(u.s))} (${f2(visSlip(u.s) * p.slipDeg, 1)})`,
+        '> 0 (nose in), <= slipGripLimit',
+      ],
+    ],
+  );
+  verdict(
+    io,
+    'T14 S1',
+    osc === 0 && over < 0.1 && settle <= 0.6,
+    `shift ${f2(s.x)}, settle ${f2(settle, 2)} s, overshoot ${f2(over * 100, 1)}%, sign changes ${osc}`,
+  );
+  verdict(
+    io,
+    'T14 windows',
+    holds[0]! >= 0.4 &&
+      holds[0]! <= 0.5 &&
+      holds[1]! >= 0.9 &&
+      holds[1]! <= 1.0 &&
+      holds[2]! > 0.999 &&
+      hs.x < -0.5,
+    `easy ${f2(holds[0]!, 2)}, medium ${f2(holds[1]!, 2)}, hard ${f2(holds[2]!, 3)}`,
+  );
+  verdict(
+    io,
+    'T14 visible understeer',
+    visSlip(u.s) > 0.2 && visSlip(u.s) <= p.slipGripLimit + 1e-9,
+    `slip ${f2(visSlip(u.s))} = ${f2(visSlip(u.s) * p.slipDeg, 1)} deg, nose in`,
+  );
+}
 // ---------------------------------------------------------------- main
 export function main(io: Io): number {
   const only = argValue(io.argv, 'only')?.split(',');
@@ -1365,6 +1553,9 @@ export function main(io: Io): number {
   }
   if (want('T10')) t10(io, p);
   if (want('T11')) t11(io, p, dt);
+  if (want('T12')) t12(io, p, dt);
+  if (want('T13')) t13(io, p, dt);
+  if (want('T14')) t14(io, p, dt);
   io.log(
     `\n# verdicts: ${verdicts.filter((v) => v.startsWith('PASS')).length} pass, ${verdicts.filter((v) => v.startsWith('FAIL')).length} fail`,
   );
