@@ -3,6 +3,8 @@
   "asphalt": ["#5a5a5e", "#545458"],
   "rumble": ["#e8e8e8", "#c0283c"],
   "lane": "#d8d8d8",
+  "centreLine": "#d8b830",
+  "shoulder": "#2a2a31",
   "verge": ["#1c1c22", "#18181d"],
   "player": "#cfd0d6",
   "carShadow": "#0c0c12",
