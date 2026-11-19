@@ -1,6 +1,5 @@
 import type { TrackDef, TrackSection } from '../../sim/types';
 import curves from './curves.json';
-import hills from './test-hills.json';
 import twisty from './test-twisty.json';
 
 export type CurveClass = 'easy' | 'medium' | 'hard';
@@ -77,10 +76,4 @@ export function resolveSections(
 export function loadTestTwisty(): { name: string; sections: ClassedSection[]; def: TrackDef } {
   const sections = parseSections(twisty.sections);
   return { name: twisty.name, sections, def: resolveSections(sections, curveClasses) };
-}
-
-/** R30 small loop with curves and hills (sum of hills 0), selected with ?track=hills. */
-export function loadTestHills(): { name: string; sections: ClassedSection[]; def: TrackDef } {
-  const sections = parseSections(hills.sections);
-  return { name: hills.name, sections, def: resolveSections(sections, curveClasses) };
 }

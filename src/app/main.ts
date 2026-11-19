@@ -29,7 +29,7 @@ import { WorldSprites } from '../render/worldSprites';
 import { DT } from '../sim/constants';
 import { createRace } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
-import { curveClasses, loadTestHills, loadTestTwisty } from '../data/tracks';
+import { curveClasses, loadTestTwisty } from '../data/tracks';
 import type { InputFrame, Track } from '../sim/types';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
@@ -104,7 +104,7 @@ const track = curve
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : hillScenario
         ? buildTrack({ sections: hillScenario.sections })
-        : buildTrack((params.track === 'hills' ? loadTestHills() : loadTestTwisty()).def);
+        : buildTrack(loadTestTwisty().def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
 let proj = createProjection(view, roadConfig);
 let road = new RoadMesh(view, roadConfig, paletteConfig);

@@ -8,7 +8,7 @@ export interface GameParams {
   ticks: number | null;
   hud: boolean;
   map: boolean; // ribbonMap off unless ?map=1
-  track: string; // ?track=hills picks test-hills (R30); anything else the default loop
+  track: string; // reserved: track selector (only the default loop exists)
 }
 
 export interface RendererStats {
