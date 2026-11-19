@@ -65,5 +65,11 @@
   "slipResponse": 8,
   "driftLat": 0.46,
   "driftPush": 0.0287,
-  "carryDecay": 8
+  "carryDecay": 8,
+  "lampEvery": 16,
+  "lampOffset": 1.4,
+  "lampHitW": 0.08,
+  "crashMinSpeed": 0.3,
+  "crashTime": 1.6,
+  "crashReturnX": 0.6
 }

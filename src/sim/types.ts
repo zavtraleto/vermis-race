@@ -30,6 +30,9 @@ export interface Car {
   steerHist: number[]; // R81 ring buffer of raw steer, fixed length STEER_HIST
   steerHistHead: number; // R81 next write index
   steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
+  crashTicks: number; // R48 remaining crash ticks, 0 = driving
+  crashSpeed0: number; // R48 speed at the moment of the hit
+  crashX0: number; // R48 x at the moment of the hit
 }
 
 export interface RaceState {
@@ -107,6 +110,12 @@ export interface CarParams {
   draftAccelMul: number; // R52 acceleration multiplier while boosted
   boostTime: number; // R52 (H5 B) seconds the boost lasts after leaving the cone
   draftBoost: number; // H5: 0 = A, 1 = B
+  lampEvery: number; // R47 lamp posts on segment boundaries with index multiple of this
+  lampOffset: number; // R47 lamp |x|, half-widths
+  lampHitW: number; // R47 lamp hit width, half-widths
+  crashMinSpeed: number; // R47 minimum speed for a crash, vmax
+  crashTime: number; // R48 seconds
+  crashReturnX: number; // R48 |x| where the car is put back on the road
 }
 
 /** R71 traffic pool config (src/data/traffic.json) plus the lane count of the road. */
