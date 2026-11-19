@@ -1,7 +1,9 @@
+import type { Car3dConfig } from '../render/carModel';
 import type { CameraConfig, RoadConfig } from '../render/projection';
 import type { RibbonMapRenderConfig } from '../render/ribbonMapMesh';
 import type { SpritesConfig } from '../render/worldSprites';
 import camera from './camera.json';
+import car3d from './car3d.json';
 import palette from './palette.json';
 import ribbonMap from './ribbonMap.json';
 import road from './road.json';
@@ -34,4 +36,5 @@ export const cameraConfig: CameraConfig = camera;
 export const roadConfig: RoadConfig = road;
 export const paletteConfig: Palette = palette;
 export const spritesConfig: SpritesConfig = sprites;
+export const car3dConfig: Car3dConfig = car3d;
 export const ribbonMapConfig: RibbonMapRenderConfig = ribbonMap;

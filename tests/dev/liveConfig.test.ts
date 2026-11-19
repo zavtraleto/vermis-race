@@ -5,8 +5,8 @@ import palette from '../../src/data/palette.json';
 import sprites from '../../src/data/sprites.json';
 import { createKeyboardInput } from '../../src/input/keyboard';
 import { createTouchStick } from '../../src/input/touchStick';
-import type { SpriteBatch } from '../../src/render/spriteBatch';
-import { WorldSprites } from '../../src/render/worldSprites';
+import car3d from '../../src/data/car3d.json';
+import { CarView } from '../../src/render/carModel';
 import type { InputFrame } from '../../src/sim/types';
 
 // T4 spec: a live edit of a config object takes effect on the next read, no rebuild.
@@ -38,20 +38,13 @@ describe('consumers read config live', () => {
     expect(f.steer).toBeCloseTo(0.5, 9);
   });
 
-  it('player car sprite follows sprites.player.baseY changed after creation', () => {
+  it('3D player car follows sprites.player.baseY changed after creation', () => {
     const cfg = clone(sprites);
-    const ys: number[] = [];
-    const batch = {
-      push: (_x: number, y: number) => {
-        ys.push(y);
-      },
-    } as unknown as SpriteBatch;
-    const world = new WorldSprites(cfg, camera, palette);
-    world.drawPlayer(batch, 0);
-    const before = ys[0]!;
-    ys.length = 0;
+    const car = new CarView(car3d, cfg.player, camera, palette);
+    car.update(0, 0, 0);
+    const before = (car.rearLY + car.rearRY) / 2;
     cfg.player.baseY -= 0.1;
-    world.drawPlayer(batch, 0);
-    expect(ys[0]!).toBeCloseTo(before - 0.1 * camera.screenHeight, 6);
+    car.update(0, 0, 0);
+    expect((car.rearLY + car.rearRY) / 2).toBeCloseTo(before - 0.1 * camera.screenHeight, 3);
   });
 });
