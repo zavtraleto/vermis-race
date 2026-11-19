@@ -160,8 +160,9 @@ export function botInput(
   let steer: number;
   if (inDrift && wantDrift && sp > 0) {
     xTarget = bp.driftLineX * car.dir;
-    // R22: steer around the equilibrium (target = push) for the curve just ahead, plus a
-    // proportional pull toward the target line. target = dir*lerp(min, max, (steer*dir+1)/2)*driftRate*sp.
+    // R22: hold the angle whose lateral target equals the push of the curve just ahead, plus a
+    // proportional pull toward the target line. Lateral target = angle*driftRate*sp, and the angle
+    // settles at clamp(steer*dir, 0, 1)*dir, so the steer that holds angle a is dir*a.
     let dFeed = Math.round(segPerSec * bp.driftFeedLookahead);
     if (dFeed < 1) dFeed = 1;
     let feed = 0;
@@ -169,9 +170,10 @@ export function botInput(
     feed /= dFeed;
     const push = feed * sp * sp * p.centrifugal * p.centMulDrift * p.kCurve;
     const vxReq = push + bp.driftGain * (xTarget - car.x);
-    const lerp = (vxReq * car.dir) / (p.driftRate * sp);
-    const t = (lerp - p.driftSteerMin) / (p.driftSteerMax - p.driftSteerMin);
-    steer = car.dir * (2 * t - 1);
+    let angle = (vxReq * car.dir) / (p.driftRate * sp);
+    if (angle < 0) angle = 0;
+    if (angle > 1) angle = 1;
+    steer = car.dir * angle;
   } else {
     let cFeed = cMean;
     if (driftSign !== 0 && !inDrift) {
@@ -203,7 +205,12 @@ export function botInput(
   let delay = Math.round(bp.reactionDelay / DT);
   if (delay > qn - 1) delay = qn - 1;
   out.steer = q[wrap(bot.head - delay, qn)]!;
-  out.drift = wantDrift;
+  // R20 needs a rising edge with the applied steer already past driftEnterSteer: in GRIP press only
+  // then, and release for a tick after a press that did not start a drift, so the next one is an
+  // edge again. In DRIFT hold it while the corner wants it; release (R21) when it ends.
+  out.drift = inDrift
+    ? wantDrift
+    : wantDrift && !car.driftHeld && car.steer * driftSign > p.driftEnterSteer;
 
   // Speed. Drift corners are taken without braking: their segments are ignored here.
   out.brake = false;
