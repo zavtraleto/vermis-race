@@ -130,7 +130,7 @@ for (const [label, P] of MODELS) {
       expect(Math.sign(hit(P, 15.75, -1.4, 0.5).crashX0)).toBe(-1);
     });
 
-    it('rivals and traffic never crash', () => {
+    it('traffic never crashes; a rival crashes like the player (R64)', () => {
       for (const kind of ['rival', 'traffic'] as const) {
         const s = createRace(1, kind === 'rival' ? 2 : 1, kind === 'traffic' ? 1 : 0);
         const c = s.cars[1]!;
@@ -139,9 +139,15 @@ for (const [label, P] of MODELS) {
         c.x = 1.4;
         c.speed = 0.5;
         step(s, [IDLE, IDLE], STRAIGHT, [P, P]);
-        expect(c.crashTicks, kind).toBe(0);
-        expect(c.bumpTicks, kind).toBe(0);
-        expect(c.speed, kind).toBeCloseTo(0.5, 12);
+        if (kind === 'traffic') {
+          expect(c.crashTicks, kind).toBe(0);
+          expect(c.bumpTicks, kind).toBe(0);
+          expect(c.speed, kind).toBeCloseTo(0.5, 12);
+        } else {
+          expect(c.crashTicks, kind).toBe(CRASH_TICKS);
+          expect(c.crashSpeed0, kind).toBeCloseTo(0.5, 12);
+          expect(c.crashX0, kind).toBeCloseTo(1.4, 9);
+        }
       }
     });
   });

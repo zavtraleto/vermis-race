@@ -1,6 +1,14 @@
 import { DT, K_HEADING, SEG_PER_UNIT, STEER_HIST } from './constants';
 import { nextRandom } from './rng';
-import type { Car, CarParams, InputFrame, RaceState, Track, TrafficConfig } from './types';
+import type {
+  Car,
+  CarParams,
+  InputFrame,
+  RaceState,
+  RivalConfig,
+  Track,
+  TrafficConfig,
+} from './types';
 
 export function createRace(seed: number, carCount: number, trafficCount = 0): RaceState {
   const cars: Car[] = [];
@@ -34,6 +42,10 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       crashTicks: 0,
       crashSpeed0: 0,
       crashX0: 0,
+      skill: 0,
+      pace: 1,
+      nameId: -1,
+      place: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.
@@ -47,10 +59,16 @@ export function step(
   track: Track,
   params: readonly CarParams[],
   traffic?: TrafficConfig,
+  rivals?: RivalConfig,
 ): void {
   const segments = track.segments;
   const segCount = segments.length;
   const cars = state.cars;
+  // R63: the rubber band distance uses the player z at the start of the step.
+  const lead = cars[0];
+  const hasPlayer = lead !== undefined && lead.kind === 'player';
+  const playerZ0 = hasPlayer ? lead.z : 0;
+  const band = rivals !== undefined && rivals.rubberBand === 1 && hasPlayer;
   // R4: cars updated in index order, each with its own input and params.
   for (let i = 0; i < cars.length; i++) {
     const car = cars[i]!;
@@ -71,6 +89,10 @@ export function step(
       continue;
     }
     const z0 = car.z;
+    // R62/R63: the speed cap is vmax*pace*band (pace 1 and no band for the player: exactly vmax).
+    let capScale = car.pace;
+    if (band && car.kind === 'rival') capScale *= rubberBand(rivals, playerZ0 - z0);
+    const vcap = p.vmax * capScale;
 
     // R11/R13: sp uses the speed before R14 updates it.
     const sp0 = car.speed / p.vmax;
@@ -85,10 +107,10 @@ export function step(
 
     // H14: model B (R80-R87) replaces R10-R15b and R20-R22; R16/R17 below are shared.
     if (p.model === 1) {
-      const speedB = stepModelB(car, input, p, cars, curve, off);
+      const speedB = stepModelB(car, input, p, cars, curve, off, vcap);
       car.heading += curve * speedB * K_HEADING * DT; // R17
       car.z += speedB * DT * SEG_PER_UNIT; // R16
-      if (car.kind === 'player') lampHit(car, z0, p, segCount); // R47: after R16, before R40
+      lampHit(car, z0, p, segCount); // R47/R64: after R16, before R40
       continue;
     }
 
@@ -149,7 +171,7 @@ export function step(
     let target: number;
     let grip: number;
     let cm: number;
-    let cap = p.vmax;
+    let cap = vcap;
     if (drift) {
       // R22: the angle chases clamp(steer*dir, 0, 1) * dir; R20: the entry tick keeps driftAngleStart.
       if (!entered) {
@@ -163,7 +185,7 @@ export function step(
       car.lowTicks = absAngle < p.driftAngleExit ? car.lowTicks + 1 : 0;
       // R22: lateral target from the angle, gripDrift, centMulDrift; no R15b. Speed cap from |angle|.
       target = car.angle * p.driftRate * sp0;
-      cap = p.vmax * (1 - p.driftSpeedLoss * absAngle);
+      cap = vcap * (1 - p.driftSpeedLoss * absAngle);
       grip = p.gripDrift;
       cm = p.centMulDrift;
     } else {
@@ -197,7 +219,7 @@ export function step(
     // R52: boosted, the GRIP cap is vmax * draftCapMul and the throttle accel * draftAccelMul; in
     // DRIFT the R22 cap stays (caps do not stack). Above the cap (boost over, cone left) speed
     // falls by driftBrake down to the cap, as in R22.
-    if (boosted && !drift) cap = p.vmax * p.draftCapMul;
+    if (boosted && !drift) cap = vcap * p.draftCapMul;
     const accel = boosted ? p.accel * p.draftAccelMul : p.accel;
     let speed = throttle(car.speed, input.brake, cap, accel, p);
     // R15: offroad slowdown.
@@ -209,15 +231,18 @@ export function step(
 
     // R16: z advances by post-update speed.
     car.z += speed * DT * SEG_PER_UNIT;
-    if (car.kind === 'player') lampHit(car, z0, p, segCount); // R47: after R16, before R40
+    lampHit(car, z0, p, segCount); // R47/R64: after R16, before R40
   }
-  const player = cars[0];
-  if (player !== undefined && player.kind === 'player') {
-    // R71: respawn after R16 of all cars, relative to the player.
-    if (traffic !== undefined) respawnTraffic(state, traffic, player.z, params[0]!.vmax);
-    // R40: contact check at the end of the step.
-    bumpPlayer(player, cars, params[0]!);
+  // R71: respawn after R16 of all cars, relative to the player.
+  if (hasPlayer && traffic !== undefined) respawnTraffic(state, traffic, lead.z, params[0]!.vmax);
+  // R40/R64: traffic contact of every race car at the end of the step, in index order.
+  for (let i = 0; i < cars.length; i++) {
+    if (cars[i]!.kind !== 'traffic') bumpTraffic(cars[i]!, cars, params[i]!);
   }
+  // R65: contact between race cars after R40 (rivalBumpLoss comes from the rival config).
+  if (rivals !== undefined) raceContacts(cars, params, rivals);
+  // R66: places at the end of the step.
+  updatePlaces(cars);
   // R1: one fixed step.
   state.tick++;
 }
@@ -318,6 +343,7 @@ function stepModelB(
   cars: readonly Car[],
   curve: number,
   off: boolean,
+  vcap: number,
 ): number {
   // R80: raw steer, no R10 slew.
   let steer = input.steer;
@@ -475,13 +501,13 @@ function stepModelB(
   if (drift) car.yaw = car.vel + slip;
   car.vx = car.vel * sp * p.latScale + lead;
 
-  // R86: R14 with the cap vmax*capMul (R52); in DRIFT the cap also falls with the angle (as R22)
+  // R86: R14 with the cap vmax*capMul (R52), vcap = vmax*pace*band (R62/R63); in DRIFT the cap also falls with the angle (as R22)
   // and the carry costs nothing; in GRIP the visible slip costs speed. Then R15.
   const capMul = boosted ? p.draftCapMul : 1;
-  let cap = p.vmax * capMul;
+  let cap = vcap * capMul;
   if (drift) {
     const a = 1 - (p.driftSpeedLoss * (slip < 0 ? -slip : slip)) / p.slipFull;
-    if (a < capMul) cap = p.vmax * a;
+    if (a < capMul) cap = vcap * a;
   }
   const accel = boosted ? p.accel * p.draftAccelMul : p.accel;
   let speed = throttle(car.speed, input.brake, cap, accel, p);
@@ -570,8 +596,8 @@ function respawnTraffic(state: RaceState, cfg: TrafficConfig, playerZ: number, v
   }
 }
 
-/** R40-R44: at most one contact per step, traffic in index order. */
-function bumpPlayer(car: Car, cars: readonly Car[], p: CarParams): void {
+/** R40-R44 (R64: player and rivals): at most one contact per step, traffic in index order. */
+function bumpTraffic(car: Car, cars: readonly Car[], p: CarParams): void {
   if (car.bumpTicks !== 0) return; // R43
   if (car.crashTicks > 0) return; // R48: no contacts during a crash
   const halfW = (p.carHitW + p.trafficHitW) / 2;
@@ -590,29 +616,90 @@ function bumpPlayer(car: Car, cars: readonly Car[], p: CarParams): void {
     if (target < car.speed) car.speed = target;
     // R42: lateral kick away from the traffic car; on a tie toward the road centre (right at 0).
     const side = dx > 0 ? 1 : dx < 0 ? -1 : t.x > 0 ? -1 : 1;
-    car.vx = side * p.bumpKick;
-    if (p.model === 1) {
-      // R88/R42: the same vx through vel, sp after R41; yaw is left alone. (sp = 0 cannot carry a kick.)
-      const denom = (car.speed / p.vmax) * p.latScale;
-      if (denom > 0) car.vel = car.vx / denom;
-      // R88/R44: |slip| falls by bumpAngleLoss*slipFull, not below 0 (yaw moves toward vel, R42
-      // has set vel already); the drift survives.
-      if (car.state === 'DRIFT') {
-        let s = (car.yaw - car.vel) * car.dir - p.bumpAngleLoss * p.slipFull;
-        if (s < 0) s = 0;
-        car.yaw = car.vel + car.dir * s;
-      }
-      car.angle = viewAngle(car, p); // R87
-    } else if (car.state === 'DRIFT') {
-      // R44: a drift survives; |angle| shrinks by bumpAngleLoss, not below 0.
-      let abs = car.angle * car.dir - p.bumpAngleLoss;
-      if (abs < 0) abs = 0;
-      car.angle = car.dir * abs;
-    }
-    car.bumpTicks = Math.round(p.bumpInvulnTime / DT); // R43
+    kick(car, side, p);
     car.draft = 0; // R51: a contact zeroes the charge and the boost
     car.boostTicks = 0;
     return;
+  }
+}
+
+/** R42 lateral kick (R88 in model B), R44 drift angle loss, R43 invulnerability. */
+function kick(car: Car, side: number, p: CarParams): void {
+  car.vx = side * p.bumpKick;
+  if (p.model === 1) {
+    // R88/R42: the same vx through vel, sp after R41; yaw is left alone. (sp = 0 cannot carry a kick.)
+    const denom = (car.speed / p.vmax) * p.latScale;
+    if (denom > 0) car.vel = car.vx / denom;
+    // R88/R44: |slip| falls by bumpAngleLoss*slipFull, not below 0 (yaw moves toward vel, R42
+    // has set vel already); the drift survives.
+    if (car.state === 'DRIFT') {
+      let s = (car.yaw - car.vel) * car.dir - p.bumpAngleLoss * p.slipFull;
+      if (s < 0) s = 0;
+      car.yaw = car.vel + car.dir * s;
+    }
+    car.angle = viewAngle(car, p); // R87
+  } else if (car.state === 'DRIFT') {
+    // R44: a drift survives; |angle| shrinks by bumpAngleLoss, not below 0.
+    let abs = car.angle * car.dir - p.bumpAngleLoss;
+    if (abs < 0) abs = 0;
+    car.angle = car.dir * abs;
+  }
+  car.bumpTicks = Math.round(p.bumpInvulnTime / DT); // R43
+}
+
+/** R63: behind the player by d > 0: 1 + rubberBoost*f; ahead: 1 - rubberSlow*f; f = clamp((|d| - dead)/range, 0, 1). */
+function rubberBand(cfg: RivalConfig, d: number): number {
+  const ad = d < 0 ? -d : d;
+  let f = (ad - cfg.rubberDead) / cfg.rubberRange;
+  if (f < 0) f = 0;
+  if (f > 1) f = 1;
+  return d > 0 ? 1 + cfg.rubberBoost * f : 1 - cfg.rubberSlow * f;
+}
+
+/** R65: race car pairs in index order; a contact sets bumpTicks, so each car touches at most once. */
+function raceContacts(cars: readonly Car[], params: readonly CarParams[], cfg: RivalConfig): void {
+  for (let i = 0; i < cars.length; i++) {
+    const a = cars[i]!;
+    if (a.kind === 'traffic') continue;
+    const pa = params[i]!;
+    for (let j = i + 1; j < cars.length; j++) {
+      if (a.bumpTicks !== 0 || a.crashTicks !== 0) break;
+      const b = cars[j]!;
+      if (b.kind === 'traffic' || b.bumpTicks !== 0 || b.crashTicks !== 0) continue;
+      const dz = a.z - b.z;
+      const dx = a.x - b.x;
+      if (!(dz < pa.carLength && dz > -pa.carLength && dx < pa.carHitW && dx > -pa.carHitW))
+        continue;
+      const pb = params[j]!;
+      // R65: the rear car (lower z, on a tie the larger index) slows; the front keeps its speed.
+      const aRear = a.z < b.z;
+      const rear = aRear ? a : b;
+      const front = aRear ? b : a;
+      const pr = aRear ? pa : pb;
+      let target = front.speed - cfg.rivalBumpLoss * pr.vmax;
+      const floor = pr.bumpFloor * pr.vmax;
+      if (target < floor) target = floor;
+      if (target < rear.speed) rear.speed = target;
+      // R65/R42: both pushed away from each other; on equal x the smaller index goes left.
+      const sideA = dx > 0 ? 1 : -1;
+      kick(a, sideA, pa);
+      kick(b, -sideA, pb);
+    }
+  }
+}
+
+/** R66: place = 1 + race cars with a larger z + race cars with an equal z and a smaller index. */
+function updatePlaces(cars: readonly Car[]): void {
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i]!;
+    if (c.kind === 'traffic') continue;
+    let place = 1;
+    for (let j = 0; j < cars.length; j++) {
+      const o = cars[j]!;
+      if (o.kind === 'traffic') continue;
+      if (o.z > c.z || (o.z === c.z && j < i)) place++;
+    }
+    c.place = place;
   }
 }
 
@@ -626,5 +713,48 @@ export function placeTraffic(state: RaceState, traffic: TrafficConfig, playerVma
     if (c.kind !== 'traffic') continue;
     spawnTraffic(state, c, traffic, furthest, playerZ, playerVmax);
     furthest = c.z;
+  }
+}
+
+/**
+ * R61/R62: start grid and character of the rivals cars[1..rivalCount], seeded RNG in index order.
+ * Draws per rival: lane, skill, pace, name.
+ */
+export function placeRivals(state: RaceState, cfg: RivalConfig): void {
+  const cars = state.cars;
+  const w = cfg.rivalSkillWeights;
+  const wSum = w[0] + w[1] + w[2];
+  let prevLane = -1;
+  for (let i = 1; i <= cfg.rivalCount && i < cars.length; i++) {
+    const c = cars[i]!;
+    if (c.kind !== 'rival') break;
+    // R61: grid z, speed 0, a lane centre other than the lane of the previous rival (its
+    // neighbour in z): draw among lanes - 1 lanes and skip the previous one.
+    c.z = cfg.rivalGridGap * (i - cfg.rivalGridBehind - 0.5);
+    c.speed = 0;
+    let lane: number;
+    if (prevLane < 0) lane = Math.floor(nextRandom(state) * cfg.lanes);
+    else {
+      lane = Math.floor(nextRandom(state) * (cfg.lanes - 1));
+      if (lane >= prevLane) lane++;
+    }
+    prevLane = lane;
+    c.x = -1 + ((lane + 0.5) * 2) / cfg.lanes; // R70 lane centre
+    // R62: skill by the weights, pace in 1 +- spread, the k-th name not taken by an earlier rival.
+    const r = nextRandom(state) * wSum;
+    c.skill = r < w[0] ? 0 : r < w[0] + w[1] ? 1 : 2;
+    c.pace = 1 + cfg.rivalPaceSpread * (2 * nextRandom(state) - 1);
+    let k = Math.floor(nextRandom(state) * (cfg.rivalNameCount - (i - 1)));
+    let id = 0;
+    for (;;) {
+      let used = false;
+      for (let j = 1; j < i; j++) if (cars[j]!.nameId === id) used = true;
+      if (!used) {
+        if (k === 0) break;
+        k--;
+      }
+      id++;
+    }
+    c.nameId = id;
   }
 }

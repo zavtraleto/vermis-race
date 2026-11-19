@@ -1,0 +1,14 @@
+{
+  "rivalCount": 7,
+  "rivalGridGap": 12,
+  "rivalGridBehind": 2,
+  "rivalSkillWeights": [0.3, 0.5, 0.2],
+  "rivalPaceSpread": 0.03,
+  "rivalNameCount": 24,
+  "rubberBand": 1,
+  "rubberBoost": 0.08,
+  "rubberSlow": 0.08,
+  "rubberDead": 40,
+  "rubberRange": 200,
+  "rivalBumpLoss": 0.1
+}

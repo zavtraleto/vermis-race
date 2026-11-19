@@ -33,6 +33,10 @@ export interface Car {
   crashTicks: number; // R48 remaining crash ticks, 0 = driving
   crashSpeed0: number; // R48 speed at the moment of the hit
   crashX0: number; // R48 x at the moment of the hit
+  skill: number; // R62 bot level: 0 novice, 1 average, 2 expert (player 0)
+  pace: number; // R62 personal multiplier of vmax (player 1)
+  nameId: number; // R62 index into the rival names (player and traffic -1)
+  place: number; // R66 race place, 1 = leader (stored at the end of the step)
 }
 
 export interface RaceState {
@@ -128,6 +132,23 @@ export interface TrafficConfig {
   trafficGapMax: number;
   trafficSpeedMin: number;
   trafficSpeedMax: number;
+  lanes: number;
+}
+
+/** R60-R65 rivals config (src/data/rivals.json) plus the lane count of the road. */
+export interface RivalConfig {
+  rivalCount: number;
+  rivalGridGap: number;
+  rivalGridBehind: number;
+  rivalSkillWeights: [number, number, number]; // weights of novice, average, expert
+  rivalPaceSpread: number;
+  rivalNameCount: number;
+  rubberBand: number; // H15: 1 = A (on), 0 = B (off)
+  rubberBoost: number;
+  rubberSlow: number;
+  rubberDead: number;
+  rubberRange: number;
+  rivalBumpLoss: number; // R65, vmax
   lanes: number;
 }
 
