@@ -1,16 +1,84 @@
 {
   "numbers": {
-    "render3d.k3dCurve": { "min": 0, "max": 0.005, "step": 0.00005, "label": "k3dCurve — rad per curve per segment" },
-    "render3d.drawDistance": { "min": 50, "max": 600, "step": 10, "label": "drawDistance — segments" },
-    "render3d.camera.height": { "min": 50, "max": 2000, "step": 10, "label": "height" },
-    "render3d.camera.distance": { "min": 100, "max": 3000, "step": 10, "label": "distance — behind the car" },
-    "render3d.camera.fovDeg": { "min": 20, "max": 110, "step": 1, "label": "fovDeg — horizontal" },
-    "render3d.camera.pitchDeg": { "min": -10, "max": 40, "step": 0.5, "label": "pitchDeg — down" },
-    "render3d.camera.horizon": { "min": 0.2, "max": 0.7, "step": 0.005, "label": "horizon — principal point" },
-    "render3d.camera.lagTau": { "min": 0, "max": 1, "step": 0.01, "label": "lagTau — heading lag, s" },
-    "render3d.camera.slopeFollow": { "min": 0, "max": 1, "step": 0.05, "label": "slopeFollow — pitch on hills" },
-    "render3d.fog.near": { "min": 0, "max": 1, "step": 0.01, "label": "fog near" },
-    "render3d.fog.far": { "min": 0.1, "max": 1.5, "step": 0.01, "label": "fog far" }
+    "render3d.k3dCurve": { "min": 0, "max": 0.005, "step": 0.00005 },
+    "render3d.drawDistance": { "min": 50, "max": 600, "step": 10 },
+    "render3d.camera.height": { "min": 50, "max": 2000, "step": 10 },
+    "render3d.camera.distance": { "min": 100, "max": 3000, "step": 10 },
+    "render3d.camera.fovDeg": { "min": 20, "max": 110, "step": 1 },
+    "render3d.camera.pitchDeg": { "min": -10, "max": 40, "step": 0.5 },
+    "render3d.camera.horizon": { "min": 0.2, "max": 0.7, "step": 0.005 },
+    "render3d.camera.lagTau": { "min": 0, "max": 1, "step": 0.01 },
+    "render3d.camera.slopeFollow": { "min": 0, "max": 1, "step": 0.05 },
+    "render3d.fog.near": { "min": 0, "max": 1, "step": 0.01 },
+    "render3d.fog.far": { "min": 0.1, "max": 1.5, "step": 0.01 }
   },
-  "flags": {}
+  "flags": {},
+  "meta": {
+    "render3d.camera.height": {
+      "title": "Высота камеры 3D",
+      "hint": "больше — камера выше над машиной",
+      "tier": "core",
+      "group": "3D-рендер"
+    },
+    "render3d.camera.distance": {
+      "title": "Камера позади 3D",
+      "hint": "больше — камера дальше за машиной",
+      "tier": "core",
+      "group": "3D-рендер"
+    },
+    "render3d.camera.fovDeg": {
+      "title": "Угол обзора 3D",
+      "hint": "больше — картинка шире",
+      "tier": "core",
+      "group": "3D-рендер"
+    },
+    "render3d.camera.pitchDeg": {
+      "title": "Наклон камеры 3D",
+      "hint": "больше — камера сильнее смотрит вниз",
+      "tier": "core",
+      "group": "3D-рендер"
+    },
+    "render3d.camera.horizon": {
+      "title": "Горизонт 3D",
+      "hint": "больше — горизонт ниже по экрану",
+      "tier": "more",
+      "group": "3D-рендер"
+    },
+    "render3d.camera.lagTau": {
+      "title": "Запаздывание камеры 3D, с",
+      "hint": "больше — камера плавнее и позже догоняет поворот машины",
+      "tier": "more",
+      "group": "3D-рендер"
+    },
+    "render3d.camera.slopeFollow": {
+      "title": "Камера по склону 3D",
+      "hint": "больше — на холмах камера сильнее наклоняется по дороге",
+      "tier": "more",
+      "group": "3D-рендер"
+    },
+    "render3d.k3dCurve": {
+      "title": "Кривизна поворотов 3D",
+      "hint": "больше — повороты в 3D круче",
+      "tier": "more",
+      "group": "3D-рендер"
+    },
+    "render3d.drawDistance": {
+      "title": "Дальность прорисовки 3D",
+      "hint": "больше — дорога видна дальше, кадр дороже",
+      "tier": "more",
+      "group": "3D-рендер"
+    },
+    "render3d.fog.near": {
+      "title": "Туман: начало 3D",
+      "hint": "больше — туман начинается дальше",
+      "tier": "more",
+      "group": "3D-рендер"
+    },
+    "render3d.fog.far": {
+      "title": "Туман: конец 3D",
+      "hint": "больше — туман гуще только совсем вдали",
+      "tier": "more",
+      "group": "3D-рендер"
+    }
+  }
 }
