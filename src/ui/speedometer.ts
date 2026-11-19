@@ -14,17 +14,12 @@ export interface SpeedReading {
 }
 
 /**
- * Adapter over the sim car: R51/R52 fields (`draft`, `boostTicks`) may not exist on this branch,
- * so they are read defensively and default to 0. No allocations: fills `out`.
+ * Adapter over the sim car (R52). Boosting covers both H5 variants: the slingshot timer (B) and
+ * the in-cone boost (A), which shows as speed above vmax. No allocations: fills `out`.
  */
-export function readSpeed(
-  out: SpeedReading,
-  car: Car & { draft?: number; boostTicks?: number },
-  speed: number,
-  vmax: number,
-): SpeedReading {
+export function readSpeed(out: SpeedReading, car: Car, speed: number, vmax: number): SpeedReading {
   out.ratio = vmax > 0 ? speed / vmax : 0;
-  out.boosting = (car.boostTicks ?? 0) > 0;
+  out.boosting = car.boostTicks > 0 || out.ratio > 1;
   return out;
 }
 
