@@ -1,0 +1,365 @@
+{
+  "shots": {
+    "straight-pseudo": {
+      "info": {
+        "calls": 3,
+        "triangles": 7048,
+        "instances": 389,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "straight-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11318,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "curve-left-pseudo": {
+      "info": {
+        "calls": 3,
+        "triangles": 7052,
+        "instances": 391,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "curve-left-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11258,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-right-pseudo": {
+      "info": {
+        "calls": 3,
+        "triangles": 7054,
+        "instances": 392,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-right-3d": {
+      "info": {
+        "calls": 5,
+        "triangles": 11366,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-camera-pseudo": {
+      "info": {
+        "calls": 4,
+        "triangles": 7236,
+        "instances": 385,
+        "dropped": 0,
+        "traffic": 2
+      },
+      "errors": []
+    },
+    "drift-camera-3d": {
+      "info": {
+        "calls": 7,
+        "triangles": 11662,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 2
+      },
+      "errors": []
+    },
+    "traffic-pseudo": {
+      "info": {
+        "calls": 4,
+        "triangles": 7366,
+        "instances": 401,
+        "dropped": 0,
+        "traffic": 3
+      },
+      "errors": []
+    },
+    "traffic-3d": {
+      "info": {
+        "calls": 7,
+        "triangles": 11672,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 3
+      },
+      "errors": []
+    },
+    "roadside-pseudo": {
+      "info": {
+        "calls": 3,
+        "triangles": 7064,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "roadside-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11426,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "hill-crest-pseudo": {
+      "info": {
+        "calls": 3,
+        "triangles": 640,
+        "instances": 51,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "hill-crest-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11582,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "curve-left-k0015-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11258,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "curve-left-k003-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11258,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "curve-left-k005-dd100-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 4778,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-right-k0015-3d": {
+      "info": {
+        "calls": 5,
+        "triangles": 11366,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-right-k003-3d": {
+      "info": {
+        "calls": 5,
+        "triangles": 11366,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "straight-tele-3d": {
+      "info": {
+        "calls": 4,
+        "triangles": 11390,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-right-tele-3d": {
+      "info": {
+        "calls": 5,
+        "triangles": 11354,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    }
+  },
+  "live": {
+    "default-pseudo": {
+      "worst": {
+        "calls": 3,
+        "triangles": 6644,
+        "instances": 399,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "maxCalls": 3,
+      "maxTris": 6644,
+      "stats": {
+        "p50": 16.699999999999818,
+        "p99": 16.800000000000182,
+        "max": 16.80000000000109,
+        "samples": 256
+      },
+      "frames": 642,
+      "errors": []
+    },
+    "default-3d": {
+      "worst": {
+        "calls": 4,
+        "triangles": 11294,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "maxCalls": 4,
+      "maxTris": 11570,
+      "stats": {
+        "p50": 16.69999999999891,
+        "p99": 16.80000000000109,
+        "max": 16.80000000000109,
+        "samples": 256
+      },
+      "frames": 641,
+      "errors": []
+    },
+    "stress-pseudo": {
+      "worst": {
+        "calls": 3,
+        "triangles": 7070,
+        "instances": 400,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "maxCalls": 3,
+      "maxTris": 7120,
+      "stats": {
+        "p50": 16.69999999999891,
+        "p99": 16.800000000000182,
+        "max": 16.80000000000109,
+        "samples": 256
+      },
+      "frames": 642,
+      "errors": []
+    },
+    "stress-3d": {
+      "worst": {
+        "calls": 4,
+        "triangles": 11306,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "maxCalls": 4,
+      "maxTris": 11546,
+      "stats": {
+        "p50": 16.69999999999891,
+        "p99": 16.80000000000109,
+        "max": 33.399999999999636,
+        "samples": 256
+      },
+      "frames": 641,
+      "errors": []
+    }
+  },
+  "devPanel": {
+    "k": 0.00075,
+    "set": 500,
+    "errors": []
+  },
+  "timed": {
+    "traffic-20-pseudo": {
+      "ms": 7.323000000001242,
+      "info": {
+        "calls": 4,
+        "triangles": 9032,
+        "instances": 401,
+        "dropped": 0,
+        "traffic": 20
+      },
+      "errors": []
+    },
+    "traffic-20-3d": {
+      "ms": 8.253333333333334,
+      "info": {
+        "calls": 7,
+        "triangles": 13338,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 20
+      },
+      "errors": []
+    },
+    "stress-pseudo": {
+      "ms": 6.628333333333333,
+      "info": {
+        "calls": 3,
+        "triangles": 7070,
+        "instances": 400,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "stress-3d": {
+      "ms": 9.277999999995034,
+      "info": {
+        "calls": 4,
+        "triangles": 11330,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "drift-camera-pseudo": {
+      "ms": 6.453999999997516,
+      "info": {
+        "calls": 4,
+        "triangles": 7182,
+        "instances": 358,
+        "dropped": 0,
+        "traffic": 2
+      },
+      "errors": []
+    },
+    "drift-camera-3d": {
+      "ms": 8.341999999998759,
+      "info": {
+        "calls": 6,
+        "triangles": 11526,
+        "instances": 0,
+        "dropped": 0,
+        "traffic": 2
+      },
+      "errors": []
+    }
+  }
+}
