@@ -2,12 +2,19 @@
   "capacity": 1024,
   "player": {
     "baseY": 0.74,
-    "width": 0.38,
-    "height": 0.08
+    "width": 0.23,
+    "height": 0.048
   },
   "roadside": {
-    "lamps": {
+    "posts": {
       "every": 4,
+      "offset": 1.15,
+      "width": 30,
+      "height": 120,
+      "capHeight": 0.15
+    },
+    "lamps": {
+      "every": 16,
       "offset": 1.4,
       "drawDistance": 100,
       "height": 700,
@@ -22,8 +29,8 @@
       "everyMax": 90,
       "offset": 2.2,
       "drawDistance": 160,
-      "width": 900,
-      "height": 420,
+      "width": 1500,
+      "height": 700,
       "legHeight": 320,
       "legWidth": 30,
       "legInset": 0.2,
@@ -33,10 +40,10 @@
       "depthStep": 0.05
     },
     "buildings": {
-      "everyMin": 6,
-      "everyMax": 14,
-      "offsetMin": 3,
-      "offsetMax": 6,
+      "everyMin": 5,
+      "everyMax": 10,
+      "offsetMin": 2.7,
+      "offsetMax": 4.2,
       "variants": 4,
       "drawDistance": 250,
       "windowMinPx": 24,

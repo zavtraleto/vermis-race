@@ -185,6 +185,30 @@
       "step": 0.005,
       "label": "baseY — низ машины / высота"
     },
+    "sprites.player.width": {
+      "min": 0.1,
+      "max": 0.5,
+      "step": 0.005,
+      "label": "player.width — ширина машины / ширина экрана"
+    },
+    "sprites.roadside.posts.every": {
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "label": "posts.every — шаг столбиков, сегментов (не на сегменте фонаря)"
+    },
+    "sprites.roadside.posts.offset": {
+      "min": 1.02,
+      "max": 2,
+      "step": 0.01,
+      "label": "posts.offset — столбики от центра, полуширин"
+    },
+    "sprites.roadside.posts.height": {
+      "min": 20,
+      "max": 400,
+      "step": 10,
+      "label": "posts.height — высота столбика, ед. мира"
+    },
     "sprites.roadside.lamps.height": {
       "min": 200,
       "max": 1600,
@@ -205,7 +229,7 @@
     },
     "sprites.roadside.lamps.every": {
       "min": 1,
-      "max": 20,
+      "max": 40,
       "step": 1,
       "label": "lamps.every — шаг фонарей, сегментов; после перезагрузки (R32)"
     },
@@ -258,13 +282,13 @@
       "label": "buildings.windowMinPx — окна с высоты, px (R32)"
     },
     "sprites.roadside.buildings.offsetMin": {
-      "min": 3,
+      "min": 2.3,
       "max": 10,
       "step": 0.1,
       "label": "buildings.offsetMin — строения от, полуширин; после перезагрузки (R32)"
     },
     "sprites.roadside.buildings.offsetMax": {
-      "min": 3,
+      "min": 2.3,
       "max": 12,
       "step": 0.1,
       "label": "buildings.offsetMax — строения до, полуширин; после перезагрузки (R32)"
