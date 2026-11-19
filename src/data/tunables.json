@@ -34,7 +34,7 @@
       "label": "driftRate — боковая в дрифте (R22)"
     },
     "car.driftSteerMin": {
-      "min": 0,
+      "min": -1,
       "max": 2,
       "step": 0.05,
       "label": "driftSteerMin — руль наружу (R22)"
@@ -68,6 +68,12 @@
       "max": 1,
       "step": 0.01,
       "label": "driftEnterSteer — руль для входа (R20)"
+    },
+    "car.driftOffroad": {
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "driftOffroad — дрифт на обочине: 1 = B, 0 = A (H11, R21b)"
     },
     "input.keyboard.steerRampMs": {
       "min": 10,

@@ -81,6 +81,23 @@ function wrap(i: number, n: number): number {
   return m < 0 ? m + n : m;
 }
 
+/**
+ * True when segment i belongs to a drift corner: the run of same-sign curve around it (ramps
+ * included) reaches |curve| >= cSkip somewhere. Such segments are taken in DRIFT, not braked for.
+ */
+function inDriftCorner(segs: Track['segments'], n: number, i: number, cSkip: number): boolean {
+  const sign = segs[wrap(i, n)]!.curve;
+  if (sign === 0) return false;
+  for (let d = -1; d <= 1; d += 2) {
+    for (let j = 0; j < n; j++) {
+      const c = segs[wrap(i + d * j, n)]!.curve;
+      if (c * sign <= 0) break;
+      if (c >= cSkip || c <= -cSkip) return true;
+    }
+  }
+  return false;
+}
+
 /** Writes this tick's input for `car` into `out`. Reads car + track ahead only. */
 export function botInput(
   bot: BotState,
@@ -115,6 +132,9 @@ export function botInput(
   let driftAt = 0;
   let dDrift = Math.round(segPerSec * bp.driftLookahead);
   if (dDrift < 1) dDrift = 1;
+  const inDrift = car.state === 'DRIFT';
+  // In DRIFT: does the road bend the other way before that corner (no same-side carry-over)?
+  let opposite = false;
   if (bp.drift === 'corners') {
     let dScan = Math.round(segPerSec * bp.driftApproach);
     if (dScan < dDrift) dScan = dDrift;
@@ -125,12 +145,17 @@ export function botInput(
         driftAt = i;
         break;
       }
+      if (c * car.dir < 0) opposite = true;
     }
   }
-  const inDrift = car.state === 'DRIFT';
-  // Drift is held while the corner is within driftLookahead; dir is fixed until exit (R20),
-  // so a drift corner the other way releases first.
-  const wantDrift = driftSign !== 0 && driftAt < dDrift && (!inDrift || driftSign === car.dir);
+  // Drift is held while the corner is within driftLookahead, or, already in DRIFT, carried into
+  // the next same-side corner within driftApproach if the road does not bend the other way first.
+  // dir is fixed until exit (R20), so a drift corner the other way releases first.
+  const sameSide = inDrift && driftSign === car.dir;
+  const wantDrift =
+    driftSign !== 0 &&
+    (driftAt < dDrift || (sameSide && !opposite)) &&
+    (!inDrift || driftSign === car.dir);
 
   let steer: number;
   if (inDrift && wantDrift && sp > 0) {
@@ -192,7 +217,7 @@ export function botInput(
     for (let i = 0; i < dBrake; i++) {
       const c = segs[wrap(seg0 + i, n)]!.curve;
       const ac = c < 0 ? -c : c;
-      if (ac > cMax && ac < cSkip) cMax = ac;
+      if (ac > cMax && ac < cSkip && !inDriftCorner(segs, n, seg0 + i, cSkip)) cMax = ac;
     }
     out.brake = sp > holdSpeedLimit(cMax, sHold, 0, p);
     return;
@@ -205,7 +230,7 @@ export function botInput(
   for (let i = 0; i < dBrake; i++) {
     const c = segs[wrap(seg0 + i, n)]!.curve;
     const ac = c < 0 ? -c : c;
-    if (ac > cMax && ac < cSkip) {
+    if (ac > cMax && ac < cSkip && !inDriftCorner(segs, n, seg0 + i, cSkip)) {
       cMax = ac;
       iMax = i;
     }
@@ -234,7 +259,7 @@ export function botInput(
     const c = segs[wrap(seg0 + i, n)]!.curve;
     if ((c < 0 ? -c : c) >= cSkip) continue;
     const lim = holdSpeedLimit(c, sHold, allowance, p);
-    if (lim >= 1) continue;
+    if (lim >= 1 || inDriftCorner(segs, n, seg0 + i, cSkip)) continue;
     const v = lim * p.vmax;
     let d = i - frac; // segments until that segment starts
     if (d < 0) d = 0;
