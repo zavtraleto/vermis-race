@@ -33,17 +33,41 @@
       "step": 0.05,
       "label": "driftRate — боковая в дрифте (R22)"
     },
-    "car.driftSteerMin": {
-      "min": -1,
+    "car.driftAngleStart": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "driftAngleStart — угол при входе (R20)"
+    },
+    "car.driftAngleExit": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "driftAngleExit — малый угол для срыва (R21)"
+    },
+    "car.driftStraightTime": {
+      "min": 0.05,
       "max": 2,
       "step": 0.05,
-      "label": "driftSteerMin — руль наружу (R22)"
+      "label": "driftStraightTime — срыв при малом угле, с (R21)"
     },
-    "car.driftSteerMax": {
+    "car.driftAngleResponse": {
       "min": 0.5,
-      "max": 3,
+      "max": 20,
+      "step": 0.5,
+      "label": "driftAngleResponse — отклик угла на руль /с (R22)"
+    },
+    "car.driftSpeedLoss": {
+      "min": 0,
+      "max": 0.6,
+      "step": 0.01,
+      "label": "driftSpeedLoss — потеря скорости от угла (R22)"
+    },
+    "car.driftBrake": {
+      "min": 0,
+      "max": 2,
       "step": 0.05,
-      "label": "driftSteerMax — руль внутрь (R22)"
+      "label": "driftBrake — сброс скорости до потолка /с (R22)"
     },
     "car.gripDrift": {
       "min": 0.5,
@@ -56,12 +80,6 @@
       "max": 1.5,
       "step": 0.01,
       "label": "centMulDrift — снос в дрифте ×"
-    },
-    "car.driftDrag": {
-      "min": 0,
-      "max": 0.3,
-      "step": 0.005,
-      "label": "driftDrag — потеря газа в дрифте"
     },
     "car.driftEnterSteer": {
       "min": 0,
@@ -129,6 +147,18 @@
       "step": 0.01,
       "label": "autoDriftRelease — руль выхода из авто-дрифта (H3 C)"
     },
+    "input.touch.retouchWindowMs": {
+      "min": 50,
+      "max": 1000,
+      "step": 10,
+      "label": "retouchWindowMs — окно повторного касания, мс (H3 D)"
+    },
+    "input.touch.retouchSwipePx": {
+      "min": 2,
+      "max": 80,
+      "step": 1,
+      "label": "retouchSwipePx — свайп вбок после касания, px (H3 D)"
+    },
     "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
     "camera.height": { "min": 200, "max": 1600, "step": 10, "label": "height — высота камеры" },
     "camera.horizon": {
@@ -153,13 +183,7 @@
       "min": 1,
       "max": 90,
       "step": 1,
-      "label": "yawMaxDeg — разворот в дрифте, руль внутрь, град (R24/R25)"
-    },
-    "sprites.drift.yawMinDeg": {
-      "min": 0,
-      "max": 90,
-      "step": 1,
-      "label": "yawMinDeg — разворот в дрифте, руль наружу, град (R24/R25)"
+      "label": "yawMaxDeg — разворот машины при угле дрифта 1, град (R24/R25)"
     },
     "sprites.drift.cameraOffset": {
       "min": 0,
@@ -171,7 +195,7 @@
   "flags": {
     "hypotheses.H1_driftBoost": ["A", "B"],
     "hypotheses.H2_touchSteering": ["A", "B", "C"],
-    "hypotheses.H3_driftEntry": ["A", "B", "C"],
+    "hypotheses.H3_driftEntry": ["A", "B", "C", "D"],
     "hypotheses.H4_fingerVertical": ["A", "B"],
     "hypotheses.H5_slipstream": ["A", "B"],
     "hypotheses.H6_trackFormat": ["P2P", "ring"],
