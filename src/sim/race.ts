@@ -1,12 +1,13 @@
 import { DT, K_HEADING, SEG_PER_UNIT } from './constants';
+import { nextRandom } from './rng';
 import type { Car, CarParams, InputFrame, RaceState, Track, TrafficConfig } from './types';
 
 export function createRace(seed: number, carCount: number, trafficCount = 0): RaceState {
-  void trafficCount;
   const cars: Car[] = [];
-  for (let i = 0; i < carCount; i++) {
+  // R70: traffic cars are appended after the player and rivals.
+  for (let i = 0; i < carCount + trafficCount; i++) {
     cars.push({
-      kind: i === 0 ? 'player' : 'rival',
+      kind: i >= carCount ? 'traffic' : i === 0 ? 'player' : 'rival',
       z: 0,
       x: 0,
       speed: 0,
@@ -35,7 +36,6 @@ export function step(
   params: readonly CarParams[],
   traffic?: TrafficConfig,
 ): void {
-  void traffic;
   const segments = track.segments;
   const segCount = segments.length;
   const cars = state.cars;
@@ -44,6 +44,14 @@ export function step(
     const car = cars[i]!;
     const input = inputs[i]!;
     const p = params[i]!;
+
+    // R70: traffic is on rails, only R16 runs (no input, no R10-R22, heading stays).
+    if (car.kind === 'traffic') {
+      car.z += car.speed * DT * SEG_PER_UNIT;
+      continue;
+    }
+    // R43: the invulnerability window counts down in the car's own update.
+    if (car.bumpTicks > 0) car.bumpTicks--;
 
     // R11/R13: sp uses the speed before R14 updates it.
     const sp0 = car.speed / p.vmax;
@@ -174,14 +182,98 @@ export function step(
     // R16: z advances by post-update speed.
     car.z += speed * DT * SEG_PER_UNIT;
   }
+  const player = cars[0];
+  if (player !== undefined && player.kind === 'player') {
+    // R71: respawn after R16 of all cars, relative to the player.
+    if (traffic !== undefined) respawnTraffic(state, traffic, player.z, params[0]!.vmax);
+    // R40: contact check at the end of the step.
+    bumpPlayer(player, cars, params[0]!);
+  }
   // R1: one fixed step.
   state.tick++;
 }
 
-/** R71: initial traffic placement with the seeded RNG. Stub, to be implemented. */
+/** R71: furthest z among traffic cars other than `skip`, -Infinity when there is none. */
+function furthestTraffic(cars: readonly Car[], skip: Car): number {
+  let far = -Infinity;
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i]!;
+    if (c.kind === 'traffic' && c !== skip && c.z > far) far = c.z;
+  }
+  return far;
+}
+
+/** R71: places one traffic car beyond `furthest`, not closer than spawnAhead to the player. */
+function spawnTraffic(
+  state: RaceState,
+  car: Car,
+  cfg: TrafficConfig,
+  furthest: number,
+  playerZ: number,
+  playerVmax: number,
+): void {
+  // R71: rng draws in fixed order: gap, lane, speed.
+  const gap = cfg.trafficGapMin + (cfg.trafficGapMax - cfg.trafficGapMin) * nextRandom(state);
+  const lane = Math.floor(nextRandom(state) * cfg.lanes);
+  const sp = cfg.trafficSpeedMin + (cfg.trafficSpeedMax - cfg.trafficSpeedMin) * nextRandom(state);
+  let z = furthest + gap;
+  const minZ = playerZ + cfg.trafficSpawnAhead;
+  if (!(z >= minZ)) z = minZ;
+  car.z = z;
+  car.x = -1 + ((lane + 0.5) * 2) / cfg.lanes; // R70: lane centre
+  car.speed = sp * playerVmax;
+}
+
+/** R71: cars more than trafficDespawnBehind behind the player reappear ahead, in index order. */
+function respawnTraffic(state: RaceState, cfg: TrafficConfig, playerZ: number, vmax: number): void {
+  const cars = state.cars;
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i]!;
+    if (c.kind !== 'traffic' || c.z >= playerZ - cfg.trafficDespawnBehind) continue;
+    spawnTraffic(state, c, cfg, furthestTraffic(cars, c), playerZ, vmax);
+  }
+}
+
+/** R40-R44: at most one contact per step, traffic in index order. */
+function bumpPlayer(car: Car, cars: readonly Car[], p: CarParams): void {
+  if (car.bumpTicks !== 0) return; // R43
+  const halfW = (p.carHitW + p.trafficHitW) / 2;
+  for (let i = 0; i < cars.length; i++) {
+    const t = cars[i]!;
+    if (t.kind !== 'traffic') continue;
+    const dz = car.z - t.z;
+    const dx = car.x - t.x;
+    if (!(dz < p.carLength && dz > -p.carLength && dx < halfW && dx > -halfW)) continue; // R40
+    // R41: rear hit vs side contact; neither raises speed.
+    const floor = p.bumpFloor * p.vmax;
+    let target: number;
+    if (car.z < t.z - p.carLength / 2) target = t.speed - p.bumpSpeedLoss * p.vmax;
+    else target = car.speed - p.bumpSideLoss * p.vmax;
+    if (target < floor) target = floor;
+    if (target < car.speed) car.speed = target;
+    // R42: lateral kick away from the traffic car; on a tie toward the road centre (right at 0).
+    const side = dx > 0 ? 1 : dx < 0 ? -1 : t.x > 0 ? -1 : 1;
+    car.vx = side * p.bumpKick;
+    // R44: a drift survives; |angle| shrinks by bumpAngleLoss, not below 0.
+    if (car.state === 'DRIFT') {
+      let abs = car.angle * car.dir - p.bumpAngleLoss;
+      if (abs < 0) abs = 0;
+      car.angle = car.dir * abs;
+    }
+    car.bumpTicks = Math.round(p.bumpInvulnTime / DT); // R43
+    return;
+  }
+}
+
+/** R71: initial traffic placement with the seeded RNG, traffic cars in index order. */
 export function placeTraffic(state: RaceState, traffic: TrafficConfig, playerVmax: number): void {
-  void state;
-  void traffic;
-  void playerVmax;
-  throw new Error('not implemented');
+  const cars = state.cars;
+  const playerZ = cars[0]!.z;
+  let furthest = -Infinity;
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i]!;
+    if (c.kind !== 'traffic') continue;
+    spawnTraffic(state, c, traffic, furthest, playerZ, playerVmax);
+    furthest = c.z;
+  }
 }
