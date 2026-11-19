@@ -74,7 +74,7 @@ export interface Entry {
     easyMedium: number;
   };
   steerSaturation: number;
-  // fraction of vmax; min over flying laps; longHardMin = the highest of the per-corner minimum
+  // fraction of vmax; min over flying laps; longHardMin = the lowest of the per-corner minimum
   // speeds over long hard corners (each long hard must be slowed below a bound), null if none
   speed: { mean: number; min: number; longHardMin: number | null };
   brakeFraction: number;
@@ -192,7 +192,7 @@ export function summarize(
   let longHardMin: number | null = null;
   for (const c of corners) {
     if (c.curveClass !== 'hard' || !c.long) continue;
-    if (longHardMin === null || c.minSpeed > longHardMin) longHardMin = c.minSpeed;
+    if (longHardMin === null || c.minSpeed < longHardMin) longHardMin = c.minSpeed;
   }
   return {
     bot,
