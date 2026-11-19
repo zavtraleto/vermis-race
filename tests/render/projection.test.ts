@@ -327,18 +327,19 @@ describe('P10 low camera (d0 <= segmentLength) never throws', () => {
     near(p.w[1]!, 40 / 3, 1e-3);
   });
 
-  it('frac = 0.25: line 0 is clamped onto the near plane and interpolated by depth', () => {
+  it('frac = 0.25: line 0 is clamped, world-space interpolation evaluated at depth d0', () => {
     // true depths: dz_0 = 100 - 0.25*200 = 50 ; dz_1 = 100 + 0.75*200 = 250 ; dz_2 = 450
-    // true line 0: scale 2   -> x = 100 + 2*(0-20) = 60 ; w = 2*40 = 80
-    // line 1:      scale 0.4 -> x = 100 + 0.4*(-20) = 92 ; w = 16 ; y = 50 + 0.4*50 = 70
-    // clamp line 0 to depth d0 = 100: t = (100-50)/(250-50) = 0.25
-    // x_0 = 60 + 0.25*(92-60) = 68 ; w_0 = 80 + 0.25*(16-80) = 64 ; y_0 = H = 100
-    // line 2: scale 2/9 -> y = 50 + 100/9 = 61.1111 (unchanged formula)
+    // clamp: world offset and world half-width are interpolated linearly in depth between
+    // true line 0 and line 1 at depth d0 = 100: t = (100-50)/(250-50) = 0.25, then projected with scale f/d0 = 1.
+    // straight: world offset 0 on both, half-width 40 on both -> offset 0, half-width 40
+    // camX = 0.5*40 = 20 -> x_0 = 100 + 1*(0-20) = 80 ; w_0 = 1*40 = 40 ; y_0 = 50 + 1*50 = 100 = H
+    // line 1: scale 0.4 -> x = 100 + 0.4*(-20) = 92 ; w = 16 ; y = 70
+    // line 2: scale 2/9 -> y = 50 + 100/9 = 61.1111
     const p = run(makeStraightTrack(20), 3.25, 0.5, LCAM, LROAD);
     expect(p.count).toBe(LCAM.drawDistance + 1);
     near(p.y[0]!, 100, 1e-3);
-    near(p.x[0]!, 68, 1e-3);
-    near(p.w[0]!, 64, 1e-3);
+    near(p.x[0]!, 80, 1e-3);
+    near(p.w[0]!, 40, 1e-3);
     near(p.y[1]!, 70, 1e-3);
     near(p.x[1]!, 92, 1e-3);
     near(p.w[1]!, 16, 1e-3);
@@ -346,6 +347,20 @@ describe('P10 low camera (d0 <= segmentLength) never throws', () => {
     // line indices fixed: line n = base + n
     expect(p.base).toBe(3);
     for (let n = 0; n < p.count; n++) expect(p.segment[n]).toBe(3 + n);
+  });
+
+  it('frac = 0.25 on a constant curve: interpolated world offset is non-zero', () => {
+    // curve c = 2, camera x 0, frac 0.25. Curve accumulation: off_0 = c*frac = 0.5, dx_0 = -0.5;
+    // off_1 = off_0 + dx_0 = 0 ; dx_1 = dx_0 + c = 1.5 ; off_2 = 1.5.
+    // clamped line 0: t = 0.25 (depth 50 -> 250, evaluated at 100), offset = 0.5 + 0.25*(0 - 0.5) = 0.375
+    // (= c*frac*(1-frac) = 2*0.25*0.75). scale = 1 -> x_0 = 100 + 0.375 = 100.375 ; w_0 = 40 ; y_0 = 100
+    // line 1: offset 0, x = 100 ; line 2: scale 2/9 -> x = 100 + 1.5*2/9 = 100.33333
+    const p = run(constTrack(20, 2), 3.25, 0, LCAM, LROAD);
+    near(p.x[0]!, 100.375, 1e-3);
+    near(p.w[0]!, 40, 1e-3);
+    near(p.y[0]!, 100, 1e-3);
+    near(p.x[1]!, 100, 1e-3);
+    near(p.x[2]!, 100 + 1.5 * (2 / 9), 1e-3);
   });
 
   it('camera x mirrors left/right for the clamped line 0', () => {
@@ -374,7 +389,7 @@ describe('P10 low camera (d0 <= segmentLength) never throws', () => {
               for (const a of [p.x, p.y, p.w, p.scale])
                 expect(Number.isFinite(a[n]!), `${tag} n ${n}`).toBe(true);
               if (n > 0) expect(p.y[n]!, `${tag} n ${n}`).toBeLessThanOrEqual(p.y[n - 1]! + 1e-4);
-              expect(p.segment[n]).toBe(5 + n);
+              expect(p.segment[n]).toBe((5 + n) % 50);
             }
             if (d0 <= ROAD.segmentLength) near(p.y[0]!, cfg.screenHeight, 1e-3);
           }
