@@ -6,6 +6,7 @@ import {
   Mesh,
   ShaderMaterial,
 } from 'three';
+import { ROLL_GLSL, type RollUniform } from './screenRoll';
 
 // Corner (0..1, 0..1) of the unit quad; the sprite is anchored at the centre of its base.
 // iUv (u0, v0, du, dv) is carried for the future atlas; with no texture the fill is flat.
@@ -16,11 +17,12 @@ attribute vec3 iTint;
 attribute vec4 iUv;
 varying vec3 vTint;
 varying vec2 vUv;
+${ROLL_GLSL}
 void main() {
   vTint = iTint;
   vUv = iUv.xy + position.xy * iUv.zw;
   vec2 p = vec2(iPos.x + (position.x - 0.5) * iSize.x, iPos.y + position.y * iSize.y);
-  gl_Position = vec4(p, iPos.z, 1.0);
+  gl_Position = vec4(rollNdc(p), iPos.z, 1.0); // R27 roll last
 }
 `;
 const FRAGMENT = /* glsl */ `
@@ -52,7 +54,7 @@ export class SpriteBatch {
   private n = 0;
   private overflow = 0;
 
-  constructor(capacity: number, screenWidth: number, screenHeight: number) {
+  constructor(capacity: number, screenWidth: number, screenHeight: number, roll: RollUniform) {
     this.capacity = capacity;
     this.sx = 2 / screenWidth;
     this.sy = 2 / screenHeight;
@@ -83,6 +85,7 @@ export class SpriteBatch {
     const mat = new ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
+      uniforms: { uRoll: roll },
       depthTest: true,
       depthWrite: true,
     });

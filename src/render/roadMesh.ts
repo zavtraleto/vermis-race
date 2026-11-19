@@ -1,14 +1,16 @@
 import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Mesh, ShaderMaterial } from 'three';
 import type { Palette } from '../data/render';
 import type { CameraConfig, Projection, RoadConfig } from './projection';
+import { ROLL_GLSL, type RollUniform } from './screenRoll';
 
-// Positions arrive already in NDC; the camera passed to render() is ignored.
+// Positions arrive already in NDC; the camera passed to render() is ignored. R27 roll last.
 const VERTEX = /* glsl */ `
 attribute vec3 aColor;
 varying vec3 vColor;
+${ROLL_GLSL}
 void main() {
   vColor = aColor;
-  gl_Position = vec4(position, 1.0);
+  gl_Position = vec4(rollNdc(position.xy), position.z, 1.0);
 }
 `;
 const FRAGMENT = /* glsl */ `
@@ -62,6 +64,7 @@ export class RoadMesh {
   private readonly colAttr: BufferAttribute;
   private readonly rgb = new Float32Array(27);
   private readonly screenW: number;
+  private readonly screenH: number;
   private readonly invW: number;
   private readonly invH: number;
   private readonly strips: number;
@@ -72,12 +75,17 @@ export class RoadMesh {
     camera: CameraConfig,
     private readonly road: RoadMeshConfig,
     palette: Palette,
+    roll: RollUniform,
+    // R27: verge reaches this far past the side edges and strip 0 this far below the bottom
+    // edge, so the rolled picture has no empty corners (read live).
+    private readonly overscan: { overscanPx: number },
   ) {
     // verge, 2 kerbs, asphalt, 2 edge lines, lane lines (the centre one doubled)
     const quadsPerSegment = 1 + 2 + 1 + 2 + road.lanes;
     const maxQuads = camera.drawDistance * quadsPerSegment;
     this.strips = camera.drawDistance;
     this.screenW = camera.screenWidth;
+    this.screenH = camera.screenHeight;
     this.invW = 1 / camera.screenWidth;
     this.invH = 1 / camera.screenHeight;
 
@@ -112,6 +120,7 @@ export class RoadMesh {
     const mat = new ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
+      uniforms: { uRoll: roll },
       depthTest: true,
       depthWrite: true,
     });
@@ -127,23 +136,42 @@ export class RoadMesh {
     const last = Math.min(proj.count - 1, this.strips);
     this.quads = 0;
     for (let n = 0; n < last; n++) {
-      const y0 = proj.y[n]!;
       const y1 = proj.y[n + 1]!;
       // R30: skip strips whose far line is behind a crest (this also drops back faces, y1 >= y0,
       // y grows downwards). A strip whose near line is hidden but far line is not is drawn: the
       // nearer strips cover its lower part by depth, so the road meets the crest without cracks.
       // The verge quad is the ground fill, so it rises and falls with the road.
-      if (proj.clipped[n + 1] === 1 || y1 >= y0) continue;
-      const x0 = proj.x[n]!;
+      if (proj.clipped[n + 1] === 1 || y1 >= proj.y[n]!) continue;
+      let y0 = proj.y[n]!;
+      let x0 = proj.x[n]!;
       const x1 = proj.x[n + 1]!;
-      const w0 = proj.w[n]!;
+      let w0 = proj.w[n]!;
       const w1 = proj.w[n + 1]!;
+      const over = this.overscan.overscanPx;
+      if (n === 0 && over > 0) {
+        // R27: extend strip 0 straight down past the bottom edge (edges extrapolated linearly).
+        const t = (this.screenH + over - y0) / (y0 - y1);
+        if (t > 0) {
+          x0 += (x0 - x1) * t;
+          w0 += (w0 - w1) * t;
+          y0 += (y0 - y1) * t;
+        }
+      }
       const light = Math.floor(proj.segment[n]! / road.rumbleLength) % 2 === 0;
       const z = -1 + step * (n + 0.5);
       const zRoad = z - step * 0.1;
       const zMark = z - step * 0.2;
 
-      this.quad(0, this.screenW, y0, 0, this.screenW, y1, z, light ? VERGE_LIGHT : VERGE_DARK);
+      this.quad(
+        -over,
+        this.screenW + over,
+        y0,
+        -over,
+        this.screenW + over,
+        y1,
+        z,
+        light ? VERGE_LIGHT : VERGE_DARK,
+      );
 
       const r0 = w0 * road.rumbleWidth;
       const r1 = w1 * road.rumbleWidth;
