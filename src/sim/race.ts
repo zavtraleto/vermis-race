@@ -292,10 +292,15 @@ function stepModelB(
       car.yawRate = dir * (p.kickBase + p.kickGain * (abs - p.flickDelta)); // R81: rate of slip
     }
   }
-  // R81: the current steer is recorded every tick, in any state.
-  hist[car.steerHistHead] = steer;
-  car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
-  if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
+  // R81: the current steer is recorded every held tick, in any state; a flick counts only within
+  // one hold, so a tick without input.drift clears the buffer and records nothing.
+  if (input.drift) {
+    hist[car.steerHistHead] = steer;
+    car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
+    if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
+  } else {
+    car.steerHistCount = 0;
+  }
 
   // R83-R85: sp is the speed before R86 updates it; A = the road turning under the car (R83).
   const sp = car.speed / p.vmax;

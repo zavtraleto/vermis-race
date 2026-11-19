@@ -393,7 +393,7 @@ describe('R89b calibration: DRIFT entry (spike T5)', () => {
   ] as const;
   function enter(p: CarParams, curve: number, from: number, holdSteer: number, drift: boolean) {
     const r = new Rig(p, 0, 1);
-    for (let i = 0; i < Math.round(0.13 / DT); i++) r.step(from, false);
+    for (let i = 0; i < Math.round(0.13 / DT); i++) r.step(from, true); // R81: history only counts inside a hold
     r.curve = curve;
     const xs: number[] = [];
     const vis: number[] = [];
@@ -493,9 +493,14 @@ describe('R89b calibration: closeness to model A (spike T9)', () => {
     const seq = (t: number) => (t < 2 ? h : t < 2.5 ? h + 0.2 : h - 0.2);
     const a = new Rig(FA, 0, 1);
     const b = new Rig(FB, 0, 1);
-    for (let i = 0; i < 36; i++) {
+    for (let i = 0; i < 30; i++) {
       a.step(0, false);
       b.step(0, false);
+    }
+    // R81: the hold starts on the straight at steer 0, so the flick has history of the current hold
+    for (let i = 0; i < 6; i++) {
+      a.step(0, true);
+      b.step(0, true);
     }
     a.curve = C.hard;
     b.curve = C.hard;
