@@ -200,9 +200,10 @@ describe('P7 continuity across a segment boundary', () => {
     // (y: height*f*0.04/dz^2 = 1000*214.5*0.04/536^2 = 0.03 at n = 0, smaller further).
     // An uncorrected scheme (off_0 = 0) would err by about c*scale_0 = 35*0.4 = 14 px.
     const t = curvy();
+    // eps 1e-5 (was 1e-4): with the camera at 320 (d0 = 202) a 1e-4 sample shift alone moves y by 0.067 px.
     for (const k of [3, 4, 7, 11]) {
-      const a = run(t, k - 1e-4, 0);
-      const b = run(t, k + 1e-4, 0);
+      const a = run(t, k - 1e-5, 0);
+      const b = run(t, k + 1e-5, 0);
       for (let n = 0; n < CAM.drawDistance; n++) {
         near(a.x[n + 1]!, b.x[n]!, 0.05);
         near(a.y[n + 1]!, b.y[n]!, 0.05);
