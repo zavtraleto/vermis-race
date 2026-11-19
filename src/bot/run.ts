@@ -45,7 +45,7 @@ export interface RunResult {
   corners: CornerRun[]; // one per track section
   fingerprint: string; // FNV-1a over the per-tick state, for determinism checks
   /** Only in a run with traffic (R70, R71): contacts (R40) and traffic cars overtaken. */
-  traffic?: { bumps: number; bumpsInDrift: number; passed: number };
+  traffic?: { bumps: number; bumpsInDrift: number; passed: number; boosts: number };
 }
 
 const f64 = new Float64Array(1);
@@ -118,7 +118,7 @@ export function runBot(
   const params = race.cars.map(() => p);
   const cars = race.cars;
   const tz = new Float64Array(cars.length);
-  const tr = traffic ? { bumps: 0, bumpsInDrift: 0, passed: 0 } : null;
+  const tr = traffic ? { bumps: 0, bumpsInDrift: 0, passed: 0, boosts: 0 } : null;
   const goal = m.laps * n;
   const maxTicks = Math.ceil((m.laps * m.maxSecondsPerLap) / DT);
   let lapStartTick = 0;
@@ -132,6 +132,7 @@ export function runBot(
     const segBefore = Math.floor(car.z) % n;
     const zBefore = car.z;
     const bumpBefore = car.bumpTicks;
+    const boostBefore = car.boostTicks;
     for (let i = 1; i < cars.length; i++) tz[i] = cars[i]!.z;
     step(race, inputs, track, params, traffic);
     if (tr) {
@@ -140,6 +141,8 @@ export function runBot(
         tr.bumps++;
         if (car.state === 'DRIFT') tr.bumpsInDrift++;
       }
+      // R52 (H5 B): boostTicks only rises when a boost starts.
+      if (car.boostTicks > boostBefore) tr.boosts++;
       // Overtaken: was ahead of the player before the step, level or behind after it.
       for (let i = 1; i < cars.length; i++) {
         if (tz[i]! > zBefore && cars[i]!.z <= car.z) tr.passed++;

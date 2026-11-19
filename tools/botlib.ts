@@ -84,6 +84,7 @@ export interface TrafficEntry {
   bumpsInDriftPerLap: number;
   zeroDriftBumpRuns: number; // share of runs with no contact in DRIFT
   passedPerLap: number; // traffic cars overtaken per lap
+  boostsPerLap: number; // R52 (H5 B) slipstream boosts started per lap
   lapTime: { traffic: number; clear: number; ratio: number }; // mean lap, s; ratio = traffic / clear
   /** expert-blind only: its lap with traffic / the weaving expert's lap with traffic (R46 >= 1.05). */
   vsWeaving?: number;
@@ -100,13 +101,15 @@ export function summarizeTraffic(
   let inDrift = 0;
   let zero = 0;
   let passed = 0;
+  let boosts = 0;
   let finished = 0;
   const laps: number[] = [];
   for (const r of runs) {
-    const t = r.traffic ?? { bumps: 0, bumpsInDrift: 0, passed: 0 };
+    const t = r.traffic ?? { bumps: 0, bumpsInDrift: 0, passed: 0, boosts: 0 };
     bumps += t.bumps;
     inDrift += t.bumpsInDrift;
     passed += t.passed;
+    boosts += t.boosts;
     if (t.bumpsInDrift === 0) zero++;
     if (r.finished) finished++;
     laps.push(...r.lapTimes);
@@ -122,6 +125,7 @@ export function summarizeTraffic(
     bumpsInDriftPerLap: inDrift / lapCount,
     zeroDriftBumpRuns: zero / runs.length,
     passedPerLap: passed / lapCount,
+    boostsPerLap: boosts / lapCount,
     lapTime: { traffic: lap, clear: clear.lapTime.mean, ratio: lap / clear.lapTime.mean },
   };
 }
