@@ -11,7 +11,7 @@ import {
 } from 'three';
 import type { Palette } from '../data/render';
 import type { Car } from '../sim/types';
-import { Builder, type Car3dConfig, type DuoShade } from './carModel';
+import { Builder, type Car3dConfig } from './carModel';
 import { placeOnRoad, type Placement } from './placeOnRoad';
 import {
   focalPx,
@@ -36,9 +36,6 @@ const DEG = Math.PI / 180;
 // The vertex is projected with the same pinhole as the road (focal uProj.x, centre uProj.y,
 // horizon uProj.z), so a model on a straight flat road matches the road exactly.
 const VERTEX = /* glsl */ `
-#ifdef PRINT_DUO
-uniform vec4 uDuo; // shadow rgb, amount
-#endif
 attribute vec3 aPos1;
 attribute vec3 aPos2;
 attribute vec3 aShade;
@@ -59,10 +56,6 @@ void main() {
   vec3 p = v < 0.5 ? position : (v < 1.5 ? aPos1 : aPos2);
   float sh = v < 0.5 ? aShade.x : (v < 1.5 ? aShade.y : aShade.z);
   vColor = (aBody > 0.5 ? iC.rgb : aColor) * sh;
-#ifdef PRINT_DUO
-  // Spike ?print: body toward one shadow colour by the face shade, other parts flat.
-  vColor = aBody > 0.5 ? mix(iC.rgb, uDuo.rgb, clamp((1.0 - sh) * uDuo.w, 0.0, 1.0)) : aColor;
-#endif
   float k = iA.w;
   float lx = p.x * iB.x - p.z * iB.y;
   float lz = p.x * iB.y + p.z * iB.x;
@@ -116,7 +109,6 @@ export class TrafficModels {
   private readonly halfLength: number; // model units, centre to the farthest point along z
   private readonly placement: Placement = { x: 0, y: 0, w: 0, h: 0, depth: 0 };
   private readonly proj: Vector4;
-  private readonly duoRgb = new Float32Array(3);
   private n = 0;
 
   constructor(
@@ -127,7 +119,6 @@ export class TrafficModels {
     palette: Palette,
     roll: RollUniform,
     private readonly overscan: { overscanPx: number },
-    duo?: DuoShade,
   ) {
     const bodies = cfg.traffic.bodies;
     if (bodies.length !== VARIANTS) throw new Error(`car3d.traffic: need ${VARIANTS} bodies`);
@@ -199,12 +190,6 @@ export class TrafficModels {
       depthTest: true,
       depthWrite: true,
     });
-    if (duo) {
-      writeHex(this.duoRgb, 0, duo.shadow);
-      const rgb = this.duoRgb;
-      mat.defines = { PRINT_DUO: '' };
-      mat.uniforms.uDuo = { value: new Vector4(rgb[0], rgb[1], rgb[2], duo.amount) };
-    }
     this.mesh = new Mesh(geo, mat);
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;

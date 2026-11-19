@@ -1,13 +1,11 @@
 import type { Car3dConfig } from '../render/carModel';
 import type { CameraConfig } from '../render/projection';
-import type { PrintParams, PrintSky } from '../render/printPass';
 import type { RibbonMapRenderConfig } from '../render/ribbonMapMesh';
 import type { RoadMeshConfig } from '../render/roadMesh';
 import type { SpritesConfig } from '../render/worldSprites';
 import camera from './camera.json';
 import car3d from './car3d.json';
 import palette from './palette.json';
-import print from './print.json';
 import ribbonMap from './ribbonMap.json';
 import road from './road.json';
 import sprites from './sprites.json';
@@ -49,19 +47,6 @@ export interface Palette {
 export const cameraConfig: CameraConfig = camera;
 export const roadConfig: RoadMeshConfig = road;
 export const paletteConfig: Palette = palette;
-
-/** Spike ?print=<preset>: one look = sky roles, two-tone shadows and placeholder colours. */
-export interface PrintPreset {
-  sky: PrintSky;
-  shadow: { player: string; traffic: string; amount: number }; // DuoShade of player / traffic bodies
-  colours: Palette;
-}
-export interface PrintData {
-  palette: string[]; // the 16 print colours (sRGB hex)
-  params: PrintParams; // shared by all presets
-  presets: Record<string, PrintPreset>;
-}
-export const printData: PrintData = print;
 export const spritesConfig: SpritesConfig = sprites;
 export const car3dConfig: Car3dConfig = car3d;
 export const ribbonMapConfig: RibbonMapRenderConfig = ribbonMap;
