@@ -55,8 +55,10 @@ const FAV_TITLE = 'Избранное';
 const SIDE_MIN = 320;
 const SIDE_MAX_W = 420;
 const MARGIN = 8;
-/** Default floating panel height, fraction of the screen: the R33 steering zone stays free. */
-const FLOAT_H_FRAC = 0.45;
+/** Default floating panel height, fraction of the screen. */
+const FLOAT_H_FRAC = 0.5;
+/** Bottom fraction of the screen kept free by default: the R33 steering zone. */
+const STEER_ZONE_FRAC = 0.26;
 const MIN_W = 240;
 const MIN_H = 160;
 const MIN_OPACITY = 0.3;
@@ -147,7 +149,9 @@ export function defaultLayout(vp: Viewport): PanelLayout {
     return sideLayout(vp.gameLeft - MARGIN - w, w, vp);
   }
   const w = Math.max(Math.min(vp.w, MIN_W), vp.w - 2 * MARGIN);
-  const h = Math.max(Math.min(vp.h, MIN_H), Math.round(vp.h * FLOAT_H_FRAC));
+  // Up to half the screen, but stop above the steering zone (unless that leaves less than MIN_H).
+  const free = Math.floor(vp.h * (1 - STEER_ZONE_FRAC)) - MARGIN;
+  const h = Math.max(Math.min(vp.h, MIN_H), Math.min(Math.round(vp.h * FLOAT_H_FRAC), free));
   return {
     dock: 'float',
     x: Math.max(0, vp.w - MARGIN - w),

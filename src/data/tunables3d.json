@@ -14,71 +14,16 @@
   },
   "flags": {},
   "meta": {
-    "render3d.camera.height": {
-      "title": "Высота камеры 3D",
-      "hint": "больше — камера выше над машиной",
-      "tier": "core",
-      "group": "3D-рендер"
-    },
-    "render3d.camera.distance": {
-      "title": "Камера позади 3D",
-      "hint": "больше — камера дальше за машиной",
-      "tier": "core",
-      "group": "3D-рендер"
-    },
-    "render3d.camera.fovDeg": {
-      "title": "Угол обзора 3D",
-      "hint": "больше — картинка шире",
-      "tier": "core",
-      "group": "3D-рендер"
-    },
-    "render3d.camera.pitchDeg": {
-      "title": "Наклон камеры 3D",
-      "hint": "больше — камера сильнее смотрит вниз",
-      "tier": "core",
-      "group": "3D-рендер"
-    },
-    "render3d.camera.horizon": {
-      "title": "Горизонт 3D",
-      "hint": "больше — горизонт ниже по экрану",
-      "tier": "more",
-      "group": "3D-рендер"
-    },
-    "render3d.camera.lagTau": {
-      "title": "Запаздывание камеры 3D, с",
-      "hint": "больше — камера плавнее и позже догоняет поворот машины",
-      "tier": "more",
-      "group": "3D-рендер"
-    },
-    "render3d.camera.slopeFollow": {
-      "title": "Камера по склону 3D",
-      "hint": "больше — на холмах камера сильнее наклоняется по дороге",
-      "tier": "more",
-      "group": "3D-рендер"
-    },
-    "render3d.k3dCurve": {
-      "title": "Кривизна поворотов 3D",
-      "hint": "больше — повороты в 3D круче",
-      "tier": "more",
-      "group": "3D-рендер"
-    },
-    "render3d.drawDistance": {
-      "title": "Дальность прорисовки 3D",
-      "hint": "больше — дорога видна дальше, кадр дороже",
-      "tier": "more",
-      "group": "3D-рендер"
-    },
-    "render3d.fog.near": {
-      "title": "Туман: начало 3D",
-      "hint": "больше — туман начинается дальше",
-      "tier": "more",
-      "group": "3D-рендер"
-    },
-    "render3d.fog.far": {
-      "title": "Туман: конец 3D",
-      "hint": "больше — туман гуще только совсем вдали",
-      "tier": "more",
-      "group": "3D-рендер"
-    }
+    "render3d.camera.height": { "title": "Высота камеры 3D", "hint": "больше — камера выше над машиной", "tier": "core", "group": "3D-рендер" },
+    "render3d.camera.distance": { "title": "Камера позади 3D", "hint": "больше — камера дальше за машиной", "tier": "core", "group": "3D-рендер" },
+    "render3d.camera.fovDeg": { "title": "Угол обзора 3D", "hint": "больше — картинка шире", "tier": "core", "group": "3D-рендер" },
+    "render3d.camera.pitchDeg": { "title": "Наклон камеры 3D", "hint": "больше — камера сильнее смотрит вниз", "tier": "core", "group": "3D-рендер" },
+    "render3d.camera.horizon": { "title": "Горизонт 3D", "hint": "больше — горизонт ниже по экрану", "tier": "more", "group": "3D-рендер" },
+    "render3d.camera.lagTau": { "title": "Запаздывание камеры 3D, с", "hint": "больше — камера плавнее и позже догоняет поворот машины", "tier": "more", "group": "3D-рендер" },
+    "render3d.camera.slopeFollow": { "title": "Камера по склону 3D", "hint": "больше — на холмах камера сильнее наклоняется по дороге", "tier": "more", "group": "3D-рендер" },
+    "render3d.k3dCurve": { "title": "Кривизна поворотов 3D", "hint": "больше — повороты в 3D круче", "tier": "more", "group": "3D-рендер" },
+    "render3d.drawDistance": { "title": "Дальность прорисовки 3D", "hint": "больше — дорога видна дальше, кадр дороже", "tier": "more", "group": "3D-рендер" },
+    "render3d.fog.near": { "title": "Туман: начало 3D", "hint": "больше — туман начинается дальше", "tier": "more", "group": "3D-рендер" },
+    "render3d.fog.far": { "title": "Туман: конец 3D", "hint": "больше — туман гуще только совсем вдали", "tier": "more", "group": "3D-рендер" }
   }
 }

@@ -21,13 +21,21 @@ export interface RowContext {
   toggleFavourite(path: string): void;
   /** Pins one slider as a strip at the top edge (null = nothing pinned). */
   pin(path: string | null): void;
+  /** Tap on a row title: open its details (one row at a time in compact density). */
+  toggleExpand(path: string): void;
 }
 
 export interface Row {
   readonly el: HTMLElement;
   /** Re-reads the value (and the favourite star). */
   update(): void;
+  /** Shows or hides the details: hint, path line, favourite / pin / reset buttons. */
+  setExpanded(on: boolean): void;
 }
+
+const GOLD = '#ffd27a';
+/** Line 1 (title + value) height; line 2 holds the 44 px controls: 30 + 44 + 4 = 78 px per row. */
+const LINE1 = 30;
 
 function fmt(v: number, dec: number): string {
   return v.toFixed(dec);
@@ -41,67 +49,90 @@ function footText(path: string, m: PanelItemMeta | undefined): string {
 }
 
 const ROW_CSS =
-  'display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;column-gap:4px;' +
-  `row-gap:2px;align-items:center;padding:8px 6px 8px 8px;border-left:3px solid transparent;` +
-  `border-top:1px solid rgba(255,255,255,0.06);`;
-const TITLE_CSS = `grid-area:1/1/2/2;font:600 15px/1.2 system-ui,sans-serif;color:${FG};min-width:0;`;
-const HINT_CSS = `grid-column:1/-1;font:12px/1.3 system-ui,sans-serif;color:${FG};opacity:0.78;`;
-const FOOT_CSS = `grid-column:1/-1;font:11px/1.3 ui-monospace,Menlo,monospace;color:${DIM};`;
-const ICON_CSS = BUTTON_CSS + `width:${TAP}px;padding:0;font-size:17px;background:transparent;`;
+  'display:grid;grid-template-columns:minmax(0,1fr) auto auto;column-gap:6px;align-items:center;' +
+  'padding:2px 6px 2px 5px;border-left:3px solid transparent;' +
+  'border-top:1px solid rgba(255,255,255,0.06);';
+const TITLE_CSS =
+  `grid-area:1/1/2/2;height:${LINE1}px;min-width:0;display:flex;align-items:center;gap:5px;` +
+  `font:600 14px system-ui,sans-serif;color:${FG};cursor:pointer;`;
+const TEXT_CSS = 'min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;';
+const WAS_CSS = `grid-area:1/3/2/4;font:12px ui-monospace,Menlo,monospace;color:${ACCENT};white-space:nowrap;`;
+const DETAILS_CSS = 'grid-column:1/-1;display:none;padding:2px 0 6px;';
+const HINT_CSS = `font:13px/1.3 system-ui,sans-serif;color:${FG};opacity:0.85;`;
+const FOOT_CSS = `margin-top:3px;font:11px/1.3 ui-monospace,Menlo,monospace;color:${DIM};`;
 const RELOAD_CSS =
-  `display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;font:600 11px system-ui,sans-serif;` +
-  `color:#ffd27a;border:1px solid #806a3a;`;
+  'display:inline-block;margin-top:4px;padding:0 5px;border-radius:4px;' +
+  `font:600 11px system-ui,sans-serif;color:${GOLD};border:1px solid #806a3a;`;
 
-/** Title, favourite / pin / reset icons, hint and the grey path line: shared by every row kind. */
+interface Frame {
+  row: HTMLDivElement;
+  /** Puts the line-2 control and the details in place (before the value, which stays last). */
+  place(control: HTMLElement): void;
+  /** Marks the row changed (dot, tint, «было …») and refreshes the favourite stars. */
+  mark(changed: boolean, def: string): void;
+  setExpanded(on: boolean): void;
+}
+
+/** Title line, «было …», expandable details: shared by every row kind. */
 function frame(
   path: string,
   m: PanelItemMeta | undefined,
   ctx: RowContext,
   reset: () => void,
   pinnable: boolean,
-): {
-  row: HTMLDivElement;
-  fav: HTMLButtonElement;
-  foot: HTMLDivElement;
-  def: HTMLSpanElement;
-  place(control: HTMLElement): void;
-} {
+): Frame {
   const row = el('div', ROW_CSS);
   row.dataset.path = path;
-  const title = el('div', TITLE_CSS, m?.title ?? path);
-  if (m?.reload === true) title.appendChild(el('span', RELOAD_CSS, 'после перезагрузки'));
-  const fav = button('☆', () => ctx.toggleFavourite(path), 'в избранное');
-  fav.style.cssText = ICON_CSS + 'grid-area:1/2/2/3;';
-  const pin = button('📌', () => ctx.pin(path), 'закрепить сверху');
-  pin.style.cssText = ICON_CSS + 'grid-area:1/3/2/4;';
-  if (!pinnable) pin.style.visibility = 'hidden';
-  const back = button('↺', reset, 'вернуть значение по умолчанию');
-  back.style.cssText = ICON_CSS + 'grid-area:1/4/2/5;';
-  const hint = el('div', HINT_CSS, m?.hint ?? '');
-  const foot = el('div', FOOT_CSS, footText(path, m));
-  const def = el('span', `color:${ACCENT};margin-left:6px;`);
-  foot.appendChild(def);
-  row.append(title, fav, pin, back);
+  const title = el('div', TITLE_CSS);
+  title.title = 'подробнее';
+  const dot = el(
+    'span',
+    `flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:${ACCENT};display:none;`,
+  );
+  const favMark = el('span', `flex:0 0 auto;color:${GOLD};display:none;`, '★');
+  const text = el('span', TEXT_CSS, m?.title ?? path);
+  title.append(dot, favMark, text);
+  if (m?.reload === true) {
+    const r = el('span', `flex:0 0 auto;color:${GOLD};font-size:13px;`, '⟳');
+    r.title = 'после перезагрузки';
+    title.appendChild(r);
+  }
+  title.addEventListener('click', () => ctx.toggleExpand(path));
+  const was = el('span', WAS_CSS);
+
+  const details = el('div', DETAILS_CSS);
+  details.appendChild(el('div', HINT_CSS, m?.hint ?? ''));
+  if (m?.reload === true) details.appendChild(el('div', RELOAD_CSS, 'после перезагрузки'));
+  details.appendChild(el('div', FOOT_CSS, footText(path, m)));
+  const actions = el('div', 'display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;');
+  const fav = button('', () => ctx.toggleFavourite(path));
+  actions.appendChild(fav);
+  if (pinnable)
+    actions.appendChild(button('📌 закрепить', () => ctx.pin(path), 'закрепить сверху'));
+  actions.appendChild(button('↺ по умолчанию', reset, 'вернуть значение по умолчанию'));
+  details.appendChild(actions);
+
+  row.append(title, was);
   return {
     row,
-    fav,
-    foot,
-    def,
     place(control: HTMLElement): void {
-      row.append(control, hint, foot);
+      row.append(control, details);
+    },
+    mark(changed: boolean, def: string): void {
+      row.style.background = changed ? CHANGED_BG : 'transparent';
+      row.style.borderLeftColor = changed ? ACCENT : 'transparent';
+      dot.style.display = changed ? 'block' : 'none';
+      was.textContent = changed ? `· было ${def}` : '';
+      const isFav = ctx.isFavourite(path);
+      favMark.style.display = isFav ? 'inline' : 'none';
+      fav.textContent = isFav ? '★ убрать из избранного' : '☆ в избранное';
+      fav.style.color = isFav ? GOLD : FG;
+    },
+    setExpanded(on: boolean): void {
+      details.style.display = on ? 'block' : 'none';
+      title.style.color = on ? '#fff' : FG;
     },
   };
-}
-
-function star(b: HTMLButtonElement, on: boolean): void {
-  b.textContent = on ? '★' : '☆';
-  b.style.color = on ? '#ffd27a' : DIM;
-}
-
-function markChanged(row: HTMLElement, back: HTMLSpanElement, changed: boolean, def: string): void {
-  row.style.background = changed ? CHANGED_BG : 'transparent';
-  row.style.borderLeftColor = changed ? ACCENT : 'transparent';
-  back.textContent = changed ? `по умолч. ${def}` : '';
 }
 
 /** Segmented buttons (values of a small switch). */
@@ -109,7 +140,7 @@ function segmented(
   labels: readonly string[],
   onPick: (i: number) => void,
 ): { el: HTMLDivElement; set(i: number): void } {
-  const wrap = el('div', 'grid-column:1/-1;display:flex;gap:4px;flex-wrap:wrap;');
+  const wrap = el('div', 'grid-column:1/-1;display:flex;gap:4px;');
   const bs = labels.map((label, i) => {
     const b = button(label, () => onPick(i));
     b.style.flex = '1 1 0';
@@ -124,6 +155,29 @@ function segmented(
   };
 }
 
+function range(n: NumberTunable, t: Tunables, css: string): HTMLInputElement {
+  const r = el('input', `margin:0;accent-color:${ACCENT};` + css);
+  r.type = 'range';
+  r.min = String(n.min);
+  r.max = String(n.max);
+  r.step = String(n.step);
+  r.addEventListener('input', () => t.set(n.path, Number(r.value)));
+  r.addEventListener('change', () => r.blur());
+  return r;
+}
+
+function stepButtons(n: NumberTunable, t: Tunables): [HTMLButtonElement, HTMLButtonElement] {
+  const dec = decimals(n.step);
+  const nudge = (dir: number): void => {
+    t.set(n.path, Number((n.value + dir * n.step).toFixed(dec)));
+  };
+  const minus = button('−', () => nudge(-1), 'меньше на шаг');
+  const plus = button('+', () => nudge(1), 'больше на шаг');
+  minus.style.fontSize = plus.style.fontSize = '20px';
+  minus.style.width = plus.style.width = '52px';
+  return [minus, plus];
+}
+
 export function numberRow(n: NumberTunable, m: PanelItemMeta | undefined, ctx: RowContext): Row {
   const t = ctx.t;
   const options = m?.options;
@@ -135,48 +189,33 @@ export function numberRow(n: NumberTunable, m: PanelItemMeta | undefined, ctx: R
     const label = (v: number): string => options[Math.round((v - n.min) / n.step)] ?? String(v);
     const update = (): void => {
       seg.set(Math.round((n.value - n.min) / n.step));
-      markChanged(f.row, f.def, n.value !== n.default, label(n.default));
-      star(f.fav, ctx.isFavourite(n.path));
+      f.mark(n.value !== n.default, label(n.default));
     };
     update();
-    return { el: f.row, update };
+    return { el: f.row, update, setExpanded: f.setExpanded };
   }
 
   const dec = decimals(n.step);
   const f = frame(n.path, m, ctx, () => t.set(n.path, n.default), true);
-  const nudge = (dir: number): void => {
-    t.set(n.path, Number((n.value + dir * n.step).toFixed(dec)));
-  };
   const ctrl = el('div', 'grid-column:1/-1;display:flex;align-items:center;gap:6px;');
-  const minus = button('−', () => nudge(-1), 'меньше на шаг');
-  const plus = button('+', () => nudge(1), 'больше на шаг');
-  minus.style.fontSize = plus.style.fontSize = '20px';
-  minus.style.width = plus.style.width = '52px';
-  const range = el(
-    'input',
-    `flex:1 1 auto;min-width:0;height:${TAP}px;margin:0;accent-color:${ACCENT};touch-action:pan-y;`,
-  );
-  range.type = 'range';
-  range.min = String(n.min);
-  range.max = String(n.max);
-  range.step = String(n.step);
-  range.addEventListener('input', () => t.set(n.path, Number(range.value)));
-  range.addEventListener('change', () => range.blur());
-  ctrl.append(minus, range, plus);
+  const [minus, plus] = stepButtons(n, t);
+  const slider = range(n, t, `flex:1 1 auto;min-width:0;height:${TAP}px;touch-action:pan-y;`);
+  ctrl.append(minus, slider, plus);
   f.place(ctrl);
 
   // Current value: tap to type a number. Kept as the row's last button.
   const value = el(
     'button',
     BUTTON_CSS +
-      'grid-area:1/5/2/6;min-width:76px;padding:0 6px;font:700 15px ui-monospace,Menlo,monospace;',
+      `grid-area:1/2/2/3;height:${LINE1}px;min-width:64px;padding:0 6px;` +
+      'font:700 15px ui-monospace,Menlo,monospace;',
   );
   value.type = 'button';
   value.title = 'ввести число';
   const edit = el(
     'input',
-    `grid-area:1/5/2/6;display:none;width:84px;height:${TAP}px;box-sizing:border-box;` +
-      `font:700 15px ui-monospace,Menlo,monospace;color:#fff;background:#000;` +
+    `grid-area:1/2/2/3;display:none;width:80px;height:${LINE1}px;box-sizing:border-box;` +
+      'font:700 16px ui-monospace,Menlo,monospace;color:#fff;background:#000;' +
       `border:1px solid ${ACCENT};border-radius:10px;padding:0 6px;user-select:text;-webkit-user-select:text;`,
   );
   edit.type = 'text';
@@ -209,20 +248,19 @@ export function numberRow(n: NumberTunable, m: PanelItemMeta | undefined, ctx: R
 
   const update = (): void => {
     const v = n.value;
-    range.value = String(v);
+    slider.value = String(v);
     value.textContent = fmt(v, dec);
     const changed = v !== n.default;
     value.style.borderColor = changed ? ACCENT : LINE;
     value.style.color = changed ? '#fff' : FG;
-    markChanged(f.row, f.def, changed, fmt(n.default, dec));
-    star(f.fav, ctx.isFavourite(n.path));
+    f.mark(changed, fmt(n.default, dec));
   };
   update();
-  return { el: f.row, update };
+  return { el: f.row, update, setExpanded: f.setExpanded };
 }
 
 const SELECT_CSS =
-  `grid-column:1/-1;height:${TAP}px;width:100%;font:600 15px system-ui,sans-serif;color:${FG};` +
+  `grid-column:1/-1;height:${TAP}px;width:100%;font:600 16px system-ui,sans-serif;color:${FG};` +
   `background:rgba(90,90,96,0.5);border:1px solid ${LINE};border-radius:10px;padding:0 8px;`;
 
 /** Up to two options: segmented buttons; more: a native select (a wheel picker on iOS). */
@@ -253,14 +291,13 @@ export function flagRow(fl: FlagTunable, m: PanelItemMeta | undefined, ctx: RowC
   }
   const update = (): void => {
     set(fl.value);
-    markChanged(f.row, f.def, fl.value !== fl.default, fl.default);
-    star(f.fav, ctx.isFavourite(fl.path));
+    f.mark(fl.value !== fl.default, fl.default);
   };
   update();
-  return { el: f.row, update };
+  return { el: f.row, update, setExpanded: f.setExpanded };
 }
 
-/** The pinned one-slider strip: − [title, value / slider] + and unpin. */
+/** The pinned one-slider strip: − [title, value «было …» / slider] + and unpin. */
 export function pinStrip(n: NumberTunable, m: PanelItemMeta | undefined, ctx: RowContext): Row {
   const t = ctx.t;
   const dec = decimals(n.step);
@@ -274,38 +311,27 @@ export function pinStrip(n: NumberTunable, m: PanelItemMeta | undefined, ctx: Ro
     'div',
     `display:flex;gap:6px;align-items:baseline;font:600 12px/1.2 system-ui,sans-serif;color:${FG};`,
   );
-  const name = el(
-    'span',
-    'flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;',
-    m?.title ?? n.path,
-  );
+  const name = el('span', 'flex:1 1 auto;' + TEXT_CSS, m?.title ?? n.path);
   const val = el('span', 'font:700 13px ui-monospace,Menlo,monospace;');
-  top.append(name, val);
-  const range = el(
-    'input',
-    `width:100%;height:32px;margin:0;accent-color:${ACCENT};touch-action:none;`,
+  const was = el(
+    'span',
+    `font:11px ui-monospace,Menlo,monospace;color:${ACCENT};white-space:nowrap;`,
   );
-  range.type = 'range';
-  range.min = String(n.min);
-  range.max = String(n.max);
-  range.step = String(n.step);
-  range.addEventListener('input', () => t.set(n.path, Number(range.value)));
-  range.addEventListener('change', () => range.blur());
-  mid.append(top, range);
-  const nudge = (dir: number): void => {
-    t.set(n.path, Number((n.value + dir * n.step).toFixed(dec)));
-  };
-  const minus = button('−', () => nudge(-1), 'меньше на шаг');
-  const plus = button('+', () => nudge(1), 'больше на шаг');
-  minus.style.fontSize = plus.style.fontSize = '20px';
+  top.append(name, val, was);
+  const slider = range(n, t, 'width:100%;height:32px;touch-action:none;');
+  mid.append(top, slider);
+  const [minus, plus] = stepButtons(n, t);
+  minus.style.width = plus.style.width = `${TAP}px`;
   const close = button('✕', () => ctx.pin(null), 'открепить');
   close.style.background = 'transparent';
   strip.append(minus, mid, plus, close);
   const update = (): void => {
-    range.value = String(n.value);
+    const changed = n.value !== n.default;
+    slider.value = String(n.value);
     val.textContent = fmt(n.value, dec);
-    val.style.color = n.value !== n.default ? ACCENT : '#fff';
+    val.style.color = changed ? ACCENT : '#fff';
+    was.textContent = changed ? `было ${fmt(n.default, dec)}` : '';
   };
   update();
-  return { el: strip, update };
+  return { el: strip, update, setExpanded: () => undefined };
 }

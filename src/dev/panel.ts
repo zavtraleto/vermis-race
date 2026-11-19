@@ -39,6 +39,10 @@ import type { Tunables } from './tunables';
 const VIEW_KEY = 'vermis-race.panel';
 const CLOSED_KEY = 'vermis-race.panel.closed';
 const PIN_KEY = 'vermis-race.panel.pin';
+const DENSITY_KEY = 'vermis-race.panel.density';
+/** Narrower than this: compact rows by default (details on tap). */
+const COMPACT_BELOW_W = 600;
+const SECTION_H = 32;
 const OPACITY_STEPS = [1, 0.85, 0.7, 0.5, 0.35];
 /** Delay before a value change that adds/removes rows re-filters (never moves a row mid-drag). */
 const REFILTER_MS = 700;
@@ -77,7 +81,11 @@ export class DevPanel {
   private readonly io: HTMLDivElement;
   private readonly text: HTMLTextAreaElement;
   private readonly status: HTMLDivElement;
-  private readonly counter: HTMLSpanElement;
+  private readonly densityBtn: HTMLButtonElement;
+  /** Compact: two-line rows, one row's details open at a time; full: every row shows details. */
+  private compact: boolean;
+  private expanded: string | null = null;
+  private sectionCounts: { span: HTMLSpanElement; paths: string[] }[] = [];
   private readonly moreBtn: HTMLButtonElement;
   private readonly changedBtn: HTMLButtonElement;
   private readonly opacityBtn: HTMLButtonElement;
@@ -107,7 +115,11 @@ export class DevPanel {
       isFavourite: (p) => this.view.favourites.includes(p),
       toggleFavourite: (p) => this.toggleFavourite(p),
       pin: (p) => this.pin(p),
+      toggleExpand: (p) => this.toggleExpand(p),
     };
+    const density = readStore(DENSITY_KEY);
+    this.compact =
+      density === 'compact' || (density !== 'full' && window.innerWidth < COMPACT_BELOW_W);
     // Panel metadata for every registered path, in meta order (unknown paths go last).
     const paths = [...t.numbers.map((n) => n.path), ...t.flags.map((f) => f.path)];
     const known = new Set(paths);
@@ -132,6 +144,8 @@ export class DevPanel {
         `font:14px/1.25 system-ui,sans-serif;color:${FG};`,
     );
     root.id = 'dev-panel';
+    // Safari draws its own disclosure marker on <summary>; the headers draw ▸ / ▾ themselves.
+    root.appendChild(el('style', '', '#dev-panel summary::-webkit-details-marker{display:none}'));
     for (const type of ISOLATED) root.addEventListener(type, (e) => e.stopPropagation());
     // Typing in a field must not steer (the keyboard model preventDefaults A/D/S/arrows/space).
     const stopTyping = (e: KeyboardEvent): void => {
@@ -215,7 +229,12 @@ export class DevPanel {
     bar.append(handle, this.search, this.opacityBtn, this.dockBtn, collapse);
 
     // Filters and actions.
-    const tools = el('div', 'display:flex;flex-wrap:wrap;gap:4px;padding:6px;');
+    // One line even in a narrow window (scrolls sideways) so the header stays two rows.
+    const tools = el(
+      'div',
+      'display:flex;flex-wrap:nowrap;gap:4px;padding:6px;overflow-x:auto;touch-action:pan-x;' +
+        'scrollbar-width:none;flex:0 0 auto;',
+    );
     this.moreBtn = button(
       'ещё',
       () => {
@@ -236,11 +255,8 @@ export class DevPanel {
     );
     const reset = button('↺ Reset', () => this.resetAll(), 'сбросить всё');
     const more = button('⋯', () => this.toggleIo(), 'экспорт и вставка');
-    this.counter = el(
-      'span',
-      `flex:1 1 auto;align-self:center;text-align:right;font-size:12px;color:${ACCENT};white-space:nowrap;`,
-    );
-    tools.append(this.moreBtn, this.changedBtn, reset, more, this.counter);
+    this.densityBtn = button('', () => this.setDensity(!this.compact));
+    tools.append(this.moreBtn, this.changedBtn, reset, more, this.densityBtn);
     this.status = el('div', `display:none;padding:0 8px 6px;font-size:12px;color:${FG};`);
 
     this.io = el('div', 'display:none;padding:0 6px 6px;');
@@ -292,6 +308,7 @@ export class DevPanel {
     for (const n of t.numbers) this.addRow(n.path, numberRow(n, this.meta[n.path], ctx));
     for (const f of t.flags) this.addRow(f.path, flagRow(f, this.meta[f.path], ctx));
     this.restorePin();
+    this.setDensity(this.compact, false);
 
     t.onChange((path) => this.onValue(path));
     window.addEventListener('resize', () => {
@@ -379,7 +396,12 @@ export class DevPanel {
 
   private updateCounter(): void {
     const n = Object.keys(this.t.diff()).length;
-    this.counter.textContent = n > 0 ? `изменено: ${n}` : '';
+    this.changedBtn.textContent = n > 0 ? `изменённые · ${n}` : 'изменённые';
+    const changed = this.changedSet();
+    for (const c of this.sectionCounts) {
+      const k = c.paths.filter((p) => changed.has(p)).length;
+      c.span.textContent = k > 0 ? `изменено ${k}` : '';
+    }
     this.tab.textContent = n > 0 ? `dev · ${n}` : 'dev';
     setPressed(this.moreBtn, this.view.showMore);
     setPressed(this.changedBtn, this.view.onlyChanged);
@@ -394,22 +416,33 @@ export class DevPanel {
     if (key === this.shownKey) return;
     this.shownKey = key;
     const used = new Set<string>();
+    const sectionCounts: { span: HTMLSpanElement; paths: string[] }[] = [];
     const frag = document.createDocumentFragment();
     for (const s of sections) {
       const d = el('details', `border-top:1px solid ${LINE};`);
       d.open = !this.closed.has(s.id);
       const summary = el(
         'summary',
-        `padding:0 10px;min-height:${TAP}px;display:flex;align-items:center;gap:6px;` +
-          `font:700 15px system-ui,sans-serif;cursor:pointer;background:rgba(255,255,255,0.04);` +
+        `padding:0 10px;height:${SECTION_H}px;display:flex;align-items:center;gap:6px;` +
+          `font:700 14px system-ui,sans-serif;cursor:pointer;background:rgba(255,255,255,0.05);` +
+          'list-style:none;' +
           (s.id === FAV_ID ? `color:#ffd27a;` : ''),
       );
+      const changedCount = el(
+        'span',
+        `margin-left:auto;font:600 12px system-ui,sans-serif;color:${ACCENT};`,
+      );
+      sectionCounts.push({ span: changedCount, paths: s.paths });
       summary.append(
+        el('span', `color:${DIM};font-size:14px;width:12px;`, d.open ? '▾' : '▸'),
         el('span', '', (s.id === FAV_ID ? '★ ' : '') + s.title),
         el('span', `font-weight:400;font-size:12px;color:${DIM};`, String(s.paths.length)),
+        changedCount,
       );
       d.appendChild(summary);
       d.addEventListener('toggle', () => {
+        const arrow = summary.firstChild;
+        if (arrow !== null) arrow.textContent = d.open ? '▾' : '▸';
         if (d.open) this.closed.delete(s.id);
         else this.closed.add(s.id);
         writeStore(CLOSED_KEY, JSON.stringify([...this.closed]));
@@ -424,6 +457,8 @@ export class DevPanel {
     }
     for (const [p, row] of this.rows) if (!used.has(p)) this.pool.appendChild(row.el);
     this.list.replaceChildren(frag);
+    this.sectionCounts = sectionCounts;
+    this.updateCounter();
     if (sections.length === 0) {
       const msg =
         this.view.query.trim() !== ''
@@ -433,6 +468,29 @@ export class DevPanel {
             : 'пусто';
       this.list.appendChild(el('div', `padding:16px;color:${DIM};text-align:center;`, msg));
     }
+  }
+
+  private setDensity(compact: boolean, save = true): void {
+    this.compact = compact;
+    if (save) writeStore(DENSITY_KEY, compact ? 'compact' : 'full');
+    this.densityBtn.textContent = compact ? '☰' : '≡';
+    this.densityBtn.title = compact
+      ? 'показать подсказки у всех'
+      : 'компактно: подсказки по нажатию на название';
+    this.expanded = null;
+    for (const r of this.rows.values()) r.setExpanded(!compact);
+  }
+
+  /** Compact: one row's details at a time; full: each row toggles on its own. */
+  private toggleExpand(path: string): void {
+    const row = this.rows.get(path);
+    if (row === undefined) return;
+    if (!this.compact) return;
+    if (this.expanded !== null && this.expanded !== path)
+      this.rows.get(this.expanded)?.setExpanded(false);
+    const open = this.expanded !== path;
+    row.setExpanded(open);
+    this.expanded = open ? path : null;
   }
 
   private toggleFavourite(path: string): void {
