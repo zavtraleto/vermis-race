@@ -8,11 +8,17 @@
   "gripDrift": 3,
   "centrifugal": 0.3,
   "centMulDrift": 0.35,
-  "driftRate": 2.6,
+  "driftRate": 0.7,
   "driftDrag": 0.03,
   "offroadMul": 0.97,
   "offroadGrip": 12,
   "offroadSteerMul": 0.6,
   "kCurve": 1.5,
-  "xLimit": 2
+  "xLimit": 2,
+  "driftEnterSpeed": 0.45,
+  "driftEnterSteer": 0.2,
+  "driftExitSpeed": 0.3,
+  "driftOffroadTime": 0.4,
+  "driftSteerMin": 0.25,
+  "driftSteerMax": 1.75
 }

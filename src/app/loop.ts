@@ -44,6 +44,7 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.heading = s.heading;
     d.state = s.state;
     d.dir = s.dir;
+    d.offTicks = s.offTicks;
   }
 }
 
@@ -55,7 +56,8 @@ export function createLoop(initial: RaceState, opts: LoopOptions): Loop {
   const prev = JSON.parse(JSON.stringify(initial)) as RaceState;
   const curr = JSON.parse(JSON.stringify(initial)) as RaceState;
   const inputs: InputFrame[] = [];
-  for (let i = 0; i < initial.cars.length; i++) inputs.push({ steer: 0, brake: false, drift: false });
+  for (let i = 0; i < initial.cars.length; i++)
+    inputs.push({ steer: 0, brake: false, drift: false });
   const { track, params, readInput } = opts;
   const maxSteps = opts.maxStepsPerFrame ?? MAX_STEPS_PER_FRAME;
   let acc = 0;
