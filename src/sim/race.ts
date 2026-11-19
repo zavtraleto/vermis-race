@@ -27,7 +27,7 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       yaw: 0,
       yawRate: 0,
       vel: 0,
-      recover: 0,
+      carry: 0,
       steerHist: new Array<number>(STEER_HIST).fill(0),
       steerHistHead: 0,
       steerHistCount: 0,
@@ -233,11 +233,10 @@ function throttle(
   return speed < 0 ? 0 : speed;
 }
 
-/** R87: angle = clamp(slip/slipViewFull, -1, 1) in DRIFT, 0 in GRIP. */
+/** R87: angle = slip/slipFull in DRIFT, 0 in GRIP. */
 function viewAngle(car: Car, p: CarParams): number {
   if (car.state !== 'DRIFT') return 0;
-  const a = (car.yaw - car.vel) / p.slipViewFull;
-  return a > 1 ? 1 : a < -1 ? -1 : a;
+  return (car.yaw - car.vel) / p.slipFull;
 }
 
 /**
@@ -281,9 +280,16 @@ function stepModelB(
     }
     if (best >= p.flickDelta || best <= -p.flickDelta) {
       car.state = 'DRIFT';
-      car.dir = best > 0 ? 1 : -1;
+      const dir = best > 0 ? 1 : -1;
+      car.dir = dir;
+      // R81: the visible slip is continuous; what lies against dir goes to carry; vel is kept.
+      const vis = car.yaw - car.vel + car.carry;
+      const along = vis * dir;
+      const slip0 = along > 0 ? vis : 0;
+      car.yaw = car.vel + slip0;
+      car.carry = vis - slip0;
       const abs = best < 0 ? -best : best;
-      car.yawRate += car.dir * (p.kickBase + p.kickGain * (abs - p.flickDelta));
+      car.yawRate = dir * (p.kickBase + p.kickGain * (abs - p.flickDelta)); // R81: rate of slip
     }
   }
   // R81: the current steer is recorded every tick, in any state.
@@ -291,7 +297,12 @@ function stepModelB(
   car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
   if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
 
-  // R82: exit on release or low speed (H11 A: also too long off road); a large slip snaps.
+  // R83-R85: sp is the speed before R86 updates it; A = the road turning under the car (R83).
+  const sp = car.speed / p.vmax;
+  const A = curve * sp * p.kYaw;
+
+  // R82: exit on release or low speed (H11 A: also too long off road). GRIP starts from its own
+  // steady slip sG on this curve; the rest of the visible slip becomes carry. No snap.
   if (
     car.state === 'DRIFT' &&
     (!input.drift ||
@@ -300,63 +311,74 @@ function stepModelB(
   ) {
     car.state = 'GRIP';
     car.dir = 0;
-    car.recover = 0;
-    const slip = car.yaw - car.vel;
-    if (slip > p.slipSnapMax || slip < -p.slipSnapMax) {
-      car.vel += slip * p.snapCatch;
-      let sp = car.speed - p.snapLoss * p.vmax;
-      if (sp < 0) sp = 0;
-      car.speed = sp;
-    }
+    let sG = A / p.velGrip;
+    if (sG > p.slipGripMax) sG = p.slipGripMax;
+    if (sG < -p.slipGripMax) sG = -p.slipGripMax;
+    car.carry = car.yaw - car.vel + car.carry - sG;
+    car.yaw = car.vel + sG;
+    car.yawRate = A;
   }
   const drift = car.state === 'DRIFT';
+
+  // R82b: the carry decays every tick in any state.
+  car.carry *= Math.exp(-p.carryDecay * DT);
 
   // R50-R52: slipstream of the player (shared with model A).
   let boosted = false;
   if (car.kind === 'player') boosted = slipstream(car, cars, p, drift);
 
-  // R83-R85: sp is the speed before R86 updates it.
-  const sp = car.speed / p.vmax;
-  // R83: GRIP parameters blend from the DRIFT values over gripRecoverTime (k read before the
-  // increment); in DRIFT k = 0 gives the pure DRIFT values.
-  let k = 0;
-  if (!drift) {
-    k = p.gripRecoverTime > 0 ? car.recover / p.gripRecoverTime : 1;
-    if (k > 1) k = 1;
-    car.recover += DT;
+  let slip: number;
+  if (drift) {
+    const dir = car.dir;
+    const u = steer * dir;
+    // R83 DRIFT: the finger sets the visible angle; critically damped chase of slipT.
+    const uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    const slipT = dir * p.slipFull * uc;
+    const w = p.slipResponse;
+    slip = car.yaw - car.vel;
+    car.yawRate += (w * w * (slipT - slip) - 2 * w * car.yawRate) * DT;
+    slip += car.yawRate * DT;
+    // R83: one-sided drift, slip never crosses to the other side of dir.
+    if (slip * dir < 0) {
+      slip = 0;
+      car.yawRate = 0;
+    }
+    // R84 DRIFT: bounded lateral term from the angle (and counter-steer) minus the road push.
+    const velT = dir * p.driftLat * ((slip * dir) / p.slipFull + (u < 0 ? u : 0)) - p.driftPush * A;
+    car.vel += (velT - car.vel) * (1 - Math.exp(-p.velGripDrift * DT));
+    car.yaw = car.vel + slip;
+  } else {
+    // R83 GRIP: body yaw rate chases the steer, aligns with the motion.
+    let f = sp / p.yawFullSpeed;
+    if (f > 1) f = 1;
+    car.yawRate +=
+      (steer * p.yawRateMax * f - p.yawAlign * car.yaw - car.yawRate) *
+      (1 - Math.exp(-p.yawResponse * DT));
+    car.yaw += (car.yawRate - A) * DT;
+    // R84 GRIP: motion follows the body with a saturated force; off road g and smax are scaled
+    // by offroadVelMul (model B's own, R15b untouched).
+    let g = p.velGrip;
+    let smax = p.slipGripMax;
+    if (off) {
+      g *= p.offroadVelMul;
+      smax *= p.offroadVelMul;
+    }
+    let force = car.yaw - car.vel;
+    if (force > smax) force = smax;
+    if (force < -smax) force = -smax;
+    car.vel += (g * force - A) * DT;
+    // R84: geometric slip limit.
+    const lim = p.slipGripLimit;
+    slip = car.yaw - car.vel;
+    if (slip > lim) {
+      car.yaw = car.vel + lim;
+      if (car.yawRate > A) car.yawRate = A;
+    } else if (slip < -lim) {
+      car.yaw = car.vel - lim;
+      if (car.yawRate < A) car.yawRate = A;
+    }
+    slip = car.yaw - car.vel;
   }
-  const Y = p.yawRateMaxDrift + (p.yawRateMax - p.yawRateMaxDrift) * k;
-  const al = p.yawAlignDrift + (p.yawAlign - p.yawAlignDrift) * k;
-  const r = p.yawResponseDrift + (p.yawResponse - p.yawResponseDrift) * k;
-  const A = curve * sp * p.kYaw; // R83: the road turns under the car
-  let f = sp / p.yawFullSpeed;
-  if (f > 1) f = 1;
-  car.yawRate += (steer * Y * f - al * car.yaw - car.yawRate) * (1 - Math.exp(-r * DT));
-  car.yaw += (car.yawRate - A) * DT;
-
-  // R84: motion follows the body with a saturated force; off road in GRIP g and smax (after the
-  // recover blend, lim not) are scaled by offroadVelMul (model B's own, R15b untouched).
-  let g = p.velGripDrift + (p.velGrip - p.velGripDrift) * k;
-  let smax = p.slipDriftMax + (p.slipGripMax - p.slipDriftMax) * k;
-  const lim = p.slipHardMax + (p.slipGripLimit - p.slipHardMax) * k;
-  if (off && !drift) {
-    g *= p.offroadVelMul;
-    smax *= p.offroadVelMul;
-  }
-  let force = car.yaw - car.vel;
-  if (force > smax) force = smax;
-  if (force < -smax) force = -smax;
-  car.vel += (g * force - A) * DT;
-  // R84: geometric slip limit.
-  const slip = car.yaw - car.vel;
-  if (slip > lim) {
-    car.yaw = car.vel + lim;
-    if (car.yawRate > A) car.yawRate = A;
-  } else if (slip < -lim) {
-    car.yaw = car.vel - lim;
-    if (car.yawRate < A) car.yawRate = A;
-  }
-  const slipB = car.yaw - car.vel; // R86 reads the slip after R84
 
   // R85: lateral shift; R18 walls zero vel toward the wall, vx follows the clamped vel.
   car.x += car.vel * sp * p.latScale * DT;
@@ -367,14 +389,25 @@ function stepModelB(
     car.x = -p.xLimit;
     if (car.vel < 0) car.vel = 0;
   }
+  // R84: in DRIFT yaw = vel + slip also holds after the wall (the slip keeps its side, R83).
+  if (drift) car.yaw = car.vel + slip;
   car.vx = car.vel * sp * p.latScale;
 
-  // R86: R14 with the common cap (R52 boost in both states, no drift cap), slip drag, then R15.
-  const cap = boosted ? p.vmax * p.draftCapMul : p.vmax;
+  // R86: R14 with the cap vmax*capMul (R52); in DRIFT the cap also falls with the angle (as R22)
+  // and the carry costs nothing; in GRIP the visible slip costs speed. Then R15.
+  const capMul = boosted ? p.draftCapMul : 1;
+  let cap = p.vmax * capMul;
+  if (drift) {
+    const a = 1 - (p.driftSpeedLoss * (slip < 0 ? -slip : slip)) / p.slipFull;
+    if (a < capMul) cap = p.vmax * a;
+  }
   const accel = boosted ? p.accel * p.draftAccelMul : p.accel;
   let speed = throttle(car.speed, input.brake, cap, accel, p);
-  speed -= p.slipDrag * slipB * slipB * DT;
-  if (speed < 0) speed = 0;
+  if (!drift) {
+    const vis = car.yaw - car.vel + car.carry; // after R82b, R83, R84 and the R85 wall
+    speed -= p.slipDrag * vis * vis * DT;
+    if (speed < 0) speed = 0;
+  }
   if (car.x > 1 || car.x < -1) speed *= Math.pow(p.offroadMul, 60 * DT); // R15
   car.speed = speed;
 
@@ -479,14 +512,12 @@ function bumpPlayer(car: Car, cars: readonly Car[], p: CarParams): void {
       // R88/R42: the same vx through vel, sp after R41; yaw is left alone. (sp = 0 cannot carry a kick.)
       const denom = (car.speed / p.vmax) * p.latScale;
       if (denom > 0) car.vel = car.vx / denom;
-      // R88/R44: yaw moves toward vel by bumpAngleLoss, not past it; the drift survives.
+      // R88/R44: |slip| falls by bumpAngleLoss*slipFull, not below 0 (yaw moves toward vel, R42
+      // has set vel already); the drift survives.
       if (car.state === 'DRIFT') {
-        let s = (car.yaw - car.vel) * car.dir;
-        if (s > 0) {
-          s -= p.bumpAngleLoss;
-          if (s < 0) s = 0;
-          car.yaw = car.vel + car.dir * s;
-        }
+        let s = (car.yaw - car.vel) * car.dir - p.bumpAngleLoss * p.slipFull;
+        if (s < 0) s = 0;
+        car.yaw = car.vel + car.dir * s;
       }
       car.angle = viewAngle(car, p); // R87
     } else if (car.state === 'DRIFT') {

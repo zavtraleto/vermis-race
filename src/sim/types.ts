@@ -26,7 +26,7 @@ export interface Car {
   yaw: number; // R83 body heading relative to the road tangent, lateral units
   yawRate: number; // R83
   vel: number; // R84 direction of motion relative to the road tangent, lateral units
-  recover: number; // R82/R83 seconds since leaving DRIFT
+  carry: number; // R82b visible slip left over from the last state change, decays
   steerHist: number[]; // R81 ring buffer of raw steer, fixed length STEER_HIST
   steerHistHead: number; // R81 next write index
   steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
@@ -40,7 +40,7 @@ export interface RaceState {
 
 export interface CarParams {
   model: number; // H14: 0 = model A (R10-R22d), 1 = model B (R80-R89)
-  // Model B parameters (R80-R89b), see docs/research/yaw-slip-spike.md section 2.
+  // Model B parameters (R80-R89b), see docs/research/calm-drift-spike.md section 3.
   kYaw: number;
   latScale: number;
   yawFullSpeed: number;
@@ -50,22 +50,17 @@ export interface CarParams {
   velGrip: number;
   slipGripMax: number;
   slipGripLimit: number;
-  yawRateMaxDrift: number;
-  yawAlignDrift: number;
-  yawResponseDrift: number;
-  velGripDrift: number;
-  slipDriftMax: number;
-  slipHardMax: number;
-  slipDrag: number;
+  slipFull: number; // R83/R87 visible slip at full steer in DRIFT
+  slipResponse: number; // R83 DRIFT slip chase natural rate, 1/s
+  driftLat: number; // R84 DRIFT lateral authority of the slip and of counter-steer
+  driftPush: number; // R84 DRIFT push by the road turn, times A
+  carryDecay: number; // R82b 1/s
+  velGripDrift: number; // R84 DRIFT vel chase rate, 1/s
+  slipDrag: number; // R86 GRIP speed cost of the visible slip
   flickDelta: number; // R81 steer change that enters a drift (car param, distinct from the H3 E input config)
   flickWindow: number; // R81 seconds
-  kickBase: number;
-  kickGain: number;
-  gripRecoverTime: number;
-  slipSnapMax: number;
-  snapLoss: number;
-  snapCatch: number;
-  slipViewFull: number;
+  kickBase: number; // R81 initial slip rate at flickDelta
+  kickGain: number; // R81 extra slip rate per unit of steer change above flickDelta
   vmax: number;
   accel: number;
   brake: number;
@@ -92,7 +87,7 @@ export interface CarParams {
   driftAngleExit: number; // R21 angle*dir below this counts as a small angle
   driftStraightTime: number; // R21 seconds of small angle in a row that end the drift
   driftAngleResponse: number; // R22 angle chase rate toward the steer, 1/s
-  driftSpeedLoss: number; // R22 speed cap = vmax * (1 - driftSpeedLoss * |angle|)
+  driftSpeedLoss: number; // R22 / R86 speed cap = vmax * (1 - driftSpeedLoss * |angle|)
   driftBrake: number; // R22 deceleration above the cap, vmax per second
   carLength: number; // R40 contact length along z, segments
   carHitW: number; // R40 player hit width, half-widths

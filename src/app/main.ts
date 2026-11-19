@@ -405,13 +405,14 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   const c = loop.curr.cars[0]!;
   driftVisual.update(dt, c, angle);
   screenRoll.update(dt, c, angle);
-  // R89: in model B the body yaw is slip*slipDeg + vel*velDeg (interpolated, both states).
+  // R89: in model B the body yaw is vis*slipDeg + vel*velDeg with the visible slip
+  // vis = yaw - vel + carry (interpolated, both states).
   let bodyYaw: number | null = null;
   if (baseCar.model === 1) {
     const vel = p.vel + (c.vel - p.vel) * alpha;
-    const slip = p.yaw + (c.yaw - p.yaw) * alpha - vel;
+    const vis = p.yaw + (c.yaw - p.yaw) * alpha - vel + p.carry + (c.carry - p.carry) * alpha;
     const w = spritesConfig.weight;
-    bodyYaw = slip * w.slipDeg + vel * w.velDeg;
+    bodyYaw = vis * w.slipDeg + vel * w.velDeg;
   }
   weight.update(
     dt,

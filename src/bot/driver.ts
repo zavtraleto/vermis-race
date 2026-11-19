@@ -57,7 +57,8 @@ export interface BotParams {
   bDriftSteerGain: number; // DRIFT: steer per half-width of error to the drift line
   bDriftSteerDamp: number; // DRIFT: steer per half-width/s of vx, subtracted
   bDriftCurveGain: number; // DRIFT: steer per unit of (mean curve ahead x sp)
-  bGripMargin: number; // share of velGrip*slipGripMax the bot trusts GRIP with; above it: drift
+  bGripMargin: number; // share of the full steer the bot trusts GRIP with (R83/R84 hold steer); above it: drift
+  bDriftLineX: number; // DRIFT: line held toward the inside of the drift, half-widths (negative = outside)
   bFlickLook: number; // s of road ahead: flick into a drift when such a corner is this close
   bReleaseLook: number; // s of road ahead: release the drift when no drift corner is this close
   bReleaseFrac: number; // in DRIFT a corner still counts while its turn exceeds this share of the grip cap
@@ -259,10 +260,10 @@ function meanCurve(segs: Track['segments'], n: number, seg0: number, d: number):
 /**
  * Model B driver (H14, R80-R88). A feedback driver, not a model inversion: steer = gain on the
  * lateral error to a target line - damping on the lateral speed + a gain on the curvature ahead
- * (gains per skill level in bots.json). A corner whose road turn A = |curve|*sp*kYaw is above what
- * GRIP holds (velGrip*slipGripMax, times the bot's bGripMargin) is taken in DRIFT: a planned flick
- * (R81: a short counter-steer, then a full steer into the corner with the drift input held), the
- * input held through the corner and released at the exit (R82). Reaction delay and noise as in A.
+ * (gains per skill level in bots.json). A corner whose GRIP hold steer exceeds bGripMargin is taken
+ * in DRIFT: a planned flick (R81: an optional short counter-steer, then a full steer into the corner
+ * with the drift input held), the input held through the corner and released at the exit (R82).
+ * Reaction delay and noise as in A.
  */
 function botInputB(
   bot: BotState,
@@ -279,8 +280,11 @@ function botInputB(
   const sp = car.speed / p.vmax;
   const segPerSec = car.speed * SEG_PER_UNIT;
   const seg0 = wrap(Math.floor(car.z), n);
-  // What the bot trusts GRIP to hold, as a road turn rate A (R83/R84 saturation).
-  const gripCap = p.velGrip * p.slipGripMax * bp.bGripMargin;
+  // What the bot trusts GRIP to hold, as a road turn rate A: the R83/R84 steady state on a curve
+  // needs steer A*(1 + yawAlign/velGrip)/(yawRateMax*f); GRIP is trusted up to bGripMargin of it.
+  let f = sp / p.yawFullSpeed;
+  if (f > 1) f = 1;
+  const gripCap = (bp.bGripMargin * p.yawRateMax * f) / (1 + p.yawAlign / p.velGrip);
   const turn = sp * p.kYaw; // A per unit curve at the current speed
   const inDrift = car.state === 'DRIFT';
   if (inDrift) bot.flick = 0;
@@ -305,7 +309,7 @@ function botInputB(
   // Target line: centre or the inside of the bend ahead (as in model A); in DRIFT driftLineX.
   const cMean = meanCurve(segs, n, seg0, ahead(segPerSec, bp.steerLookahead));
   let xTarget = 0;
-  if (holdDrift) xTarget = bp.driftLineX * car.dir;
+  if (holdDrift) xTarget = bp.bDriftLineX * car.dir;
   else if (bp.aim === 'inside') {
     let r = cMean / bp.insideFullCurve;
     if (r > 1) r = 1;

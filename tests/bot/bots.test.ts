@@ -3,12 +3,13 @@
 import { describe, expect, it } from 'vitest';
 import { botParams, BOT_NAMES } from '../../src/data/bots';
 import { baseCar } from '../../src/data/cars';
+import { baseCarA } from '../sim/baseCarA';
 import { curveClasses, loadTestTwisty } from '../../src/data/tracks';
 import { botInput, createBot, holdSpeedLimit } from '../../src/bot/driver';
 import { SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';
-import type { InputFrame, Track } from '../../src/sim/types';
+import type { CarParams, InputFrame, Track } from '../../src/sim/types';
 
 const twisty = (): Track => buildTrack(loadTestTwisty().def);
 
@@ -25,14 +26,21 @@ interface Trace {
 }
 
 /** Drives `laps` laps with the named bot; records every frame. maxTicks guards against a stuck bot. */
-function drive(name: string, seed: number, laps: number, track: Track, maxTicks: number): Trace {
+function drive(
+  name: string,
+  seed: number,
+  laps: number,
+  track: Track,
+  maxTicks: number,
+  carParams: CarParams = baseCar,
+): Trace {
   const race = createRace(seed, 1);
   const car = race.cars[0]!;
   const bot = createBot(seed);
   const bp = botParams[name as keyof typeof botParams];
   const frame: InputFrame = { steer: 0, brake: false, drift: false };
   const inputs = [frame];
-  const params = [baseCar];
+  const params = [carParams];
   const goal = laps * track.segments.length;
   const t: Trace = {
     steer: [],
@@ -46,7 +54,7 @@ function drive(name: string, seed: number, laps: number, track: Track, maxTicks:
     finished: false,
   };
   while (car.z < goal && race.tick < maxTicks) {
-    botInput(bot, bp, car, track, baseCar, frame);
+    botInput(bot, bp, car, track, carParams, frame);
     t.steer.push(frame.steer);
     t.brake.push(frame.brake);
     t.drift.push(frame.drift);
@@ -182,6 +190,23 @@ describe('T16 skill ordering', () => {
     const n = drive('novice', 1, 3, track, MAX_TICKS_3_LAPS);
     const a = drive('average', 1, 3, track, MAX_TICKS_3_LAPS);
     const e = drive('expert', 1, 3, track, MAX_TICKS_3_LAPS);
+    expect(n.finished && a.finished && e.finished).toBe(true);
+    expect(n.ticks).toBeGreaterThanOrEqual(1.1 * a.ticks);
+    expect(e.ticks).toBeLessThanOrEqual(1.01 * a.ticks);
+  });
+});
+
+describe('T16 model A bots (baseCarA, the data default is model B)', () => {
+  it('expert completes 3 laps of the twisty loop, off asphalt <= 5% of the time', () => {
+    const t = drive('expert', 1, 3, twisty(), MAX_TICKS_3_LAPS, baseCarA);
+    expect(t.finished).toBe(true);
+    expect(t.offroadTicks / t.ticks).toBeLessThanOrEqual(AVERAGE_MAX_OFFROAD_FRACTION);
+  });
+  it('3-lap time with model A: novice >= 10% slower than average; expert at most 1% slower than average', () => {
+    const track = twisty();
+    const n = drive('novice', 1, 3, track, MAX_TICKS_3_LAPS, baseCarA);
+    const a = drive('average', 1, 3, track, MAX_TICKS_3_LAPS, baseCarA);
+    const e = drive('expert', 1, 3, track, MAX_TICKS_3_LAPS, baseCarA);
     expect(n.finished && a.finished && e.finished).toBe(true);
     expect(n.ticks).toBeGreaterThanOrEqual(1.1 * a.ticks);
     expect(e.ticks).toBeLessThanOrEqual(1.01 * a.ticks);
