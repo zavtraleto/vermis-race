@@ -22,6 +22,7 @@
   "building": ["#24242c", "#202028", "#28282f", "#1e1e26"],
   "buildingWindow": "#4e4a40",
   "smoke": "#a8a8ae",
+  "traffic": ["#6f7480", "#7c7068", "#5f6c64", "#6c6678"],
   "mapBacking": "#16161d",
   "mapStraight": "#6a6a72",
   "mapEasy": "#6a6a72",

@@ -35,6 +35,7 @@ export interface Palette {
   building: string[];
   buildingWindow: string;
   smoke: string;
+  traffic: string[]; // R45 traffic body variants (desaturated, not the rival accents)
   mapBacking: string;
   mapStraight: string;
   mapEasy: string;

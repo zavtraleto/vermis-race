@@ -1,9 +1,9 @@
 {
-  "trafficMax": 6,
-  "trafficSpawnAhead": 120,
+  "trafficMax": 12,
+  "trafficSpawnAhead": 320,
   "trafficDespawnBehind": 20,
-  "trafficGapMin": 25,
-  "trafficGapMax": 60,
-  "trafficSpeedMin": 0.4,
+  "trafficGapMin": 80,
+  "trafficGapMax": 200,
+  "trafficSpeedMin": 0.35,
   "trafficSpeedMax": 0.7
 }

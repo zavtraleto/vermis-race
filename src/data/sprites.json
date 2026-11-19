@@ -75,5 +75,29 @@
     "smokeSpread": 0.7,
     "smokeWheelX": 0.36,
     "smokeJitter": 0.1
+  },
+  "traffic": {
+    "drawDistance": 300,
+    "widthLanes": 0.65,
+    "snapSegments": 5,
+    "wheelWidth": 0.16,
+    "wheelHeight": 0.14,
+    "wheelX": 0.36,
+    "bodyBottom": 0.08,
+    "bodyHeight": 0.36,
+    "cabinWidth": 0.8,
+    "cabinHeight": 0.3,
+    "windowWidth": 0.66,
+    "windowHeight": 0.2,
+    "lightWidth": 0.16,
+    "lightHeight": 0.07,
+    "lightX": 0.33,
+    "lightY": 0.3
+  },
+  "bump": {
+    "blinkHz": 8,
+    "shakeAmp": 0.03,
+    "shakeTime": 0.25,
+    "shakeHz": 18
   }
 }

@@ -1,4 +1,5 @@
 import type { Palette } from '../data/render';
+import type { Car } from '../sim/types';
 import type { CarView } from './carModel';
 import type { DriftVisual, DriftVisualConfig } from './driftVisual';
 import { placeOnRoad, type Placement } from './placeOnRoad';
@@ -64,6 +65,36 @@ export interface SpritesConfig {
   };
   roadside: RoadsideDrawConfig;
   drift: DriftVisualConfig;
+  traffic: TrafficDrawConfig;
+  bump: BumpFeedbackConfig;
+}
+
+/** R45 traffic car seen from behind. Part sizes and positions are fractions of the car width. */
+export interface TrafficDrawConfig {
+  drawDistance: number; // lines from the camera
+  widthLanes: number; // car width, lanes
+  snapSegments: number; // an interpolation jump longer than this is a respawn (R71): no tween
+  wheelWidth: number;
+  wheelHeight: number;
+  wheelX: number;
+  bodyBottom: number;
+  bodyHeight: number;
+  cabinWidth: number;
+  cabinHeight: number;
+  windowWidth: number;
+  windowHeight: number;
+  lightWidth: number;
+  lightHeight: number;
+  lightX: number;
+  lightY: number;
+}
+
+/** R45 player feedback after a contact (render state only). */
+export interface BumpFeedbackConfig {
+  blinkHz: number; // on/off cycles per second while bumpTicks > 0
+  shakeAmp: number; // camera shake, road half-widths
+  shakeTime: number; // s, linear decay to 0
+  shakeHz: number;
 }
 
 /** Extra placeholder props used only by the stress scenario. */
@@ -84,7 +115,10 @@ const BB_FRAME = 15;
 const BB_STRIPE = 18;
 const WINDOW = 21;
 const POST_CAP = 24;
-const BB_PANEL = 27; // palette.billboard[], then palette.building[]
+const CAR_WHEEL = 27;
+const CAR_GLASS = 30;
+const CAR_LAMP = 33;
+const BB_PANEL = 36; // palette.billboard[], then palette.building[], then palette.traffic[]
 
 /** Placeholder sprites of layers 2-4: roadside objects, drift smoke, stress filler. */
 export class WorldSprites {
@@ -95,6 +129,8 @@ export class WorldSprites {
   private readonly panels: number;
   private readonly buildingAt: number;
   private readonly buildings: number;
+  private readonly trafficAt: number;
+  private readonly trafficColours: number;
   // Current crest clip line for rect(), set per projected line (R30).
   private clipY = Infinity;
 
@@ -106,7 +142,14 @@ export class WorldSprites {
     this.panels = palette.billboard.length;
     this.buildings = palette.building.length;
     this.buildingAt = BB_PANEL + this.panels * 3;
-    this.rgb = new Float32Array(this.buildingAt + this.buildings * 3);
+    this.trafficAt = this.buildingAt + this.buildings * 3;
+    this.trafficColours = palette.traffic.length;
+    this.rgb = new Float32Array(this.trafficAt + this.trafficColours * 3);
+    writeHex(this.rgb, CAR_WHEEL, palette.carWheel);
+    writeHex(this.rgb, CAR_GLASS, palette.carGlass);
+    writeHex(this.rgb, CAR_LAMP, palette.carLamp);
+    for (let i = 0; i < this.trafficColours; i++)
+      writeHex(this.rgb, this.trafficAt + i * 3, palette.traffic[i]!);
     writeHex(this.rgb, POST, palette.post);
     writeHex(this.rgb, POST_CAP, palette.postCap);
     writeHex(this.rgb, SMOKE, palette.smoke);
@@ -182,6 +225,62 @@ export class WorldSprites {
           this.building(batch, proj, n, seg, rs.x[k]!, rs.variant[k]!, step);
       }
     }
+  }
+
+  /**
+   * R45 traffic cars (kind 'traffic' in `curr`), z/x interpolated between prev and curr, drawn on
+   * the road at z + zOffset (zOffset = segments from the camera to the player car's line, so the
+   * gap to the player on screen matches the sim gap). Hidden behind a crest like roadside objects
+   * (R30); depth orders them against roadside objects. `carW` = car width in world units.
+   */
+  drawTraffic(
+    batch: SpriteBatch,
+    proj: Projection,
+    prev: readonly Car[],
+    curr: readonly Car[],
+    alpha: number,
+    zOffset: number,
+    carW: number,
+  ): void {
+    const c = this.cfg.traffic;
+    const p = this.placement;
+    for (let i = 0; i < curr.length; i++) {
+      const b = curr[i]!;
+      if (b.kind !== 'traffic') continue;
+      const a = prev[i]!;
+      const jump = b.z - a.z;
+      // R71 respawn moves a car far ahead in one tick: draw it where it is now.
+      const snap = jump > c.snapSegments || jump < -c.snapSegments;
+      const z = (snap ? b.z : a.z + jump * alpha) + zOffset;
+      const x = snap ? b.x : a.x + (b.x - a.x) * alpha;
+      let r = (z - proj.base) % proj.length;
+      if (r < 0) r += proj.length;
+      const n = Math.floor(r);
+      if (n > c.drawDistance || !placeOnRoad(p, proj, z, x, carW, carW)) continue;
+      const w = p.w;
+      if (!this.visible(p.x - w * 0.5, p.x + w * 0.5)) continue;
+      // R30: behind a crest only the part above the nearest crest line is drawn.
+      let crestY = Infinity;
+      if (proj.clipped[n] === 1)
+        for (let k = 0; k < n; k++) if (proj.y[k]! < crestY) crestY = proj.y[k]!;
+      this.clipY = crestY;
+      const body = this.trafficAt + (i % this.trafficColours) * 3;
+      const top = p.y - (c.bodyBottom + c.bodyHeight) * w;
+      const ww = c.wheelWidth * w;
+      const wh = c.wheelHeight * w;
+      this.rect(batch, p.x - c.wheelX * w, p.y, ww, wh, p.depth, CAR_WHEEL);
+      this.rect(batch, p.x + c.wheelX * w, p.y, ww, wh, p.depth, CAR_WHEEL);
+      this.rect(batch, p.x, p.y - c.bodyBottom * w, w, c.bodyHeight * w, p.depth, body);
+      this.rect(batch, p.x, top, c.cabinWidth * w, c.cabinHeight * w, p.depth, body);
+      const winBase = top - ((c.cabinHeight - c.windowHeight) / 2) * w;
+      this.rect(batch, p.x, winBase, c.windowWidth * w, c.windowHeight * w, p.depth, CAR_GLASS);
+      const ly = p.y - c.lightY * w;
+      const lw = c.lightWidth * w;
+      const lh = c.lightHeight * w;
+      this.rect(batch, p.x - c.lightX * w, ly, lw, lh, p.depth, CAR_LAMP);
+      this.rect(batch, p.x + c.lightX * w, ly, lw, lh, p.depth, CAR_LAMP);
+    }
+    this.clipY = Infinity;
   }
 
   /** Stress scenario: plain blocks on every segment edge until the batch holds `fill.instances`. */
