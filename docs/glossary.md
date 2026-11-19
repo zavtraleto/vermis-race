@@ -21,6 +21,12 @@
 | Сторона дрифта | `dir` | −1 или 1; 0 в сцеплении |
 | Счётчик вне дороги | `offTicks` | тики подряд с `|x| > 1` (R21) |
 | Авто-дрифт | `autoDrift` | H3 C: дрифт, пока touch-руль отклонён дальше `autoDriftSteer` |
+| Угол дрифта | `angle` | состояние машины, со знаком, `angle*dir ∈ [0, 1]`; догоняет руль (R22) |
+| Удержание drift-ввода | `driftHeld` | drift-ввод прошлого тика; вход в дрифт только по фронту (R20) |
+| Счётчик малого угла | `lowTicks` | тики подряд с `angle*dir < driftAngleExit` (R21) |
+| Повторное касание | `retouchDrift` | H3 D: отпустил, вернул палец за `retouchWindowMs`, повёл вбок дальше `retouchSwipePx` |
+| Объекты у трассы | `roadside` | фонари (`lamp`), билборды (`billboard`), строения (`building`); R32 |
+| Фигура трассы | `figure` | именованный кусок трассы из словаря R31: `straight`, `kink`, `sweeper`, `hairpin`, `flick`, `esses`, `tightening`, `opening`, `carousel`, `double` |
 | Дрифт на обочине | `driftOffroad` | H11: 1 — дрифт работает вне дороги (R21b), 0 — нет |
 | Трасса | `Track` | лента сегментов |
 | Сегмент | `Segment` | `{ curve, y, width, props }` |
