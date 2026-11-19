@@ -1,5 +1,6 @@
 {
   "straight": { "ticks": 120, "steer": 0 },
+  "roadside": { "ticks": 1, "steer": 0, "z": 55 },
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
   "map-curve": { "ticks": 300, "steer": 0.2 },
