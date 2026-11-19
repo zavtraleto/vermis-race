@@ -103,12 +103,12 @@ describe('R30 projection: slopes', () => {
     // y_n = 50 + scale_n * (100 - 50n), scale_n = 100/(200+100n)
     //   n=0: 50 + 0.5*100 = 100 (same as flat)
     //   n=1: 50 + (1/3)*50 = 66.667
-    //   n=4: 50 + (1/6)*(100-200) = -116.667   (flat: 50 + 100/6 = 66.667)
+    //   n=4: 50 + (1/6)*(100-200) = 50 - 16.667 = 33.333   (flat: 50 + 100/6 = 66.667)
     const up = run(SLOPE(0.5), 0);
     const flat = run(flatY0(20), 0);
     near(up.y[0]!, 100);
     near(up.y[1]!, 66.6667);
-    near(up.y[4]!, -116.6667);
+    near(up.y[4]!, 33.3333);
     near(flat.y[4]!, 66.6667);
     for (let n = 1; n < up.count; n++) expect(up.y[n]!).toBeLessThan(flat.y[n]!);
   });
