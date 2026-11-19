@@ -15,7 +15,7 @@ export interface CarWeightConfig {
   pitchGain: number; // degrees per vmax/s of speed change; speed loss = nose down
   pitchMaxDeg: number;
   pitchTau: number; // s, derivative filter and smoothing of the pitch
-  slipDeg: number; // R89 model B: degrees on screen per unit of slip (yaw - vel)
+  slipDeg: number; // R89 model B: degrees on screen per unit of visible slip (yaw - vel + carry)
   velDeg: number; // R89 model B: degrees on screen per unit of vel
 }
 
@@ -56,7 +56,7 @@ export class CarWeight {
    * dt = frame (or tick) seconds; prev/curr = the two last sim states of the player; speed = the
    * interpolated speed; driftYaw = the smoothed R24 yaw in degrees (0 in GRIP); yawMaxDeg /
    * driftRollDeg = R24 / R25 numbers; halfWidth / segmentLength = world units of the road.
-   * bodyYaw = R89 model B: slip*slipDeg + vel*velDeg in degrees (interpolated), replacing the R24/R26
+   * bodyYaw = R89 model B: vis*slipDeg + vel*velDeg in degrees (interpolated), replacing the R24/R26
    * yaw path in both states; null in model A.
    */
   update(
