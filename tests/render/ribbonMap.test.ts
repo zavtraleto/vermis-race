@@ -80,7 +80,7 @@ describe('ribbonMap straight track', () => {
 
 describe('ribbonMap constant curve', () => {
   it('right curve bends right monotonically and keeps going forward', () => {
-    const m = ribbon(constantTrack(1000, 2.5), 5, 1);
+    const m = ribbon(constantTrack(1000, curves.medium), 5, 1);
     let prevDx = 0;
     for (let i = 1; i < m.count; i++) {
       const dx = m.x[i]! - m.x[i - 1]!;

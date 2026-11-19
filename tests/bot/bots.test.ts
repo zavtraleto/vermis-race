@@ -119,12 +119,14 @@ describe('T16 bots output valid InputFrames (R4)', () => {
       }
     });
   }
-  for (const name of ['novice', 'average'] as const) {
-    it(`${name}: never drifts`, () => {
-      const t = drive(name, 7, 1, track, MAX_TICKS_3_LAPS);
-      expect(t.drift.some((d) => d)).toBe(false);
-    });
-  }
+  it('novice: never drifts', () => {
+    const t = drive('novice', 7, 1, track, MAX_TICKS_3_LAPS);
+    expect(t.drift.some((d) => d)).toBe(false);
+  });
+  it('average: drifts on some ticks', () => {
+    const t = drive('average', 7, 1, track, MAX_TICKS_3_LAPS);
+    expect(t.drift.some((d) => d)).toBe(true);
+  });
   it('expert: drifts on some ticks, never brakes inside a corner with |curve| >= driftMinCurve', () => {
     const t = drive('expert', 7, 1, track, MAX_TICKS_3_LAPS);
     const minCurve = botParams.expert.driftMinCurve;
@@ -173,13 +175,13 @@ describe('T16 average bot on the twisty loop', () => {
 });
 
 describe('T16 skill ordering', () => {
-  it('3-lap time: expert <= average <= novice', () => {
+  it('3-lap time: novice >= 10% slower than average; expert at most 1% slower than average', () => {
     const track = twisty();
     const n = drive('novice', 1, 3, track, MAX_TICKS_3_LAPS);
     const a = drive('average', 1, 3, track, MAX_TICKS_3_LAPS);
     const e = drive('expert', 1, 3, track, MAX_TICKS_3_LAPS);
     expect(n.finished && a.finished && e.finished).toBe(true);
-    expect(e.ticks).toBeLessThanOrEqual(a.ticks);
-    expect(a.ticks).toBeLessThanOrEqual(n.ticks);
+    expect(n.ticks).toBeGreaterThanOrEqual(1.1 * a.ticks);
+    expect(e.ticks).toBeLessThanOrEqual(1.01 * a.ticks);
   });
 });

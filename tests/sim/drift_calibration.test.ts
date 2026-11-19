@@ -20,6 +20,7 @@ type DP = CarParams & {
   driftExitSpeed: number;
   driftSteerMin: number;
   driftSteerMax: number;
+  driftOffroad: number;
 };
 const P = baseCar as unknown as DP;
 
@@ -128,4 +129,39 @@ describe('R22b run on a constant medium and hard curve at vmax', () => {
       expect(car.state).toBe('GRIP');
     });
   }
+});
+
+describe('R21b H11 return from the shoulder with the real base car (driftOffroad 1)', () => {
+  // A right corner (curve > 0) pushes the car left (x -= ...), so the outer edge of a right corner
+  // is x < -1: start 0.2 beyond it, x = side * -1.2. Drift held, full steer into the corner, at vmax.
+  // Net inward speed ~ 1.98 - push: medium push 4.5*0.3*0.35*1.5 = 0.709/s, hard 1.1025/s.
+  const cases = [
+    ['medium', 1.0],
+    ['hard', 1.5],
+  ] as const;
+  for (const [cls, maxSeconds] of cases)
+    for (const side of [1, -1] as const) {
+      it(`R21b ${cls} ${side > 0 ? 'right' : 'left'}: back on asphalt (|x| <= 1) within ${maxSeconds} s`, () => {
+        const p = { ...baseCar, driftOffroad: 1 } as unknown as CarParams;
+        const race = createRace(1, 1);
+        const car: Car = race.cars[0]!;
+        car.speed = baseCar.vmax;
+        car.x = side * -1.2;
+        car.steer = side;
+        car.vx = 0;
+        const track = constTrack(side * curveClasses[cls], 2000);
+        const input: InputFrame = { steer: side, brake: false, drift: true };
+        const limit = Math.round(maxSeconds * 120);
+        let back = -1;
+        for (let i = 0; i < limit; i++) {
+          step(race, [input], track, [p]);
+          if (Math.abs(car.x) <= 1) {
+            back = i + 1;
+            break;
+          }
+        }
+        expect(back).toBeGreaterThan(0);
+        expect(car.state).toBe('DRIFT');
+      });
+    }
 });
