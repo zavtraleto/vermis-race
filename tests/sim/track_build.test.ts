@@ -6,7 +6,6 @@ import {
   parseSections,
   resolveSections,
 } from '../../src/data/tracks';
-import twistyRaw from '../../src/data/tracks/test-twisty.json';
 import { createProjection, project } from '../../src/render/projection';
 import { SEG_PER_UNIT } from '../../src/sim/constants';
 import { buildTrack } from '../../src/sim/track';
@@ -188,8 +187,12 @@ describe('T10 test-twisty data', () => {
 
 describe('T10 parseSections validation', () => {
   const ok = { enter: 1, hold: 2, leave: 3, curveClass: 'easy', side: 1 };
-  it('accepts the shipped data unchanged', () => {
-    expect(parseSections(twistyRaw.sections)).toEqual(twistyRaw.sections);
+  it('accepts well-formed sections unchanged', () => {
+    const sample = [
+      { enter: 30, hold: 90, leave: 30, curveClass: 'easy', side: 1, hill: 20 },
+      { enter: 45, hold: 240, leave: 45, curveClass: 'hard', side: -1 },
+    ];
+    expect(parseSections(sample)).toEqual(sample);
   });
   it('throws on unknown curveClass', () => {
     expect(() => parseSections([{ ...ok, curveClass: 'insane' }])).toThrow();

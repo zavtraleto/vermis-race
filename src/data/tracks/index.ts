@@ -77,3 +77,33 @@ export function loadTestTwisty(): { name: string; sections: ClassedSection[]; de
   const sections = parseSections(twisty.sections);
   return { name: twisty.name, sections, def: resolveSections(sections, curveClasses) };
 }
+
+/** R31: part of a named figure; side is relative to the placement (1 = same side, -1 = opposite). */
+export interface FigurePart {
+  enter: number;
+  hold: number;
+  leave: number;
+  curveClass: CurveClass | 'straight';
+  side: -1 | 1;
+}
+export interface FigureDef {
+  parts: FigurePart[];
+}
+export interface FigureRef {
+  figure: string;
+  side: -1 | 1;
+  hill?: number;
+}
+export type ExpandedSection = Omit<ClassedSection, 'curveClass'> & {
+  curveClass: CurveClass | 'straight';
+};
+
+/** R31: expands figure placements into track sections (stub, not implemented). */
+export function expandFigures(
+  refs: readonly FigureRef[],
+  dict: Readonly<Record<string, FigureDef>>,
+): ExpandedSection[] {
+  void refs;
+  void dict;
+  throw new Error('not implemented');
+}
