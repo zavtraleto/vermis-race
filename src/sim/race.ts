@@ -1,7 +1,8 @@
 import { DT, K_HEADING, SEG_PER_UNIT } from './constants';
-import type { Car, CarParams, InputFrame, RaceState, Track } from './types';
+import type { Car, CarParams, InputFrame, RaceState, Track, TrafficConfig } from './types';
 
-export function createRace(seed: number, carCount: number): RaceState {
+export function createRace(seed: number, carCount: number, trafficCount = 0): RaceState {
+  void trafficCount;
   const cars: Car[] = [];
   for (let i = 0; i < carCount; i++) {
     cars.push({
@@ -19,6 +20,7 @@ export function createRace(seed: number, carCount: number): RaceState {
       driftHeld: false,
       armTicks: 0,
       lowTicks: 0,
+      bumpTicks: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.
@@ -31,7 +33,9 @@ export function step(
   inputs: readonly InputFrame[],
   track: Track,
   params: readonly CarParams[],
+  traffic?: TrafficConfig,
 ): void {
+  void traffic;
   const segments = track.segments;
   const segCount = segments.length;
   const cars = state.cars;
@@ -172,4 +176,12 @@ export function step(
   }
   // R1: one fixed step.
   state.tick++;
+}
+
+/** R71: initial traffic placement with the seeded RNG. Stub, to be implemented. */
+export function placeTraffic(state: RaceState, traffic: TrafficConfig, playerVmax: number): void {
+  void state;
+  void traffic;
+  void playerVmax;
+  throw new Error('not implemented');
 }

@@ -19,6 +19,7 @@ export interface Car {
   driftHeld: boolean; // R20 drift input of the previous tick (rising-edge detection)
   armTicks: number; // R20 ticks since the rising edge of the drift input while armed, 0 otherwise
   lowTicks: number; // R21 consecutive DRIFT ticks with angle*dir < driftAngleExit
+  bumpTicks: number; // R43 remaining invulnerability ticks after a contact
 }
 
 export interface RaceState {
@@ -55,6 +56,27 @@ export interface CarParams {
   driftAngleResponse: number; // R22 angle chase rate toward the steer, 1/s
   driftSpeedLoss: number; // R22 speed cap = vmax * (1 - driftSpeedLoss * |angle|)
   driftBrake: number; // R22 deceleration above the cap, vmax per second
+  carLength: number; // R40 contact length along z, segments
+  carHitW: number; // R40 player hit width, half-widths
+  trafficHitW: number; // R40 traffic hit width, half-widths
+  bumpSpeedLoss: number; // R41 rear hit, vmax
+  bumpSideLoss: number; // R41 side contact, vmax
+  bumpFloor: number; // R41 speed floor, vmax
+  bumpKick: number; // R42 lateral speed kick
+  bumpInvulnTime: number; // R43 seconds
+  bumpAngleLoss: number; // R44 drift angle loss
+}
+
+/** R71 traffic pool config (src/data/traffic.json) plus the lane count of the road. */
+export interface TrafficConfig {
+  trafficMax: number;
+  trafficSpawnAhead: number;
+  trafficDespawnBehind: number;
+  trafficGapMin: number;
+  trafficGapMax: number;
+  trafficSpeedMin: number;
+  trafficSpeedMax: number;
+  lanes: number;
 }
 
 export interface Segment {
