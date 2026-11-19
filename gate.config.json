@@ -1,5 +1,5 @@
 {
-  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rule novice-not-faster: director 2026-11-18 (T16). Stage 2 (T23, director 2026-11-19): expert-brakes and expert-long-hard-slows removed (author rejected the lift in hard corners); expert-drift-holds-speed, expert-drift-used, expert-offroad-time, average-never-drifts added; expert-gap widened to 10-35%. Rule offroad-recovery: director 2026-11-18 (R15b).",
+  "_status": "[старт] Stage 1 starting corridor (T16, director 2026-11-18). All bounds are starting values, not decisions; change them with a line in docs/balance.md. Rule novice-not-faster: director 2026-11-18 (T16). Stage 2 (T23, director 2026-11-19): expert-brakes and expert-long-hard-slows removed (author rejected the lift in hard corners); expert-drift-holds-speed, expert-drift-used, expert-offroad-time, average-never-drifts added; expert-gap widened to 10-35%. Rule offroad-recovery: director 2026-11-18 (R15b). Stage 2b (T26, director 2026-11-19): average-never-drifts and average-saturation removed (driving is drift-based now); expert-drift-used 40-90%, average-drift-used, drift-required added; expert-gap 3-15%.",
   "measure": {
     "laps": 3,
     "maxSecondsPerLap": 180,
@@ -49,10 +49,10 @@
       "fast": "expert",
       "slow": "average",
       "metric": "lapTime.mean",
-      "min": 0.1,
-      "max": 0.35,
+      "min": 0.03,
+      "max": 0.15,
       "severity": "no-go",
-      "note": "expert 10-35% faster than average: drift through hard corners is the skill ceiling (stage 2)"
+      "note": "expert 3-15% faster than average: both drift, the expert with cleaner lines (stage 2b)"
     },
     {
       "id": "novice-not-faster",
@@ -63,6 +63,16 @@
       "min": 0,
       "severity": "no-go",
       "note": "novice lap >= average lap: leaving the road costs more than braking (pillar 3)"
+    },
+    {
+      "id": "drift-required",
+      "type": "gap",
+      "fast": "average",
+      "slow": "novice",
+      "metric": "lapTime.mean",
+      "min": 0.15,
+      "severity": "no-go",
+      "note": "the non-drifting novice is >= 15% slower per lap than the drifting average: drift is required (R22b, pillar 3)"
     },
     {
       "id": "expert-drift-holds-speed",
@@ -76,10 +86,18 @@
       "id": "expert-drift-used",
       "bot": "expert",
       "metric": "driftFraction",
-      "min": 0.1,
-      "max": 0.6,
+      "min": 0.4,
+      "max": 0.9,
       "severity": "no-go",
-      "note": "the expert drifts 10-60% of the time: drift is a technique for sharp corners, not the whole lap"
+      "note": "the expert drifts 40-90% of the time: medium and hard corners are drift-only (R22b, author 2026-11-19)"
+    },
+    {
+      "id": "average-drift-used",
+      "bot": "average",
+      "metric": "driftFraction",
+      "min": 0.3,
+      "severity": "no-go",
+      "note": "the average bot drifts >= 30% of the time: medium and hard corners are drift-only (R22b)"
     },
     {
       "id": "expert-offroad-time",
@@ -88,23 +106,6 @@
       "max": 0.02,
       "severity": "no-go",
       "note": "the expert's drift stays on asphalt >= 98% of the time"
-    },
-    {
-      "id": "average-never-drifts",
-      "bot": "average",
-      "metric": "driftFraction",
-      "max": 0,
-      "severity": "no-go",
-      "note": "sanity: the average bot does not drift"
-    },
-    {
-      "id": "average-saturation",
-      "bot": "average",
-      "metric": "steerSaturation",
-      "min": 0.05,
-      "max": 0.4,
-      "severity": "conditional",
-      "note": "average uses full lock sometimes, not all the time"
     },
     {
       "id": "dead-time",
