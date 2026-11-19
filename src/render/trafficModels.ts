@@ -22,6 +22,7 @@ import {
 } from './projection';
 import { writeHex } from './roadMesh';
 import { ROLL_GLSL, type RollUniform } from './screenRoll';
+import type { TailLights } from './tailLights';
 import type { TrafficDrawConfig } from './worldSprites';
 
 const VARIANTS = 3;
@@ -203,7 +204,7 @@ export class TrafficModels {
   /**
    * Places every 'traffic' car of `curr` (z/x interpolated from `prev`) at z + zOffset (zOffset =
    * segments from the camera to the player car's line, as for the old sprites). `carW` = car width
-   * in world units.
+   * in world units. R45b: the tail lights of every drawn car go to `lights`.
    */
   update(
     proj: Projection,
@@ -212,6 +213,7 @@ export class TrafficModels {
     alpha: number,
     zOffset: number,
     carW: number,
+    lights: TailLights,
   ): void {
     const dc = this.draw;
     const cam = this.camera;
@@ -281,6 +283,20 @@ export class TrafficModels {
       this.c[o + 3] = i % VARIANTS;
       this.d[n * 2] = clip;
       this.d[n * 2 + 1] = zr;
+      lights.addCar(
+        this.a[o]!,
+        this.a[o + 1]!,
+        zc,
+        k,
+        this.b[o]!,
+        this.b[o + 1]!,
+        this.halfLength,
+        this.b[o + 2]! - 0.05 * step,
+        clip,
+        0,
+        0,
+        0,
+      );
       n++;
     }
     this.n = n;

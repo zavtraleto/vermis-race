@@ -138,6 +138,7 @@ for (const [label, P] of MODELS) {
         c.z = 15.75;
         c.x = 1.4;
         c.speed = 0.5;
+        Object.assign(c, { cruise: 0.5 }); // R41b (only matters for traffic)
         step(s, [IDLE, IDLE], STRAIGHT, [P, P]);
         if (kind === 'traffic') {
           expect(c.crashTicks, kind).toBe(0);

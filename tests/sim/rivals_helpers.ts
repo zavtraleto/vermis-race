@@ -74,6 +74,8 @@ export const BP: CarParams = {
   bumpSpeedLoss: 0.1,
   bumpSideLoss: 0.05,
   bumpFloor: 0.3,
+  bumpPush: 0.1,
+  bumpPushDecay: 0.25,
   bumpKick: 0.6,
   bumpInvulnTime: 0.8,
   bumpAngleLoss: 0.3,
@@ -89,7 +91,11 @@ export function mkRace(
   seed = 7,
 ): RaceState {
   const s = createRace(seed, 1 + rivals, traffic);
-  place.forEach((o, i) => Object.assign(s.cars[i]!, o));
+  place.forEach((o, i) => {
+    Object.assign(s.cars[i]!, o);
+    // R41b: a hand-placed traffic car cruises at its own speed (no decay toward 0).
+    if (s.cars[i]!.kind === 'traffic' && o.speed !== undefined) Object.assign(s.cars[i]!, { cruise: o.speed });
+  });
   return s;
 }
 

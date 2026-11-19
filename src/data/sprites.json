@@ -126,6 +126,14 @@
     "rollTau": 0.25,
     "overscanPx": 80
   },
+  "tailLights": {
+    "enabled": "on",
+    "color": "#ff2020",
+    "size": 0.24,
+    "spread": 0.62,
+    "height": 0.62,
+    "minPx": 2
+  },
   "speedometer": {
     "vmaxKmh": 180,
     "segments": 14,

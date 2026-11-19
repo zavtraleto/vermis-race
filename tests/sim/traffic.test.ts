@@ -26,6 +26,7 @@ describe('R70 traffic cars on rails', () => {
     t.z = 100;
     t.x = -1 + (2.5 * 2) / LANES; // lane 2 centre = -0.375
     t.speed = 0.5;
+    Object.assign(t, { cruise: 0.5 }); // R41b
     // 600 ticks * 0.5 * 0.5 * 60/120... z += speed*DT*60 = 0.5*0.5 = 0.25 per tick -> 150.
     for (let i = 0; i < 600; i++) {
       step(s, [IDLE, IDLE], curved, [BP, BP]);
@@ -43,6 +44,7 @@ describe('R70 traffic cars on rails', () => {
     t.z = 100;
     t.x = 0.25;
     t.speed = 0.5;
+    Object.assign(t, { cruise: 0.5 }); // R41b
     const wild: InputFrame[] = [
       { steer: 1, brake: true, drift: true },
       { steer: -1, brake: false, drift: true },

@@ -34,6 +34,7 @@ export interface Car {
   crashTicks: number; // R48 remaining crash ticks, 0 = driving
   crashSpeed0: number; // R48 speed at the moment of the hit
   crashX0: number; // R48 x at the moment of the hit
+  cruise: number; // R41b traffic speed given by R71 (player and rivals 0)
   skill: number; // R62 bot level: 0 novice, 1 average, 2 expert (player 0)
   pace: number; // R62 personal multiplier of vmax (player 1)
   nameId: number; // R62 index into the rival names (player and traffic -1)
@@ -118,6 +119,8 @@ export interface CarParams {
   trafficHitW: number; // R40 traffic hit width, half-widths
   bumpSpeedLoss: number; // R41 rear hit, vmax
   bumpSideLoss: number; // R41 side contact, vmax
+  bumpPush: number; // R41 rear hit: traffic speed >= v0 + bumpPush, vmax
+  bumpPushDecay: number; // R41b pushed traffic returns to cruise, player vmax per second
   bumpFloor: number; // R41 speed floor, vmax
   bumpKick: number; // R42 lateral speed kick
   bumpInvulnTime: number; // R43 seconds

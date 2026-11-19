@@ -35,6 +35,8 @@ export const BP: CarParams = {
   bumpSpeedLoss: 0.1,
   bumpSideLoss: 0.05,
   bumpFloor: 0.3,
+  bumpPush: 0.1,
+  bumpPushDecay: 0.25,
   bumpKick: 0.6,
   bumpInvulnTime: 0.8,
   bumpAngleLoss: 0.3,
@@ -68,6 +70,8 @@ export function setup(player: Spec, traffic: readonly Spec[], seed = 7): RaceSta
     c.z = t.z - dz(t.speed);
     c.x = t.x;
     c.speed = t.speed;
+    // R41b: a hand-placed traffic car cruises at its own speed (no decay toward 0).
+    Object.assign(c, { cruise: t.speed });
   });
   return s;
 }

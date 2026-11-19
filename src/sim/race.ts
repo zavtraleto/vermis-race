@@ -44,6 +44,7 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       crashTicks: 0,
       crashSpeed0: 0,
       crashX0: 0,
+      cruise: 0,
       skill: 0,
       pace: 1,
       nameId: -1,
@@ -87,6 +88,11 @@ export function step(
 
     // R70: traffic is on rails, only R16 runs (no input, no R10-R22, heading stays).
     if (car.kind === 'traffic') {
+      // R41b: a pushed car returns to its cruise speed before it moves (player vmax, as in R71).
+      if (car.speed > car.cruise) {
+        const v = car.speed - p.bumpPushDecay * (hasPlayer ? params[0]!.vmax : p.vmax) * DT;
+        car.speed = v > car.cruise ? v : car.cruise;
+      }
       car.z += car.speed * DT * SEG_PER_UNIT;
       continue;
     }
@@ -666,6 +672,7 @@ function spawnTraffic(
   car.z = z;
   car.x = -1 + ((lane + 0.5) * 2) / cfg.lanes; // R70: lane centre
   car.speed = sp * playerVmax;
+  car.cruise = car.speed; // R41b
 }
 
 /** R71: cars more than trafficDespawnBehind behind the player reappear ahead, in index order. */
@@ -689,13 +696,17 @@ function bumpTraffic(car: Car, cars: readonly Car[], p: CarParams): void {
     const dz = car.z - t.z;
     const dx = car.x - t.x;
     if (!(dz < p.carLength && dz > -p.carLength && dx < halfW && dx > -halfW)) continue; // R40
-    // R41: rear hit vs side contact; neither raises speed.
+    // R41: rear hit vs side contact; the hitter never gains speed.
+    const v0 = car.speed;
     const floor = p.bumpFloor * p.vmax;
     let target: number;
-    if (car.z < t.z - p.carLength / 2) target = t.speed - p.bumpSpeedLoss * p.vmax;
-    else target = car.speed - p.bumpSideLoss * p.vmax;
+    if (car.z < t.z - p.carLength / 2) {
+      target = v0 - p.bumpSpeedLoss * p.vmax;
+      const push = v0 + p.bumpPush * p.vmax; // R41: the traffic car is pushed forward
+      if (push > t.speed) t.speed = push;
+    } else target = v0 - p.bumpSideLoss * p.vmax;
     if (target < floor) target = floor;
-    if (target < car.speed) car.speed = target;
+    if (target < v0) car.speed = target;
     // R42: lateral kick away from the traffic car; on a tie toward the road centre (right at 0).
     const side = dx > 0 ? 1 : dx < 0 ? -1 : t.x > 0 ? -1 : 1;
     kick(car, side, p);
@@ -837,6 +848,7 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.crashTicks = 0;
     c.crashSpeed0 = 0;
     c.crashX0 = 0;
+    c.cruise = 0; // R41b
     c.band = 0;
     c.joinTicks = Math.round(cfg.joinShowTime / DT);
   }

@@ -26,6 +26,7 @@ import {
 } from './projection';
 import { writeHex } from './roadMesh';
 import { ROLL_GLSL, type RollUniform } from './screenRoll';
+import type { TailLights } from './tailLights';
 import type { BumpFeedbackConfig, TrafficDrawConfig } from './worldSprites';
 
 /** R67 rival cars on screen (sprites.json "rivals"). */
@@ -227,7 +228,8 @@ export class RivalModels {
    * Places every 'rival' car of `curr` (interpolated from `prev`) at z + zOffset, as traffic.
    * dt = frame seconds for the yaw smoothing; model = H14 driving model (0 A, 1 B); crashTicks =
    * crashTime in ticks; driftYawMaxDeg = R24 yaw at full angle (model A); nameDistance =
-   * rivalNameDistance in segments ahead of the player (labels).
+   * rivalNameDistance in segments ahead of the player (labels). R45b: the tail lights of every
+   * drawn rival go to `lights`.
    */
   update(
     proj: Projection,
@@ -240,6 +242,7 @@ export class RivalModels {
     crashTicks: number,
     driftYawMaxDeg: number,
     nameDistance: number,
+    lights: TailLights,
   ): void {
     const cam = this.camera;
     const road = this.road;
@@ -346,6 +349,20 @@ export class RivalModels {
       this.e[o + 1] = tb.hop;
       this.e[o + 2] = this.crash.pivotY;
       this.e[o + 3] = 0;
+      lights.addCar(
+        this.a[o]!,
+        this.a[o + 1]!,
+        zc,
+        k,
+        this.b[o]!,
+        this.b[o + 1]!,
+        this.halfLength,
+        this.b[o + 2]! - 0.05 * step,
+        clip,
+        this.e[o]!,
+        tb.hop,
+        this.crash.pivotY,
+      );
       n++;
       // Name label: rivals ahead within nameDistance, not behind a crest.
       const ahead = zs - zPlayer;

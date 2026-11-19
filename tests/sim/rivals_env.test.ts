@@ -72,9 +72,12 @@ describe('R64 off road (R15) works for a rival like for the player', () => {
 
 describe('R64 rival and traffic: R40-R43 numbers', () => {
   // Geometry after step 1 (see after1). Traffic hit half width (0.2 + 0.6)/2 = 0.4; R65 width would be 0.2.
-  it('rear hit: speed = min(0.8, max(0.6 - 0.1, 0.3)) = 0.5 (R65 rule with 0.1 would give 0.5 too, so use rivalBumpLoss 0.3)', () => {
+  // R41 rewritten 2026-11-19: the hitter loses from its own speed; traffic is pushed forward.
+  // (Old version expected rival speed max(speedT - 0.1, 0.3) = 0.5 and traffic unchanged.)
+  it('rear hit: rival speed = min(0.8, max(0.8 - 0.1, 0.3)) = 0.7; traffic max(0.6, 0.8 + 0.1) = 0.9', () => {
     // dz = zT - z = 11 - 10 = 1 > carLength/2 = 0.75 -> rear. dx = 0.3 < 0.4 (and > 0.2: only R40 width).
-    const rc = { ...RC, rivalBumpLoss: 0.3 }; // R65 would give max(0.6 - 0.3, 0.3) = 0.3
+    // rivalBumpLoss 0.3 is R65 (rival-rival) and must not apply here: R65 would give 0.3 for the rival.
+    const rc = { ...RC, rivalBumpLoss: 0.3 };
     const s = mkRace(1, 1, [
       FAR_PLAYER,
       after1({ z: 10, x: 0, speed: 0.8 }),
@@ -82,11 +85,10 @@ describe('R64 rival and traffic: R40-R43 numbers', () => {
     ]);
     stepAll(s, BP, rc);
     const r = s.cars[1]!;
-    expect(r.speed).toBeCloseTo(0.5, 12);
+    expect(r.speed).toBeCloseTo(0.7, 12);
     expect(r.bumpTicks).toBe(BUMP_TICKS);
     expect(r.vx).toBeCloseTo(-0.6, 12); // R42: side = sign(x - xT) = sign(-0.3) = -1
-    // the traffic car is on rails
-    expect(s.cars[2]!.speed).toBe(0.6);
+    expect(s.cars[2]!.speed).toBeCloseTo(0.9, 12); // R41 push
     expect(s.cars[2]!.bumpTicks).toBe(0);
   });
   it('side contact: speed 0.8 - 0.05 = 0.75, kick toward the side away from the traffic car', () => {

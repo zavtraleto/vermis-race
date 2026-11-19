@@ -78,6 +78,7 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.crashTicks = s.crashTicks;
     d.crashSpeed0 = s.crashSpeed0;
     d.crashX0 = s.crashX0;
+    d.cruise = s.cruise; // R41b
     // R62 character, R66 place.
     d.skill = s.skill;
     d.pace = s.pace;
