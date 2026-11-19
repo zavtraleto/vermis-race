@@ -1,5 +1,6 @@
-import type { CameraConfig, RoadConfig } from '../render/projection';
+import type { CameraConfig } from '../render/projection';
 import type { RibbonMapRenderConfig } from '../render/ribbonMapMesh';
+import type { RoadMeshConfig } from '../render/roadMesh';
 import type { SpritesConfig } from '../render/worldSprites';
 import camera from './camera.json';
 import palette from './palette.json';
@@ -13,6 +14,8 @@ export interface Palette {
   asphalt: string[];
   rumble: string[];
   lane: string;
+  centreLine: string;
+  shoulder: string;
   verge: string[];
   player: string;
   carShadow: string;
@@ -31,7 +34,7 @@ export interface Palette {
 }
 
 export const cameraConfig: CameraConfig = camera;
-export const roadConfig: RoadConfig = road;
+export const roadConfig: RoadMeshConfig = road;
 export const paletteConfig: Palette = palette;
 export const spritesConfig: SpritesConfig = sprites;
 export const ribbonMapConfig: RibbonMapRenderConfig = ribbonMap;

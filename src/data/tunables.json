@@ -123,10 +123,10 @@
       "step": 0.01,
       "label": "autoDriftRelease — руль выхода из авто-дрифта (H3 C)"
     },
-    "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
-    "camera.height": { "min": 650, "max": 1600, "step": 10, "label": "height — высота камеры" },
+    "camera.fovDeg": { "min": 60, "max": 80, "step": 1, "label": "fovDeg — FOV, град" },
+    "camera.height": { "min": 320, "max": 1600, "step": 10, "label": "height — высота камеры" },
     "camera.horizon": {
-      "min": 0.25,
+      "min": 0.465,
       "max": 0.5,
       "step": 0.005,
       "label": "horizon — горизонт / высота"

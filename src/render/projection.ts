@@ -28,6 +28,7 @@ export interface Projection {
   w: Float32Array; // road half-width on screen, px
   scale: Float32Array; // px per world unit
   segment: Int32Array; // wrapped track segment index of this line
+  curve: Float32Array; // curve of that track segment
 }
 
 function focalPx(camera: CameraConfig): number {
@@ -58,6 +59,7 @@ export function createProjection(camera: CameraConfig, road: RoadConfig): Projec
     w: new Float32Array(n),
     scale: new Float32Array(n),
     segment: new Int32Array(n),
+    curve: new Float32Array(n),
   };
 }
 
@@ -89,6 +91,7 @@ export function project(
     const seg = (base + n) % len;
     const scale = f / (d0 + (n - frac) * road.segmentLength);
     out.segment[n] = seg;
+    out.curve[n] = segs[seg]!.curve;
     out.scale[n] = scale;
     out.y[n] = horizonY + scale * camera.height;
     out.w[n] = scale * road.halfWidth;
