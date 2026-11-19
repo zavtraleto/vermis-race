@@ -1,5 +1,5 @@
 // T16 feel check for R15b: after leaving the road on a corner, how long until the car is back on
-// asphalt with full steer toward the centre. Pure, deterministic.
+// asphalt with full steer toward the centre, holding drift. Pure, deterministic.
 import { DT } from '../sim/constants';
 import { createRace, step } from '../sim/race';
 import type { CarParams, InputFrame, Track } from '../sim/types';
@@ -13,7 +13,7 @@ export interface RecoveryScenario {
 
 /**
  * Car on a constant curve, `depth` beyond the OUTER edge (R19: a right curve pushes left),
- * steer already at full lock toward the centre, vx = 0. Returns seconds until |x| <= 1,
+ * steer already at full lock toward the centre, drift input held, vx = 0. Returns seconds until |x| <= 1,
  * or Infinity if it does not return within maxSeconds.
  */
 export function recoverySeconds(sc: RecoveryScenario, p: CarParams): number {
@@ -27,7 +27,9 @@ export function recoverySeconds(sc: RecoveryScenario, p: CarParams): number {
   car.x = -inward * (1 + sc.depth);
   car.speed = sc.speed * p.vmax;
   car.steer = inward;
-  const input: InputFrame = { steer: inward, brake: false, drift: false };
+  // Medium and hard are drift-only (R22b): the driver holds drift with full steer into the corner;
+  // with H11 B (R21b) the drift starts and holds off road.
+  const input: InputFrame = { steer: inward, brake: false, drift: true };
   const maxTicks = Math.ceil(sc.maxSeconds / DT);
   while (race.tick < maxTicks) {
     step(race, [input], track, [p]);

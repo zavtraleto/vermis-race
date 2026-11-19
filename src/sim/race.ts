@@ -56,12 +56,14 @@ export function step(
     car.offTicks = off ? car.offTicks + 1 : 0;
 
     // R20/R21: GRIP <-> DRIFT transitions on the smoothed steer and the speed before R14.
+    // R21b (H11 B, driftOffroad = 1): no off-road condition on entry or exit.
+    const offroadBlocks = p.driftOffroad !== 1;
     if (car.state === 'GRIP') {
       if (
         input.drift &&
         car.speed > p.driftEnterSpeed * p.vmax &&
         (car.steer > p.driftEnterSteer || car.steer < -p.driftEnterSteer) &&
-        !off
+        !(offroadBlocks && off)
       ) {
         car.state = 'DRIFT';
         car.dir = car.steer > 0 ? 1 : -1;
@@ -69,7 +71,7 @@ export function step(
     } else if (
       !input.drift ||
       car.speed < p.driftExitSpeed * p.vmax ||
-      car.offTicks * DT > p.driftOffroadTime
+      (offroadBlocks && car.offTicks * DT > p.driftOffroadTime)
     ) {
       car.state = 'GRIP';
       car.dir = 0;

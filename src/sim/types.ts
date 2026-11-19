@@ -43,7 +43,8 @@ export interface CarParams {
   driftEnterSpeed: number; // R20 enter only above driftEnterSpeed * vmax
   driftEnterSteer: number; // R20 enter only with |steer| above this
   driftExitSpeed: number; // R21 forced exit below driftExitSpeed * vmax
-  driftOffroadTime: number; // R21 forced exit after this many seconds off road in a row
+  driftOffroadTime: number; // R21 forced exit after this many seconds off road in a row (H11 A only)
+  driftOffroad: number; // H11 / R21b: 1 = B (drift works off road), 0 = A (asphalt-only entry, forced exit)
   driftSteerMin: number; // R22 lerp end for full outward steer
   driftSteerMax: number; // R22 lerp end for full inward steer
 }

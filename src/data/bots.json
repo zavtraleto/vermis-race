@@ -1,5 +1,5 @@
 {
-  "_status": "[старт] T16 bot skill levels, starting values; derivation of the hold limit in src/bot/driver.ts (R11/R13). Drift fields: T23 [старт], expert drifts through corners with |curve| >= driftMinCurve (R20-R22). T26 [старт]: average drifts too (medium+hard, driftMinCurve 4) with its centre line and noise; expert driftMinCurve 4.",
+  "_status": "[старт] T16 bot skill levels, starting values; derivation of the hold limit in src/bot/driver.ts (R11/R13). Drift fields: T23 [старт], expert drifts through corners with |curve| >= driftMinCurve (R20-R22). T26 [старт]: average drifts too (medium+hard, driftMinCurve 4) as a mid-skill human: reaction 0.15 s, noise 0.12, drift entry 0.1 s / approach 0.4 s, feed 0.2 s (T26 part 2, chosen before measuring); expert driftMinCurve 4.",
   "novice": {
     "steerLookahead": 0.25,
     "brakeLookahead": 0,
@@ -31,17 +31,17 @@
     "speed": "hold",
     "steerReserve": 0.15,
     "edgeMargin": 0,
-    "noiseAmp": 0.08,
+    "noiseAmp": 0.12,
     "noiseTau": 0.3,
-    "reactionDelay": 0,
+    "reactionDelay": 0.15,
     "drift": "corners",
     "driftMinCurve": 4,
-    "driftLookahead": 0.3,
-    "driftApproach": 0.8,
+    "driftLookahead": 0.1,
+    "driftApproach": 0.4,
     "driftEntryX": 0,
     "driftLineX": 0.2,
     "driftKickSteer": 0.4,
-    "driftFeedLookahead": 0.5,
+    "driftFeedLookahead": 0.2,
     "driftGain": 0.7
   },
   "expert": {
