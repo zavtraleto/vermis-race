@@ -70,7 +70,7 @@
       "label": "driftPullDownPx — палец вниз, px"
     },
     "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
-    "camera.height": { "min": 700, "max": 1600, "step": 10, "label": "height — высота камеры" },
+    "camera.height": { "min": 650, "max": 1600, "step": 10, "label": "height — высота камеры" },
     "camera.horizon": {
       "min": 0.25,
       "max": 0.5,

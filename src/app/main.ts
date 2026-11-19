@@ -111,7 +111,8 @@ const ribbon = new RibbonMapMesh(
   paletteConfig,
   ribbonThresholds(curveClasses),
 );
-ribbon.enabled = ribbonMapConfig.enabled && params.map;
+// Off by default (author's playtest 2026-11-19); ?map=1 or the map-curve screenshot turns it on.
+ribbon.enabled = ribbonMapConfig.enabled && (params.map || mapScenario !== null);
 scene.add(ribbon.mesh);
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;

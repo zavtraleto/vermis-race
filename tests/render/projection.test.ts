@@ -74,8 +74,8 @@ describe('P2 monotonic projection', () => {
     }
   });
   it('last line is within 5 px below the horizon (real config)', () => {
-    // f = 180/tan(40deg) = 214.5; d0 = 214.5*1000/400 = 536.3
-    // n=300: dz = 536.3 + 300*200 = 60536; y-horizonY = 214.5*1000/60536 = 3.54 px
+    // f = 180/tan(40deg) = 214.5; d0 = 214.5*650/358.4 = 389.0
+    // n=300: dz = 389.0 + 300*200 = 60389; y-horizonY = 214.5*650/60389 = 2.31 px
     const p = run(makeStraightTrack(50), 0, 0);
     const last = p.y[p.count - 1]! - horizonYReal;
     expect(last).toBeGreaterThan(0);
@@ -90,11 +90,11 @@ describe('P2 monotonic projection', () => {
 
 describe('P3 frac = 0 exact values', () => {
   it('y_0 = H and w_0 = halfWidth*(H-horizonY)/height (real config)', () => {
-    // w_0 = 400*(640-240)/1000 = 160
+    // w_0 = 600*(640-281.6)/650 = 330.8308 (author's playtest 2026-11-19: road 1.5x, camera lower)
     const p = run(makeStraightTrack(50), 5, 0);
     near(p.y[0]!, CAM.screenHeight, 1e-3);
     near(p.w[0]!, (ROAD.halfWidth * (CAM.screenHeight - horizonYReal)) / CAM.height, 1e-3);
-    near(p.w[0]!, 160, 1e-3);
+    near(p.w[0]!, 330.8308, 1e-3);
   });
   it('inline config hand values', () => {
     // dz_n = 200 + 100n; scale_n = 100/dz_n; y = 50 + scale*100; w = scale*40
