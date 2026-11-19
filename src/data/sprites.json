@@ -1,17 +1,53 @@
 {
-  "capacity": 512,
+  "capacity": 1024,
   "player": {
-    "baseY": 0.9,
+    "baseY": 0.74,
     "width": 0.38,
     "height": 0.08
   },
-  "posts": {
-    "enabled": true,
-    "every": 4,
-    "offset": 1.4,
-    "width": 30,
-    "height": 120,
-    "capHeight": 0.15
+  "roadside": {
+    "lamps": {
+      "every": 4,
+      "offset": 1.4,
+      "drawDistance": 100,
+      "height": 700,
+      "poleWidth": 24,
+      "armLength": 260,
+      "armThickness": 18,
+      "headWidth": 90,
+      "headHeight": 24
+    },
+    "billboards": {
+      "everyMin": 40,
+      "everyMax": 90,
+      "offset": 2.2,
+      "drawDistance": 160,
+      "width": 900,
+      "height": 420,
+      "legHeight": 320,
+      "legWidth": 30,
+      "legInset": 0.2,
+      "frame": 0.06,
+      "stripeY": 0.55,
+      "stripeHeight": 0.14
+    },
+    "buildings": {
+      "everyMin": 6,
+      "everyMax": 14,
+      "offsetMin": 3,
+      "offsetMax": 6,
+      "variants": 4,
+      "drawDistance": 250,
+      "windowMinPx": 24,
+      "windowMargin": 0.14,
+      "windowGap": 0.45,
+      "shapes": [
+        { "width": 1600, "height": 2400, "cols": 3, "rows": 5 },
+        { "width": 2400, "height": 1400, "cols": 5, "rows": 3 },
+        { "width": 1200, "height": 3600, "cols": 2, "rows": 7 },
+        { "width": 2000, "height": 2000, "cols": 4, "rows": 4 }
+      ]
+    }
   },
   "drift": {
     "yawMinDeg": 18,
