@@ -22,5 +22,24 @@
     "width": 30,
     "height": 200,
     "capHeight": 0.15
+  },
+  "drift": {
+    "yawMin": 1.5,
+    "yawMax": 4,
+    "yawTau": 0.05,
+    "cameraOffset": 0.25,
+    "cameraTau": 0.2,
+    "smoke": "on",
+    "smokeCapacity": 48,
+    "smokeRate": 24,
+    "smokeLife": 0.5,
+    "smokeSize": 0.16,
+    "smokeGrow": 1.4,
+    "smokeShrink": 0.7,
+    "smokeBack": 1.6,
+    "smokeRise": 0.6,
+    "smokeSpread": 0.7,
+    "smokeWheelX": 0.36,
+    "smokeJitter": 0.1
   }
 }

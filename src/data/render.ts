@@ -21,6 +21,7 @@ export interface Palette {
   carLamp: string;
   post: string;
   postCap: string;
+  smoke: string;
   mapBacking: string;
   mapStraight: string;
   mapEasy: string;

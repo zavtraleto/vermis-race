@@ -18,6 +18,10 @@ export interface TouchStickConfig {
   steerZoneFrac: number;
   /** H3 A: finger this many CSS px below the touch-down point -> drift. */
   driftPullDownPx: number;
+  /** H3 C: |steer| at or past this starts the touch drift. */
+  autoDriftSteer: number;
+  /** H3 C: the touch drift ends when steer toward the drift side falls below this. */
+  autoDriftRelease: number;
 }
 
 export interface InputConfig {

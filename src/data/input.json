@@ -6,6 +6,8 @@
     "responseExp": 1.4,
     "releaseMs": 100,
     "steerZoneFrac": 0.35,
-    "driftPullDownPx": 40
+    "driftPullDownPx": 40,
+    "autoDriftSteer": 0.85,
+    "autoDriftRelease": 0.1
   }
 }
