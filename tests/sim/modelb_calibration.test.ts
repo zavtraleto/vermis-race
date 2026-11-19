@@ -25,6 +25,7 @@ const free = (p: CarParams): CarParams => ({
   offroadMul: 1,
   offroadSteerMul: 1,
   offroadGrip: p.grip,
+  crashMinSpeed: 1e9, // R47 lamps off: this test is about R89b
 });
 const FB = free(REAL); // model B without walls
 const FA = free(baseCarA); // model A without walls

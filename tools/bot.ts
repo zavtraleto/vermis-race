@@ -25,7 +25,7 @@ function trafficLine(label: string, tr: TrafficEntry): string {
     `(x${tr.lapTime.ratio.toFixed(3)})  bumps/lap ${tr.bumpsPerLap.toFixed(2)}  ` +
     `in drift/lap ${tr.bumpsInDriftPerLap.toFixed(2)}  ` +
     `runs w/o drift bump ${(100 * tr.zeroDriftBumpRuns).toFixed(0)}%  ` +
-    `passed/lap ${tr.passedPerLap.toFixed(1)}  boosts/lap ${tr.boostsPerLap.toFixed(2)}  finished ${tr.finishedFraction * tr.runs}/${tr.runs}`
+    `passed/lap ${tr.passedPerLap.toFixed(1)}  boosts/lap ${tr.boostsPerLap.toFixed(2)}  crashes/lap ${tr.crashesPerLap.toFixed(2)}  finished ${tr.finishedFraction * tr.runs}/${tr.runs}`
   );
 }
 
@@ -51,7 +51,7 @@ export function main(io: Io): number {
       io.log(
         `${t.name.padEnd(12)} ${bot.padEnd(8)} lap ${e.lapTime.mean.toFixed(2)} s ` +
           `(sd ${e.lapTime.stdev.toFixed(2)}, best ${e.lapTime.best.toFixed(2)})  ` +
-          `off ${(100 * e.offroadFraction).toFixed(1)}%  finished ${e.finishedFraction * runs.length}/${runs.length}`,
+          `off ${(100 * e.offroadFraction).toFixed(1)}%  crashes/lap ${e.crashesPerLap.toFixed(2)}  finished ${e.finishedFraction * runs.length}/${runs.length}`,
       );
       // R46: the same seeds again with the traffic pool.
       const tr = summarizeTraffic(

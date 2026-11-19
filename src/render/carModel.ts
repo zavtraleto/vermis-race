@@ -329,7 +329,16 @@ export class CarView {
    * the car turns with the rest of the picture (> 0 = picture counter-clockwise); the rear wheel
    * points stay in unrolled screen space, like every other sprite before the shader roll.
    */
-  update(yawDeg: number, rollDeg: number, dxPx: number, pitchDeg = 0, screenRollDeg = 0): void {
+  update(
+    yawDeg: number,
+    rollDeg: number,
+    dxPx: number,
+    pitchDeg = 0,
+    screenRollDeg = 0,
+    tumbleRollDeg = 0,
+    liftY = 0,
+    pivotY = 0,
+  ): void {
     const cfg = this.cfg;
     const view = this.view;
     const pose = carCameraPose(this.pose, view, this.player, cfg);
@@ -356,13 +365,17 @@ export class CarView {
     // vertical axis at car-space z = yawPivotZ, so the nose swings into the corner, the rear out.
     const b = -yawDeg * DEG;
     const pz = cfg.yawPivotZ;
+    // R49 tumble: an extra body roll about the axis at height pivotY (kept in place by shifting the
+    // anchor; pitch is small and ignored here), the whole car lifted by liftY.
+    const r = -tumbleRollDeg * DEG;
+    const sx = pivotY * Math.sin(r);
     m.position.set(
-      (dxPx * pose.depth) / pose.focalPx - pz * Math.sin(b),
-      0,
-      -cfg.rearAxleZ + pz - pz * Math.cos(b),
+      (dxPx * pose.depth) / pose.focalPx - pz * Math.sin(b) + sx * Math.cos(b),
+      liftY + pivotY * (1 - Math.cos(r)),
+      -cfg.rearAxleZ + pz - pz * Math.cos(b) - sx * Math.sin(b),
     );
     // Order YXZ (set in the constructor): yaw about the world vertical, pitch and roll in the body.
-    m.rotation.set(-pitchDeg * DEG, b, -rollDeg * DEG);
+    m.rotation.set(-pitchDeg * DEG, b, -rollDeg * DEG + r);
     m.updateMatrixWorld();
     const v = this.v;
     v.set(-cfg.wheels.x, 0, cfg.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);

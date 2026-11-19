@@ -8,6 +8,7 @@ import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim
 export const PB: CarParams = {
   ...baseCar,
   model: 1,
+  crashMinSpeed: 1e9, // R47 lamps off: model B tests are about their own rules (R80-R89b)
   vmax: 1,
   accel: 0.22,
   brake: 0.6,

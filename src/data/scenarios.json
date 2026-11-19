@@ -1,6 +1,7 @@
 {
   "straight": { "ticks": 120, "steer": 0 },
   "roadside": { "ticks": 1, "steer": 0, "z": 55 },
+  "crash": { "ticks": 70, "steer": 0, "z": 14, "x": 1.4, "speed": 0.9 },
   "traffic": {
     "ticks": 1,
     "steer": 0,
