@@ -21,11 +21,21 @@
 | Сторона дрифта | `dir` | −1 или 1; 0 в сцеплении |
 | Счётчик вне дороги | `offTicks` | тики подряд с `|x| > 1` (R21) |
 | Авто-дрифт | `autoDrift` | H3 C: дрифт, пока touch-руль отклонён дальше `autoDriftSteer` |
+| Угол дрифта | `angle` | состояние машины, со знаком, `angle*dir ∈ [0, 1]`; догоняет руль (R22) |
+| Удержание drift-ввода | `driftHeld` | drift-ввод прошлого тика; вход в дрифт только по фронту (R20) |
+| Взвод входа в дрифт | `armTicks` | тики с фронта drift-ввода, пока он удержан; вход в дрифт возможен, пока `armTicks*DT ≤ driftArmTime` (R20) |
+| Счётчик малого угла | `lowTicks` | тики подряд с `angle*dir < driftAngleExit` (R21) |
+| Повторное касание | `retouchDrift` | H3 D: отпустил, вернул палец за `retouchWindowMs`, повёл вбок дальше `retouchSwipePx` |
+| Объекты у трассы | `roadside` | фонари (`lamp`), билборды (`billboard`), строения (`building`); R32 |
+| Фигура трассы | `figure` | именованный кусок трассы из словаря R31: `straight`, `kink`, `sweeper`, `hairpin`, `flick`, `esses`, `tightening`, `opening`, `carousel`, `double` |
+| Дрифт на обочине | `driftOffroad` | H11: 1 — дрифт работает вне дороги (R21b), 0 — нет |
 | Трасса | `Track` | лента сегментов |
 | Сегмент | `Segment` | `{ curve, y, width, props }` |
 | Кривизна | `curve` | знак: + вправо |
 | Класс крутизны поворота | `curveClass: 'easy' \| 'medium' \| 'hard'` | значения в `src/data/tracks/curves.json` |
 | Секция трассы | `TrackSection` | `{ enter, hold, leave, curve }` в сегментах |
+| Холм | `hill` | R30: изменение высоты за секцию в длинах сегмента (+ вверх); `y` сегмента — высота в его конце, один easeInOut на всю секцию; сумма `hill` по кольцу = 0 |
+| Отсечение за гребнем | `Projection.clipped` | R30: 1 = линия проекции не выше всех ближних линий, дорога и столбики за ней не рисуются |
 | Объект у дороги | `Prop` | поле `layer` 2 или 3, класс коллизии |
 | Класс коллизии | `collision: 'solid' \| 'destructible' \| 'none'` | |
 | Поток (слипстрим) | `draft` | заряд 0…1 |

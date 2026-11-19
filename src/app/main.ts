@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { baseCar } from '../data/cars';
 import {
   cameraConfig,
+  car3dConfig,
   paletteConfig,
   ribbonMapConfig,
   roadConfig,
@@ -12,16 +13,19 @@ import { inputConfig } from '../data/input';
 import scenarios from '../data/scenarios.json';
 import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
+import { createRetouchDrift } from '../input/retouchDrift';
 import { attachKeyboard } from '../input/keyboardDom';
 import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
 import { resolveTouchScheme } from '../input/scheme';
 import { createTouchStick } from '../input/touchStick';
+import { CarView } from '../render/carModel';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
 import { createProjection, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
 import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
+import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
 import { WorldSprites } from '../render/worldSprites';
 import { DT } from '../sim/constants';
@@ -62,6 +66,8 @@ renderer.setPixelRatio(1);
 renderer.setSize(WIDTH, HEIGHT, false);
 renderer.setClearColor(paletteConfig.sky, 1);
 renderer.info.autoReset = false;
+// Two passes per frame (road, then the 3D car over a cleared depth buffer): clear manually.
+renderer.autoClear = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
@@ -79,20 +85,35 @@ const curveScenario =
     ? scenarios[params.scenario]
     : null;
 const straightScenario = params.scenario === 'straight' ? scenarios.straight : null;
+// R32 roadside: literal straight track, car placed where a lamp pair, a billboard and buildings are in view.
+const roadsideScenario = params.scenario === 'roadside' ? scenarios.roadside : null;
 // drift-right: constant hard curve, drift held from an initial speed (R24 drift look screenshot).
 const driftScenario = params.scenario === 'drift-right' ? scenarios['drift-right'] : null;
 // map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
+// R30 hill-crest / hill-dip: literal straight track with hills, car placed at a fixed z.
+const hillScenario =
+  params.scenario === 'hill-crest' || params.scenario === 'hill-dip'
+    ? scenarios[params.scenario]
+    : null;
 // Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
-const fixedScenario = curveScenario ?? straightScenario ?? mapScenario ?? driftScenario;
+const fixedScenario =
+  curveScenario ??
+  straightScenario ??
+  roadsideScenario ??
+  mapScenario ??
+  driftScenario ??
+  hillScenario;
 const curve = curveScenario ?? driftScenario;
 const track = curve
   ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, curve.curve)
   : stress
     ? constantCurveTrack(STRAIGHT_TRACK_SEGMENTS, stress.curve)
-    : straightScenario
+    : straightScenario || roadsideScenario
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
-      : buildTrack(loadTestTwisty().def);
+      : hillScenario
+        ? buildTrack({ sections: hillScenario.sections })
+        : buildTrack(loadTestTwisty().def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
 let proj = createProjection(view, roadConfig);
 let road = new RoadMesh(view, roadConfig, paletteConfig);
@@ -100,7 +121,12 @@ scene.add(road.mesh);
 const sprites = new SpriteBatch(spritesConfig.capacity, view.screenWidth, view.screenHeight);
 scene.add(sprites.mesh);
 let world = new WorldSprites(spritesConfig, view, paletteConfig);
+// R32: roadside placement is built once per track (deterministic from the seed).
+const roadside = buildRoadside(track.segments.length, spritesConfig.roadside, params.seed);
+const roadsideIndex = indexBySegment(roadside, track.segments.length);
 const driftVisual = new DriftVisual(spritesConfig.drift);
+// R25: the player car is a 3D model in its own scene, drawn after the road pass.
+const carView = new CarView(car3dConfig, spritesConfig.player, view, paletteConfig);
 // drawDistance sizes the projection and road buffers: rebuild them when it is tuned live.
 let builtDrawDistance = view.drawDistance;
 function rebuildForDrawDistance(): void {
@@ -132,7 +158,9 @@ const now = (): number => performance.now();
 const keyboard = createKeyboardInput(inputConfig.keyboard);
 const touchStick = createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
-attachPointer(canvas, touchStick, now);
+// H3 D re-touch drift, live config (dev panel); fed alongside the stick.
+const retouch = createRetouchDrift(inputConfig.touch);
+attachPointer(canvas, touchStick, now, retouch);
 // Constant input for screenshot scenarios so the frame does not depend on the keyboard.
 function fixedInput(steer: number, drift: boolean): PlayerInput {
   const last: InputFrame = { steer, brake: false, drift };
@@ -148,15 +176,23 @@ function fixedInput(steer: number, drift: boolean): PlayerInput {
 const player = fixedScenario
   ? fixedInput(fixedScenario.steer, driftScenario !== null)
   : createPlayerInput(keyboard, touchStick, now, {
-      // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection.
+      // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
+      // D = re-touch and swipe sideways.
       hypotheses,
       autoDrift: createAutoDrift(inputConfig.touch),
+      retouch,
       warn: (m) => console.warn(m),
     });
 
 const race = createRace(params.seed, 1);
 // Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
-if (driftScenario) race.cars[0]!.speed = driftScenario.speed;
+if (driftScenario) {
+  race.cars[0]!.speed = driftScenario.speed;
+  // R20 needs a rising edge with the steer already past driftEnterSteer: start with it applied.
+  race.cars[0]!.steer = driftScenario.steer;
+}
+if (hillScenario) race.cars[0]!.z = hillScenario.z;
+if (roadsideScenario) race.cars[0]!.z = roadsideScenario.z;
 const loop = createLoop(race, {
   track,
   params: [baseCar],
@@ -195,9 +231,15 @@ function renderFrame(): void {
   sprites.begin();
   const carY = spritesConfig.player.baseY * view.screenHeight;
   const carDx = -camX * roadHalfWidthPxAt(carY, view, roadConfig);
-  world.drawPlayer(sprites, c.steer, driftVisual.yaw, carDx);
-  world.drawSmoke(sprites, driftVisual, carDx, view.drawDistance);
-  world.drawPosts(sprites, proj);
+  // R25: GRIP lean from steer; DRIFT adds the smoothed drift yaw (degrees) and rolls outward.
+  const steer = p.steer + (c.steer - p.steer) * a;
+  const yaw = steer * car3dConfig.leanYawDeg + driftVisual.yaw;
+  const roll =
+    steer * car3dConfig.leanRollDeg -
+    (driftVisual.yaw / spritesConfig.drift.yawMaxDeg) * car3dConfig.driftRollDeg;
+  carView.update(yaw, roll, carDx);
+  world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
+  world.drawRoadside(sprites, proj, roadside, roadsideIndex);
   if (stress) world.drawStress(sprites, proj, stress.fill);
   sprites.end();
   ribbon.update(
@@ -207,7 +249,10 @@ function renderFrame(): void {
     p.x + (c.x - p.x) * a,
   );
   renderer.info.reset();
+  renderer.clear();
   renderer.render(scene, camera);
+  renderer.clearDepth();
+  renderer.render(carView.scene, carView.camera);
   lastCalls = renderer.info.render.calls;
   lastTriangles = renderer.info.render.triangles;
   game.frames += 1;
@@ -219,7 +264,14 @@ function frame(time: number): void {
   lastTime = time;
   if (frameSeconds > 0) frameStats.push(frameSeconds * 1000);
   loop.advance(frameSeconds);
-  driftVisual.update(Math.min(frameSeconds, MAX_VISUAL_DT), loop.curr.cars[0]!);
+  // R24: drift yaw from the sim angle, interpolated like the other car fields.
+  const pa = loop.prev.cars[0]!.angle;
+  const ca = loop.curr.cars[0]!.angle;
+  driftVisual.update(
+    Math.min(frameSeconds, MAX_VISUAL_DT),
+    loop.curr.cars[0]!,
+    pa + (ca - pa) * loop.alpha,
+  );
   renderFrame();
   hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
@@ -236,7 +288,7 @@ if (fixedTicks !== null) {
   // Drift visuals follow each tick with the fixed DT, so the frame is deterministic.
   for (let i = 0; i < fixedTicks; i++) {
     loop.stepTicks(1);
-    driftVisual.update(DT, loop.curr.cars[0]!);
+    driftVisual.update(DT, loop.curr.cars[0]!, loop.curr.cars[0]!.angle);
   }
   renderFrame();
   game.done = true;

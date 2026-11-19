@@ -1,113 +1,217 @@
 import { describe, expect, it } from 'vitest';
 import { baseCar } from '../../src/data/cars';
+import road from '../../src/data/road.json';
 import { curveClasses } from '../../src/data/tracks';
 import { createRace, step } from '../../src/sim/race';
-import type { Car, CarParams, InputFrame } from '../../src/sim/types';
+import type { Car, InputFrame } from '../../src/sim/types';
 import { constTrack } from './driving_helpers';
 
 /**
- * R22b: the real base car must make a drift HOLDABLE at vmax.
- * At sp = 1 the equilibrium steer s* solves
- *   lerp(min, max, (s+1)/2) * driftRate = curve * centrifugal * centMulDrift * kCurve.
- * Real numbers (base.json after stage 2: driftRate 0.7): hard 4.5 -> rhs = 0.70875 -> lerp = 1.0125
- * -> (s+1)/2 = 0.5083 -> s* = 0.0167; medium 2.5 -> rhs = 0.39375 -> lerp = 0.5625 -> s* = -0.583.
+ * R22b: the real base car (src/data) must make a drift HOLDABLE at the angle the brief names.
+ * Holding condition at steady speed (lateral target = centrifugal push, curve c, sp = speed/vmax):
+ *   angle * driftRate * sp = c * sp^2 * centrifugal * centMulDrift * kCurve
+ *   => angle = C * sp,   C = c * centrifugal * centMulDrift * kCurve / driftRate.
+ * Steady speed is the cap R22: sp = 1 - driftSpeedLoss * angle (vmax-relative), so
+ *   angle = C * (1 - L*angle)  =>  angle* = C / (1 + C*L),  L = driftSpeedLoss.
+ * The test derives angle* from the params of base.json, then checks the brief's windows:
+ *   hard in [0.75, 0.85], medium in [0.45, 0.55], easy <= 0.25.
  */
-type DP = CarParams & {
-  driftEnterSpeed: number;
-  driftExitSpeed: number;
-  driftSteerMin: number;
-  driftSteerMax: number;
-};
-const P = baseCar as unknown as DP;
+const P = baseCar;
+const L = P.driftSpeedLoss;
 
-/** Equilibrium steer in the dir-relative frame (positive = into the corner). */
-function sStar(curve: number): number {
-  const rhs = curve * P.centrifugal * P.centMulDrift * P.kCurve;
-  const lerpVal = rhs / P.driftRate;
-  return 2 * ((lerpVal - P.driftSteerMin) / (P.driftSteerMax - P.driftSteerMin)) - 1;
+function holdAngle(curve: number): number {
+  const C = (curve * P.centrifugal * P.centMulDrift * P.kCurve) / P.driftRate;
+  return C / (1 + C * L);
 }
+const spAt = (a: number): number => 1 - L * a;
 
-describe('R22b drift calibration, equilibrium steer at sp = 1', () => {
-  it('R22b hard: s* within [-0.35, 0.35]', () => {
-    const s = sStar(curveClasses.hard);
-    expect(Number.isFinite(s)).toBe(true);
-    expect(s).toBeGreaterThanOrEqual(-0.35);
-    expect(s).toBeLessThanOrEqual(0.35);
+describe('R22c road and units', () => {
+  it('R22c xLimit is 1.5 half-widths', () => {
+    expect(P.xLimit).toBe(1.5);
   });
-  it('R22b medium: s* within [-0.95, -0.3]', () => {
-    const s = sStar(curveClasses.medium);
-    expect(Number.isFinite(s)).toBe(true);
-    expect(s).toBeGreaterThanOrEqual(-0.95);
-    expect(s).toBeLessThanOrEqual(-0.3);
+  it('R22c road: halfWidth 1000 and 8 lanes', () => {
+    expect(road.halfWidth).toBe(1000);
+    expect(road.lanes).toBe(8);
   });
-  it('R22b easy: needs more counter-steer than medium (drift pulls inward)', () => {
-    // brief: "in easy the drift pulls inward". Weakest checkable form: s*(easy) < s*(medium).
-    expect(Number.isFinite(sStar(curveClasses.easy))).toBe(true);
-    expect(sStar(curveClasses.easy)).toBeLessThan(sStar(curveClasses.medium));
+  it('R22c steerRate and centrifugal are the old values halved (2.0 -> 1.0, 0.3 -> 0.15)', () => {
+    expect(P.steerRate).toBeCloseTo(1.0, 12);
+    expect(P.centrifugal).toBeCloseTo(0.15, 12);
+  });
+  it('R22c the old drift params are gone, the new ones are positive numbers', () => {
+    const rec = P as unknown as Record<string, unknown>;
+    for (const k of ['driftSteerMin', 'driftSteerMax', 'driftDrag']) expect(rec[k]).toBeUndefined();
+    for (const k of [
+      'driftAngleStart',
+      'driftAngleExit',
+      'driftStraightTime',
+      'driftAngleResponse',
+      'driftSpeedLoss',
+      'driftBrake',
+    ]) {
+      expect(typeof rec[k], k).toBe('number');
+      expect(rec[k] as number, k).toBeGreaterThan(0);
+    }
+    expect(P.driftAngleExit).toBeLessThan(P.driftAngleStart);
   });
 });
 
-describe('R22b run on a constant hard curve at vmax', () => {
-  const K = 1.0; // gain on x; loop x'' + 3x' + 1.575 K x = 0 is overdamped for K = 1
-  const SEGMENTS = 330; // 5.5 s at vmax
+describe('R22b holding angle windows (analytic, from base.json)', () => {
+  it('R22b hard: angle in [0.75, 0.85]', () => {
+    const a = holdAngle(curveClasses.hard);
+    expect(a).toBeGreaterThanOrEqual(0.75);
+    expect(a).toBeLessThanOrEqual(0.85);
+  });
+  it('R22b medium: angle in [0.45, 0.55]', () => {
+    const a = holdAngle(curveClasses.medium);
+    expect(a).toBeGreaterThanOrEqual(0.45);
+    expect(a).toBeLessThanOrEqual(0.55);
+  });
+  it('R22b easy: angle <= 0.25', () => {
+    expect(holdAngle(curveClasses.easy)).toBeLessThanOrEqual(0.25);
+  });
+  it('R22b holding angle is monotonic in curve: easy < medium < hard, and below 1', () => {
+    expect(holdAngle(curveClasses.easy)).toBeLessThan(holdAngle(curveClasses.medium));
+    expect(holdAngle(curveClasses.medium)).toBeLessThan(holdAngle(curveClasses.hard));
+    expect(holdAngle(curveClasses.hard)).toBeLessThan(1);
+  });
+  it('R22b the steady speed at the hard holding angle is >= 0.85 vmax', () => {
+    expect(spAt(holdAngle(curveClasses.hard))).toBeGreaterThanOrEqual(0.85);
+  });
+});
+
+/** A drift already at the holding angle, steady speed, vx at target, steer = angle (dir frame). */
+function holdingCar(cls: 'easy' | 'medium' | 'hard', side: 1 | -1, dAngle = 0) {
+  const race = createRace(1, 1);
+  const car: Car = race.cars[0]!;
+  const a = holdAngle(curveClasses[cls]);
+  const ang = a + dAngle;
+  const sp = spAt(ang);
+  car.state = 'DRIFT';
+  car.dir = side;
+  car.angle = side * ang;
+  car.steer = side * ang;
+  car.driftHeld = true;
+  car.speed = sp * P.vmax;
+  car.x = 0;
+  car.vx = side * ang * P.driftRate * sp;
+  const track = constTrack(side * curveClasses[cls], 3000);
+  const input: InputFrame = { steer: side * ang, brake: false, drift: true };
+  return { race, car, track, input };
+}
+
+describe('R22b simulation: holding the angle holds the corner', () => {
+  for (const cls of ['medium', 'hard'] as const)
+    for (const side of [1, -1] as const) {
+      const tag = `${cls} ${side > 0 ? 'right' : 'left'}`;
+      it(`R22b ${tag}: at the holding angle |x| stays bounded for 10 s, still DRIFT`, () => {
+        const { race, car, track, input } = holdingCar(cls, side);
+        let maxAbsX = 0;
+        for (let i = 0; i < 1200; i++) {
+          step(race, [input], track, [P]);
+          maxAbsX = Math.max(maxAbsX, Math.abs(car.x));
+          expect(car.state).toBe('DRIFT');
+        }
+        expect(maxAbsX).toBeLessThanOrEqual(0.1);
+      });
+    }
 
   for (const side of [1, -1] as const) {
     const tag = side > 0 ? 'right' : 'left';
-    it(`R22b ${tag}: held drift stays on asphalt, in DRIFT, at >= 0.95 vmax for 330 segments`, () => {
-      const hard = side * curveClasses.hard;
-      const base = sStar(curveClasses.hard);
-      expect(Number.isFinite(base)).toBe(true);
-      const race = createRace(1, 1);
-      const car: Car = race.cars[0]!;
-      const startVx =
-        side *
-        (P.driftSteerMin + (P.driftSteerMax - P.driftSteerMin) * ((base + 1) / 2)) *
-        P.driftRate;
-      car.speed = P.vmax;
-      car.x = 0;
-      car.steer = side * base;
-      car.vx = startVx;
-      car.state = 'DRIFT';
-      car.dir = side;
-      const track = constTrack(hard, 2000);
-      let maxAbsX = 0;
-      let minSpeed = Infinity;
-      let allDrift = true;
-      let ticks = 0;
-      while (car.z < SEGMENTS && ticks < 5000) {
-        // xi > 0 means inside the corner (dir frame): steer less then, more when outside.
-        const xi = side * car.x;
-        const steerDir = Math.max(-1, Math.min(1, base - K * xi));
-        const input: InputFrame = { steer: side * steerDir, brake: false, drift: true };
+    it(`R22b hard ${tag}: speed stays >= 0.85 vmax through a long corner at the holding angle`, () => {
+      const { race, car, track, input } = holdingCar('hard', side);
+      let minSp = Infinity;
+      for (let i = 0; i < 1200; i++) {
         step(race, [input], track, [P]);
-        ticks++;
-        const ax = Math.abs(car.x);
-        if (!(ax <= maxAbsX)) maxAbsX = ax; // NaN also lands here and fails the bound below
-        if (!(car.speed >= minSpeed)) minSpeed = car.speed;
-        if (car.state !== 'DRIFT') allDrift = false;
+        minSp = Math.min(minSp, car.speed);
       }
-      expect(car.z).toBeGreaterThanOrEqual(SEGMENTS);
-      expect(maxAbsX).toBeLessThanOrEqual(1);
-      expect(allDrift).toBe(true);
-      expect(minSpeed).toBeGreaterThanOrEqual(0.95 * P.vmax);
+      expect(minSp).toBeGreaterThanOrEqual(0.85 * P.vmax);
     });
-
-    it(`R22b ${tag}: GRIP at vmax with full steer leaves the asphalt (why drift is needed)`, () => {
-      const hard = side * curveClasses.hard;
-      const race = createRace(1, 1);
-      const car = race.cars[0]!;
-      car.speed = P.vmax;
-      car.steer = side;
-      car.vx = side * baseCar.steerRate * 0.75; // steady grip lateral speed at sp = 1, full steer
-      const track = constTrack(hard, 2000);
-      const input: InputFrame = { steer: side, brake: false, drift: false };
-      let left = false;
-      for (let i = 0; i < 700 && car.z < 330; i++) {
-        step(race, [input], track, [baseCar]);
-        if (Math.abs(car.x) > 1) left = true;
+    it(`R22b hard ${tag}: too much angle goes to the inside, too little falls to the outside`, () => {
+      const more = holdingCar('hard', side, 0.1);
+      const less = holdingCar('hard', side, -0.1);
+      for (let i = 0; i < 240; i++) {
+        step(more.race, [more.input], more.track, [P]);
+        step(less.race, [less.input], less.track, [P]);
       }
-      expect(left).toBe(true);
-      expect(car.state).toBe('GRIP');
+      // right corner (+): inside is +x; the push to the outside is -x. side * x > 0 = inside.
+      expect(side * more.car.x).toBeGreaterThan(0);
+      expect(side * less.car.x).toBeLessThan(0);
+    });
+    it(`R22b medium ${tag}: too much angle costs speed (steady speed below the holding one)`, () => {
+      const hold = holdingCar('medium', side);
+      const more = holdingCar('medium', side, 0.15);
+      for (let i = 0; i < 600; i++) {
+        step(hold.race, [hold.input], hold.track, [P]);
+        step(more.race, [more.input], more.track, [P]);
+      }
+      expect(more.car.speed).toBeLessThan(hold.car.speed);
     });
   }
+});
+
+describe('R22b on a straight a drift ends by R21', () => {
+  for (const side of [1, -1] as const)
+    it(`R22b ${side > 0 ? 'right' : 'left'}: entry, then steer back to 0: GRIP within driftStraightTime + 1 s`, () => {
+      const race = createRace(1, 1);
+      const car = race.cars[0]!;
+      car.speed = 0.8 * P.vmax;
+      car.steer = side * 0.5;
+      const track = constTrack(0, 3000);
+      step(race, [{ steer: side * 0.5, brake: false, drift: true }], track, [P]);
+      expect(car.state).toBe('DRIFT');
+      const limit = Math.ceil((P.driftStraightTime + 1) * 120);
+      let exitedAt = -1;
+      for (let i = 0; i < limit; i++) {
+        step(race, [{ steer: 0, brake: false, drift: true }], track, [P]);
+        if (car.state === 'GRIP') {
+          exitedAt = i;
+          break;
+        }
+      }
+      expect(exitedAt).toBeGreaterThanOrEqual(0);
+      expect(car.dir).toBe(0);
+      expect(car.angle).toBe(0);
+      // it cannot end sooner than the straight time itself
+      expect(exitedAt).toBeGreaterThanOrEqual(Math.floor(P.driftStraightTime * 120) - 2);
+    });
+});
+
+describe('R22b GRIP vs drift: who needs the drift (real data)', () => {
+  it('R22b easy in GRIP at vmax needs 55-65% steer: c * centrifugal * kCurve / (steerRate * 0.75)', () => {
+    // steady vx = s*steerRate*0.75 (sp = 1), push = c*centrifugal*kCurve.
+    const need = (curveClasses.easy * P.centrifugal * P.kCurve) / (P.steerRate * 0.75);
+    expect(need).toBeGreaterThanOrEqual(0.55);
+    expect(need).toBeLessThanOrEqual(0.65);
+  });
+  it('R22b easy holds the line in GRIP with 60% steer at vmax (|x| bounded 3 s)', () => {
+    const race = createRace(1, 1);
+    const car = race.cars[0]!;
+    car.speed = P.vmax;
+    car.steer = 0.6;
+    car.vx = 0.6 * P.steerRate * 0.75;
+    const track = constTrack(curveClasses.easy, 3000);
+    const noAccel = { ...P, accel: 0 };
+    for (let i = 0; i < 360; i++) {
+      step(race, [{ steer: 0.6, brake: false, drift: false }], track, [noAccel]);
+      expect(Math.abs(car.x)).toBeLessThan(0.1);
+    }
+  });
+  for (const cls of ['medium', 'hard'] as const)
+    for (const side of [1, -1] as const)
+      it(`R22b ${cls} ${side > 0 ? 'right' : 'left'}: full steer in GRIP at vmax leaves the asphalt`, () => {
+        const race = createRace(1, 1);
+        const car = race.cars[0]!;
+        car.speed = P.vmax;
+        car.steer = side;
+        car.vx = side * P.steerRate * 0.75;
+        const track = constTrack(side * curveClasses[cls], 3000);
+        const noAccel = { ...P, accel: 0 };
+        let left = false;
+        for (let i = 0; i < 700 && car.z < 330; i++) {
+          step(race, [{ steer: side, brake: false, drift: false }], track, [noAccel]);
+          if (side * car.x < -1) left = true; // outward, not inward overshoot
+        }
+        expect(left).toBe(true);
+        expect(car.state).toBe('GRIP');
+      });
 });

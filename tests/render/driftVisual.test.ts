@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { SmokePool, approach, driftYawTarget } from '../../src/render/driftVisual';
+import { DriftVisual, SmokePool, approach } from '../../src/render/driftVisual';
+import type { DriftVisualConfig } from '../../src/render/driftVisual';
+import { createRace } from '../../src/sim/race';
+import type { Car } from '../../src/sim/types';
 
 describe('approach (exponential)', () => {
   it('matches the closed form', () => {
@@ -42,39 +45,75 @@ describe('approach (exponential)', () => {
   });
 });
 
-describe('driftYawTarget', () => {
-  const cfg = { yawMin: 0.2, yawMax: 0.6 };
+describe('R24 DriftVisual yaw from the sim angle', () => {
+  const cfg: DriftVisualConfig = {
+    yawMaxDeg: 20,
+    yawTau: 0.1,
+    cameraOffset: 0.1,
+    cameraTau: 0.1,
+    smoke: 'off',
+    smokeCapacity: 8,
+    smokeRate: 10,
+    smokeLife: 1,
+    smokeSize: 1,
+    smokeGrow: 1,
+    smokeShrink: 0.5,
+    smokeBack: 0,
+    smokeRise: 0,
+    smokeSpread: 0,
+    smokeWheelX: 0.3,
+    smokeJitter: 0,
+  };
+  const mk = (state: 'GRIP' | 'DRIFT', dir: 0 | 1 | -1): Car => {
+    const c = createRace(1, 1).cars[0]!;
+    c.state = state;
+    c.dir = dir;
+    return c;
+  };
 
-  it('is 0 in GRIP regardless of dir and steer', () => {
-    for (const dir of [-1, 1])
-      for (const s of [-1, 0, 1]) expect(driftYawTarget('GRIP', dir, s, cfg)).toBe(0);
+  it('target is angle*yawMaxDeg: one step of dt = tau moves (1-e^-1) of the way', () => {
+    // angle 0.5 -> target 10 deg; dt 0.1, tau 0.1: 10*(1-e^-1) = 6.3212056
+    const v = new DriftVisual(cfg);
+    v.update(0.1, mk('DRIFT', 1), 0.5);
+    expect(v.yaw).toBeCloseTo(10 * (1 - Math.exp(-1)), 9);
   });
 
-  it('DRIFT right: steer into = yawMax, neutral = mid, counter = yawMin', () => {
-    // t=(steer*dir+1)/2: steer 1 -> t=1 -> 0.6; 0 -> t=.5 -> 0.4; -1 -> t=0 -> 0.2
-    expect(driftYawTarget('DRIFT', 1, 1, cfg)).toBeCloseTo(0.6, 9);
-    expect(driftYawTarget('DRIFT', 1, 0, cfg)).toBeCloseTo(0.4, 9);
-    expect(driftYawTarget('DRIFT', 1, -1, cfg)).toBeCloseTo(0.2, 9);
+  it('converges to angle*yawMaxDeg', () => {
+    const v = new DriftVisual(cfg);
+    for (let i = 0; i < 200; i++) v.update(0.1, mk('DRIFT', 1), 0.5);
+    expect(v.yaw).toBeCloseTo(10, 6);
   });
 
-  it('DRIFT left mirrors right: sign follows dir', () => {
-    // dir=-1: steer -1 is into the drift -> -0.6; steer +1 is counter -> -0.2
-    expect(driftYawTarget('DRIFT', -1, -1, cfg)).toBeCloseTo(-0.6, 9);
-    expect(driftYawTarget('DRIFT', -1, 0, cfg)).toBeCloseTo(-0.4, 9);
-    expect(driftYawTarget('DRIFT', -1, 1, cfg)).toBeCloseTo(-0.2, 9);
+  it('zero in GRIP even with a non-zero angle, and decays back to 0 after a drift', () => {
+    const g = new DriftVisual(cfg);
+    for (let i = 0; i < 20; i++) g.update(0.1, mk('GRIP', 1), 0.7);
+    expect(g.yaw).toBe(0);
+    const v = new DriftVisual(cfg);
+    for (let i = 0; i < 100; i++) v.update(0.1, mk('DRIFT', 1), 0.5);
+    for (let i = 0; i < 200; i++) v.update(0.1, mk('GRIP', 0), 0);
+    expect(v.yaw).toBeCloseTo(0, 6);
   });
 
-  it('left/right symmetry, monotone in steer-into, bounded by [yawMin, yawMax]', () => {
+  it('sign follows the angle: mirrored angle gives mirrored yaw', () => {
+    const r = new DriftVisual(cfg);
+    const l = new DriftVisual(cfg);
+    for (let i = 0; i < 7; i++) {
+      r.update(0.05, mk('DRIFT', 1), 0.6);
+      l.update(0.05, mk('DRIFT', -1), -0.6);
+      expect(l.yaw).toBeCloseTo(-r.yaw, 9);
+    }
+    expect(r.yaw).toBeGreaterThan(0);
+    expect(l.yaw).toBeLessThan(0);
+  });
+
+  it('monotone in |angle| and bounded by yawMaxDeg for angle in [0, 1]', () => {
     let prev = -Infinity;
-    for (let k = 0; k <= 8; k++) {
-      const s = -1 + k * 0.25;
-      const r = driftYawTarget('DRIFT', 1, s, cfg);
-      const l = driftYawTarget('DRIFT', -1, -s, cfg);
-      expect(l).toBeCloseTo(-r, 9);
-      expect(r).toBeGreaterThanOrEqual(cfg.yawMin - 1e-12);
-      expect(r).toBeLessThanOrEqual(cfg.yawMax + 1e-12);
-      expect(r).toBeGreaterThanOrEqual(prev);
-      prev = r;
+    for (let k = 0; k <= 10; k++) {
+      const v = new DriftVisual(cfg);
+      for (let i = 0; i < 200; i++) v.update(0.1, mk('DRIFT', 1), k / 10);
+      expect(v.yaw).toBeGreaterThanOrEqual(prev - 1e-12);
+      expect(v.yaw).toBeLessThanOrEqual(cfg.yawMaxDeg + 1e-9);
+      prev = v.yaw;
     }
   });
 });

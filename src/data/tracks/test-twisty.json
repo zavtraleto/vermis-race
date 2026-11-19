@@ -1,23 +1,21 @@
 {
   "name": "test-twisty",
-  "sections": [
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": 1 },
-    { "enter": 30, "hold": 120, "leave": 30, "curveClass": "medium", "side": 1 },
-    { "enter": 30, "hold": 330, "leave": 30, "curveClass": "hard", "side": -1 },
-    { "enter": 30, "hold": 60, "leave": 30, "curveClass": "easy", "side": 1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "medium", "side": -1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "hard", "side": -1 },
-    { "enter": 25, "hold": 60, "leave": 25, "curveClass": "medium", "side": -1 },
-    { "enter": 25, "hold": 60, "leave": 25, "curveClass": "medium", "side": 1 },
-    { "enter": 30, "hold": 120, "leave": 30, "curveClass": "easy", "side": 1 },
-    { "enter": 40, "hold": 420, "leave": 40, "curveClass": "medium", "side": -1 },
-    { "enter": 30, "hold": 120, "leave": 30, "curveClass": "hard", "side": 1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": -1 },
-    { "enter": 30, "hold": 120, "leave": 30, "curveClass": "medium", "side": -1 },
-    { "enter": 30, "hold": 330, "leave": 30, "curveClass": "hard", "side": -1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "easy", "side": 1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "medium", "side": -1 },
-    { "enter": 30, "hold": 90, "leave": 30, "curveClass": "hard", "side": 1 },
-    { "enter": 30, "hold": 60, "leave": 30, "curveClass": "easy", "side": -1 }
+  "figures": [
+    { "figure": "straight", "side": 1 },
+    { "figure": "hairpin", "side": 1, "hill": 40 },
+    { "figure": "flick", "side": -1, "hill": -30 },
+    { "figure": "kink", "side": 1, "hill": 20 },
+    { "figure": "carousel", "side": -1, "hill": -60 },
+    { "figure": "esses", "side": 1, "hill": 50 },
+    { "figure": "tightening", "side": 1, "hill": -40 },
+    { "figure": "kink", "side": -1 },
+    { "figure": "double", "side": -1, "hill": 60 },
+    { "figure": "flick", "side": 1, "hill": -30 },
+    { "figure": "opening", "side": 1, "hill": 30 },
+    { "figure": "sweeper", "side": -1, "hill": -50 },
+    { "figure": "hairpin", "side": -1, "hill": 40 },
+    { "figure": "flick", "side": 1, "hill": -20 },
+    { "figure": "tightening", "side": -1, "hill": 30 },
+    { "figure": "sweeper", "side": 1, "hill": -40 }
   ]
 }

@@ -8,6 +8,8 @@
     "steerZoneFrac": 0.35,
     "driftPullDownPx": 40,
     "autoDriftSteer": 0.85,
-    "autoDriftRelease": 0.1
+    "autoDriftRelease": 0.1,
+    "retouchWindowMs": 450,
+    "retouchSwipePx": 14
   }
 }

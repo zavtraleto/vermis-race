@@ -10,6 +10,12 @@ export type AimMode = 'centre' | 'inside';
 export type SpeedMode = 'never' | 'hold' | 'late';
 /** never: no drift input; corners: drift through corners with |curve| >= driftMinCurve (R20-R22). */
 export type DriftMode = 'never' | 'corners';
+/**
+ * Line held in DRIFT. fixed: driftLineX toward the inside. width: use the road width (R22b skill):
+ * aim to reach driftExitX on the outside exactly where the drift ends, so the angle carried is the
+ * smallest that still keeps the car on the asphalt.
+ */
+export type DriftLine = 'fixed' | 'width';
 
 export interface BotParams {
   steerLookahead: number; // s of road ahead used for steering, also the x-correction time constant
@@ -32,6 +38,10 @@ export interface BotParams {
   driftKickSteer: number; // |steer| used in GRIP to pass driftEnterSteer (R20)
   driftFeedLookahead: number; // s of road ahead averaged for the drift equilibrium feed-forward
   driftGain: number; // 1/s, lateral speed per unit x error toward the target line in DRIFT
+  driftLine: DriftLine;
+  driftExitX: number; // width line: x toward the outside to reach at the end of the drift, half-widths
+  driftAngleFloor: number; // width line: lowest |angle| held (kept above driftAngleExit, R21)
+  driftPlanMin: number; // width line: s, lower bound of the time left used to aim at the exit
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -81,6 +91,23 @@ function wrap(i: number, n: number): number {
   return m < 0 ? m + n : m;
 }
 
+/**
+ * True when segment i belongs to a drift corner: the run of same-sign curve around it (ramps
+ * included) reaches |curve| >= cSkip somewhere. Such segments are taken in DRIFT, not braked for.
+ */
+function inDriftCorner(segs: Track['segments'], n: number, i: number, cSkip: number): boolean {
+  const sign = segs[wrap(i, n)]!.curve;
+  if (sign === 0) return false;
+  for (let d = -1; d <= 1; d += 2) {
+    for (let j = 0; j < n; j++) {
+      const c = segs[wrap(i + d * j, n)]!.curve;
+      if (c * sign <= 0) break;
+      if (c >= cSkip || c <= -cSkip) return true;
+    }
+  }
+  return false;
+}
+
 /** Writes this tick's input for `car` into `out`. Reads car + track ahead only. */
 export function botInput(
   bot: BotState,
@@ -115,6 +142,9 @@ export function botInput(
   let driftAt = 0;
   let dDrift = Math.round(segPerSec * bp.driftLookahead);
   if (dDrift < 1) dDrift = 1;
+  const inDrift = car.state === 'DRIFT';
+  // In DRIFT: does the road bend the other way before that corner (no same-side carry-over)?
+  let opposite = false;
   if (bp.drift === 'corners') {
     let dScan = Math.round(segPerSec * bp.driftApproach);
     if (dScan < dDrift) dScan = dDrift;
@@ -125,28 +155,55 @@ export function botInput(
         driftAt = i;
         break;
       }
+      if (c * car.dir < 0) opposite = true;
     }
   }
-  const inDrift = car.state === 'DRIFT';
-  // Drift is held while the corner is within driftLookahead; dir is fixed until exit (R20),
-  // so a drift corner the other way releases first.
-  const wantDrift = driftSign !== 0 && driftAt < dDrift && (!inDrift || driftSign === car.dir);
+  // Drift is held while the corner is within driftLookahead, or, already in DRIFT, carried into
+  // the next same-side corner within driftApproach if the road does not bend the other way first.
+  // dir is fixed until exit (R20), so a drift corner the other way releases first.
+  const sameSide = inDrift && driftSign === car.dir;
+  const wantDrift =
+    driftSign !== 0 &&
+    (driftAt < dDrift || (sameSide && !opposite)) &&
+    (!inDrift || driftSign === car.dir);
 
   let steer: number;
   if (inDrift && wantDrift && sp > 0) {
-    xTarget = bp.driftLineX * car.dir;
-    // R22: steer around the equilibrium (target = push) for the curve just ahead, plus a
-    // proportional pull toward the target line. target = dir*lerp(min, max, (steer*dir+1)/2)*driftRate*sp.
+    // R22: hold the angle whose lateral target equals the push of the curve just ahead, plus a
+    // pull toward the line. Lateral target = angle*driftRate*sp, and the angle settles at
+    // clamp(steer*dir, 0, 1)*dir, so the steer that holds angle a is dir*a.
     let dFeed = Math.round(segPerSec * bp.driftFeedLookahead);
     if (dFeed < 1) dFeed = 1;
     let feed = 0;
     for (let i = 0; i < dFeed; i++) feed += segs[wrap(seg0 + i, n)]!.curve;
     feed /= dFeed;
     const push = feed * sp * sp * p.centrifugal * p.centMulDrift * p.kCurve;
-    const vxReq = push + bp.driftGain * (xTarget - car.x);
-    const lerp = (vxReq * car.dir) / (p.driftRate * sp);
-    const t = (lerp - p.driftSteerMin) / (p.driftSteerMax - p.driftSteerMin);
-    steer = car.dir * (2 * t - 1);
+    let vxReq: number;
+    let floor = 0;
+    if (bp.drift === 'corners' && bp.driftLine === 'width') {
+      // Where does this drift end? The last same-side drift-corner segment ahead that the drift
+      // is carried to (no opposite bend, no gap longer than the approach scan).
+      let dGap = Math.round(segPerSec * bp.driftApproach);
+      if (dGap < dDrift) dGap = dDrift;
+      let last = 0;
+      for (let i = 0; i < n; i++) {
+        const c = segs[wrap(seg0 + i, n)]!.curve;
+        if (c * car.dir < 0 || i - last > dGap) break;
+        if (c * car.dir >= bp.driftMinCurve) last = i;
+      }
+      let tLeft = last / segPerSec;
+      if (tLeft < bp.driftPlanMin) tLeft = bp.driftPlanMin;
+      // Drift out from wherever the car is to the outside edge line by the end of the drift.
+      vxReq = push + (-bp.driftExitX * car.dir - car.x) / tLeft;
+      floor = bp.driftAngleFloor;
+    } else {
+      xTarget = bp.driftLineX * car.dir;
+      vxReq = push + bp.driftGain * (xTarget - car.x);
+    }
+    let angle = (vxReq * car.dir) / (p.driftRate * sp);
+    if (angle < floor) angle = floor;
+    if (angle > 1) angle = 1;
+    steer = car.dir * angle;
   } else {
     let cFeed = cMean;
     if (driftSign !== 0 && !inDrift) {
@@ -178,7 +235,12 @@ export function botInput(
   let delay = Math.round(bp.reactionDelay / DT);
   if (delay > qn - 1) delay = qn - 1;
   out.steer = q[wrap(bot.head - delay, qn)]!;
-  out.drift = wantDrift;
+  // R20 needs a rising edge with the applied steer already past driftEnterSteer: in GRIP press only
+  // then, and release for a tick after a press that did not start a drift, so the next one is an
+  // edge again. In DRIFT hold it while the corner wants it; release (R21) when it ends.
+  out.drift = inDrift
+    ? wantDrift
+    : wantDrift && !car.driftHeld && car.steer * driftSign > p.driftEnterSteer;
 
   // Speed. Drift corners are taken without braking: their segments are ignored here.
   out.brake = false;
@@ -192,7 +254,7 @@ export function botInput(
     for (let i = 0; i < dBrake; i++) {
       const c = segs[wrap(seg0 + i, n)]!.curve;
       const ac = c < 0 ? -c : c;
-      if (ac > cMax && ac < cSkip) cMax = ac;
+      if (ac > cMax && ac < cSkip && !inDriftCorner(segs, n, seg0 + i, cSkip)) cMax = ac;
     }
     out.brake = sp > holdSpeedLimit(cMax, sHold, 0, p);
     return;
@@ -205,7 +267,7 @@ export function botInput(
   for (let i = 0; i < dBrake; i++) {
     const c = segs[wrap(seg0 + i, n)]!.curve;
     const ac = c < 0 ? -c : c;
-    if (ac > cMax && ac < cSkip) {
+    if (ac > cMax && ac < cSkip && !inDriftCorner(segs, n, seg0 + i, cSkip)) {
       cMax = ac;
       iMax = i;
     }
@@ -234,7 +296,7 @@ export function botInput(
     const c = segs[wrap(seg0 + i, n)]!.curve;
     if ((c < 0 ? -c : c) >= cSkip) continue;
     const lim = holdSpeedLimit(c, sHold, allowance, p);
-    if (lim >= 1) continue;
+    if (lim >= 1 || inDriftCorner(segs, n, seg0 + i, cSkip)) continue;
     const v = lim * p.vmax;
     let d = i - frac; // segments until that segment starts
     if (d < 0) d = 0;

@@ -11,12 +11,15 @@ export function resolveTouchScheme(flag: unknown, warn: (message: string) => voi
   return 'A';
 }
 
-/** Touch drift entry (H3): A = pull-down gesture, C = auto drift. B is not implemented. */
-export type DriftEntry = 'A' | 'C';
+/**
+ * Touch drift entry (H3): A = pull-down gesture, C = auto drift, D = re-touch and swipe.
+ * B is not implemented.
+ */
+export type DriftEntry = 'A' | 'C' | 'D';
 
-/** 'A' / 'C' map to themselves silently; anything else -> 'A' and one call of `warn`. */
+/** 'A' / 'C' / 'D' map to themselves silently; anything else -> 'A' and one call of `warn`. */
 export function resolveDriftEntry(flag: unknown, warn: (message: string) => void): DriftEntry {
-  if (flag === 'A' || flag === 'C') return flag;
+  if (flag === 'A' || flag === 'C' || flag === 'D') return flag;
   warn(`H3_driftEntry: unknown drift entry "${String(flag)}", falling back to "A"`);
   return 'A';
 }

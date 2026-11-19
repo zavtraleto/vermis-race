@@ -22,6 +22,10 @@ export interface TouchStickConfig {
   autoDriftSteer: number;
   /** H3 C: the touch drift ends when steer toward the drift side falls below this. */
   autoDriftRelease: number;
+  /** H3 D: a touch-down at most this many ms after the last up is armed for the re-touch drift. */
+  retouchWindowMs: number;
+  /** H3 D: an armed touch moved this many CSS px sideways from its touch-down point drifts. */
+  retouchSwipePx: number;
 }
 
 export interface InputConfig {

@@ -1,8 +1,13 @@
 {
   "segmentLength": 200,
-  "halfWidth": 500,
+  "halfWidth": 1000,
   "rumbleLength": 3,
-  "lanes": 3,
-  "rumbleWidth": 0.15,
-  "laneMarkerWidth": 0.03
+  "lanes": 8,
+  "rumbleWidth": 0.035,
+  "laneMarkerWidth": 0.006,
+  "laneDash": { "on": 2, "off": 4 },
+  "centreGap": 0.006,
+  "edgeLineInset": 0.015,
+  "edgeLineWidth": 0.0075,
+  "kerbMinCurve": 1
 }

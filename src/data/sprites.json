@@ -1,33 +1,60 @@
 {
-  "capacity": 512,
+  "capacity": 1024,
   "player": {
-    "baseY": 0.9,
-    "width": 0.24,
-    "height": 0.08,
-    "steerThreshold": 0.25,
-    "parts": [
-      { "color": "carShadow", "x": 0, "y": -0.06, "w": 1.12, "h": 0.16, "shift": -0.06 },
-      { "color": "carWheel", "x": -0.36, "y": 0, "w": 0.24, "h": 0.3, "shift": -0.02 },
-      { "color": "carWheel", "x": 0.36, "y": 0, "w": 0.24, "h": 0.3, "shift": -0.02 },
-      { "color": "player", "x": 0, "y": 0.12, "w": 1, "h": 0.48, "shift": 0.02 },
-      { "color": "carLamp", "x": 0, "y": 0.34, "w": 0.84, "h": 0.08, "shift": 0.03 },
-      { "color": "player", "x": 0, "y": 0.58, "w": 0.62, "h": 0.36, "shift": 0.1 },
-      { "color": "carGlass", "x": 0, "y": 0.64, "w": 0.5, "h": 0.22, "shift": 0.12 }
-    ]
+    "baseY": 0.74,
+    "width": 0.38,
+    "height": 0.08
   },
-  "posts": {
-    "enabled": true,
-    "every": 4,
-    "offset": 1.4,
-    "width": 30,
-    "height": 200,
-    "capHeight": 0.15
+  "roadside": {
+    "lamps": {
+      "every": 4,
+      "offset": 1.4,
+      "drawDistance": 100,
+      "height": 700,
+      "poleWidth": 24,
+      "armLength": 260,
+      "armThickness": 18,
+      "headWidth": 90,
+      "headHeight": 24
+    },
+    "billboards": {
+      "everyMin": 40,
+      "everyMax": 90,
+      "offset": 2.2,
+      "drawDistance": 160,
+      "width": 900,
+      "height": 420,
+      "legHeight": 320,
+      "legWidth": 30,
+      "legInset": 0.2,
+      "frame": 0.06,
+      "stripeY": 0.55,
+      "stripeHeight": 0.14,
+      "depthStep": 0.05
+    },
+    "buildings": {
+      "everyMin": 6,
+      "everyMax": 14,
+      "offsetMin": 3,
+      "offsetMax": 6,
+      "variants": 4,
+      "drawDistance": 250,
+      "windowMinPx": 24,
+      "windowMargin": 0.14,
+      "windowGap": 0.45,
+      "depthStep": 0.1,
+      "shapes": [
+        { "width": 1600, "height": 2400, "cols": 3, "rows": 5 },
+        { "width": 2400, "height": 1400, "cols": 5, "rows": 3 },
+        { "width": 1200, "height": 3600, "cols": 2, "rows": 7 },
+        { "width": 2000, "height": 2000, "cols": 4, "rows": 4 }
+      ]
+    }
   },
   "drift": {
-    "yawMin": 1.5,
-    "yawMax": 4,
+    "yawMaxDeg": 42,
     "yawTau": 0.05,
-    "cameraOffset": 0.25,
+    "cameraOffset": 0.09,
     "cameraTau": 0.2,
     "smoke": "on",
     "smokeCapacity": 48,

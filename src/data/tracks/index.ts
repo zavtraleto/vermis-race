@@ -1,20 +1,25 @@
-import type { TrackDef } from '../../sim/types';
+import type { TrackDef, TrackSection } from '../../sim/types';
 import curves from './curves.json';
+import figures from './figures.json';
 import twisty from './test-twisty.json';
 
 export type CurveClass = 'easy' | 'medium' | 'hard';
 export type CurveClasses = Record<CurveClass, number>;
+/** R31: a section is a corner of one class or a straight (curve 0). */
+export type SectionClass = CurveClass | 'straight';
 
 /** Track section as stored in src/data/tracks/*.json: steepness class + side instead of a raw curve. */
 export interface ClassedSection {
   enter: number;
   hold: number;
   leave: number;
-  curveClass: CurveClass;
+  curveClass: SectionClass;
   side: -1 | 1; // +1 right, -1 left
+  hill?: number; // R30 height change over the section, segment lengths (+ up)
 }
 
-export const curveClasses: CurveClasses = curves;
+/** Class values from curves.json; straight is structurally 0 (R31). */
+export const curveClasses: Record<SectionClass, number> = { ...curves, straight: 0 };
 
 function parseLength(v: unknown, field: string, i: number): number {
   if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
@@ -30,38 +35,115 @@ export function parseSections(raw: unknown): ClassedSection[] {
     if (typeof item !== 'object' || item === null) throw new Error(`section ${i}: not an object`);
     const r = item as Record<string, unknown>;
     const curveClass = r.curveClass;
-    if (curveClass !== 'easy' && curveClass !== 'medium' && curveClass !== 'hard') {
+    if (
+      curveClass !== 'easy' &&
+      curveClass !== 'medium' &&
+      curveClass !== 'hard' &&
+      curveClass !== 'straight'
+    ) {
       throw new Error(`section ${i}: unknown curveClass ${String(curveClass)}`);
     }
     const side = r.side;
     if (side !== 1 && side !== -1) throw new Error(`section ${i}: side must be 1 or -1`);
-    return {
+    const out: ClassedSection = {
       enter: parseLength(r.enter, 'enter', i),
       hold: parseLength(r.hold, 'hold', i),
       leave: parseLength(r.leave, 'leave', i),
       curveClass,
       side,
     };
+    if (r.hill !== undefined) {
+      if (typeof r.hill !== 'number' || !Number.isFinite(r.hill)) {
+        throw new Error(`section ${i}: hill must be a number`);
+      }
+      out.hill = r.hill;
+    }
+    return out;
   });
 }
 
-/** curve = side * classes[curveClass]; lengths copied as is. */
+/** curve = side * classes[curveClass] (straight: 0); lengths copied as is. */
 export function resolveSections(
   sections: readonly ClassedSection[],
   classes: CurveClasses,
 ): TrackDef {
   return {
-    sections: sections.map((s) => ({
-      enter: s.enter,
-      hold: s.hold,
-      leave: s.leave,
-      curve: s.side * classes[s.curveClass],
-    })),
+    sections: sections.map((s) => {
+      const out: TrackSection = {
+        enter: s.enter,
+        hold: s.hold,
+        leave: s.leave,
+        // R31: a straight is curve +0 on either side.
+        curve: s.curveClass === 'straight' ? 0 : s.side * classes[s.curveClass],
+      };
+      if (s.hill !== undefined) out.hill = s.hill;
+      return out;
+    }),
   };
 }
 
-/** The grey test loop: classed sections (for tests and the ribbon map) and the resolved TrackDef. */
+/** R31: part of a named figure; side is relative to the placement (1 = same side, -1 = opposite). */
+export interface FigurePart {
+  enter: number;
+  hold: number;
+  leave: number;
+  curveClass: SectionClass;
+  side: -1 | 1;
+}
+export interface FigureDef {
+  parts: FigurePart[];
+}
+export interface FigureRef {
+  figure: string;
+  side: -1 | 1;
+  hill?: number;
+}
+export type ExpandedSection = ClassedSection;
+
+/** R31 figure dictionary (src/data/tracks/figures.json). */
+export const figureDict: Readonly<Record<string, FigureDef>> = figures as Record<string, FigureDef>;
+
+/**
+ * R31: expands figure placements into track sections, in order. side -1 mirrors every part;
+ * the placement's hill is split over the parts in proportion to their length.
+ */
+export function expandFigures(
+  refs: readonly FigureRef[],
+  dict: Readonly<Record<string, FigureDef>>,
+): ExpandedSection[] {
+  const out: ExpandedSection[] = [];
+  for (const ref of refs) {
+    const f = Object.prototype.hasOwnProperty.call(dict, ref.figure) ? dict[ref.figure] : undefined;
+    if (!f) throw new Error(`unknown figure ${ref.figure}`);
+    let total = 0;
+    for (const p of f.parts) total += p.enter + p.hold + p.leave;
+    for (const p of f.parts) {
+      const s: ExpandedSection = {
+        enter: p.enter,
+        hold: p.hold,
+        leave: p.leave,
+        curveClass: p.curveClass,
+        side: p.side === ref.side ? 1 : -1,
+      };
+      if (ref.hill !== undefined) {
+        s.hill = total > 0 ? (ref.hill * (p.enter + p.hold + p.leave)) / total : 0;
+      }
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+/** A track file: either explicit "sections" or R31 "figures" placements. */
+export function trackSections(raw: { sections?: unknown; figures?: unknown }): ClassedSection[] {
+  if (Array.isArray(raw.figures)) {
+    return parseSections(expandFigures(raw.figures as FigureRef[], figureDict));
+  }
+  return parseSections(raw.sections);
+}
+
+/** The default loop (R31 figures): classed sections (for tests and the ribbon map) and the resolved TrackDef. */
 export function loadTestTwisty(): { name: string; sections: ClassedSection[]; def: TrackDef } {
-  const sections = parseSections(twisty.sections);
+  const sections = trackSections(twisty);
   return { name: twisty.name, sections, def: resolveSections(sections, curveClasses) };
 }

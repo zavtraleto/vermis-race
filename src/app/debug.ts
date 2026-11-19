@@ -8,6 +8,7 @@ export interface GameParams {
   ticks: number | null;
   hud: boolean;
   map: boolean; // ribbonMap off unless ?map=1
+  track: string; // reserved: track selector (only the default loop exists)
 }
 
 export interface RendererStats {
@@ -63,6 +64,7 @@ export function parseParams(search: string): GameParams {
     ticks: parseCount(q.get('ticks')),
     hud: q.get('hud') === '1',
     map: q.get('map') === '1',
+    track: q.get('track') ?? 'twisty',
   };
 }
 

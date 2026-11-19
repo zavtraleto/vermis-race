@@ -26,6 +26,17 @@ const RUMBLE_DARK = 9;
 const VERGE_LIGHT = 12;
 const VERGE_DARK = 15;
 const LANE = 18;
+const CENTRE = 21;
+const SHOULDER = 24;
+
+// Marking layout on top of the projection's RoadConfig; all sizes are fractions of halfWidth.
+export interface RoadMeshConfig extends RoadConfig {
+  laneDash: { on: number; off: number }; // segments painted / skipped per lane-line dash
+  centreGap: number; // gap between the two lines of the double centre line
+  edgeLineInset: number; // edge line distance from the asphalt edge
+  edgeLineWidth: number;
+  kerbMinCurve: number; // |curve| at or above which the kerb gets red/white colours
+}
 
 export function writeHex(out: Float32Array, at: number, hex: string): void {
   const v = parseInt(hex.slice(1), 16);
@@ -36,10 +47,12 @@ export function writeHex(out: Float32Array, at: number, hex: string): void {
 
 /**
  * Grey road: one dynamic BufferGeometry, one draw call.
- * Per strip n (between projected lines n and n+1): full-width verge, rumble bands
- * outside the asphalt edge (±w .. ±w(1+rumbleWidth)), asphalt ±w, lane markers on light stripes.
- * Verge overlaps everything and sits at the strip's depth; asphalt/rumble are one micro-step
- * nearer, markers two, so depth testing layers them without per-pixel sorting.
+ * Per strip n (between projected lines n and n+1): full-width verge, kerb bands outside the
+ * asphalt edge (±w .. ±w(1+rumbleWidth); red/white only where |curve| >= kerbMinCurve, shoulder
+ * colour elsewhere), asphalt ±w, solid edge lines, dashed lane lines and, with an even lane
+ * count, a solid double centre line.
+ * Verge overlaps everything and sits at the strip's depth; asphalt/kerb are one micro-step
+ * nearer, markings two, so depth testing layers them without per-pixel sorting.
  */
 export class RoadMesh {
   readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
@@ -47,7 +60,7 @@ export class RoadMesh {
   private readonly col: Float32Array;
   private readonly posAttr: BufferAttribute;
   private readonly colAttr: BufferAttribute;
-  private readonly rgb = new Float32Array(21);
+  private readonly rgb = new Float32Array(27);
   private readonly screenW: number;
   private readonly invW: number;
   private readonly invH: number;
@@ -55,12 +68,13 @@ export class RoadMesh {
   private quads = 0;
 
   constructor(
-    // horizon is read live in update() (dev tuning panel); drawDistance sizes the buffers here.
-    private readonly camera: CameraConfig,
-    private readonly road: RoadConfig,
+    // drawDistance sizes the buffers; the horizon lives in the projection (read live there).
+    camera: CameraConfig,
+    private readonly road: RoadMeshConfig,
     palette: Palette,
   ) {
-    const quadsPerSegment = 1 + 2 + 1 + (road.lanes - 1);
+    // verge, 2 kerbs, asphalt, 2 edge lines, lane lines (the centre one doubled)
+    const quadsPerSegment = 1 + 2 + 1 + 2 + road.lanes;
     const maxQuads = camera.drawDistance * quadsPerSegment;
     this.strips = camera.drawDistance;
     this.screenW = camera.screenWidth;
@@ -74,6 +88,8 @@ export class RoadMesh {
     writeHex(this.rgb, VERGE_LIGHT, palette.verge[0]!);
     writeHex(this.rgb, VERGE_DARK, palette.verge[1]!);
     writeHex(this.rgb, LANE, palette.lane);
+    writeHex(this.rgb, CENTRE, palette.centreLine);
+    writeHex(this.rgb, SHOULDER, palette.shoulder);
 
     this.pos = new Float32Array(maxQuads * 4 * 3);
     this.col = new Float32Array(maxQuads * 4 * 3);
@@ -105,15 +121,19 @@ export class RoadMesh {
 
   update(proj: Projection): void {
     const road = this.road;
-    const horizonY = this.camera.horizon * this.camera.screenHeight;
     const step = 2 / this.strips;
+    const dashPeriod = road.laneDash.on + road.laneDash.off;
+    const centreLane = road.lanes % 2 === 0 ? road.lanes / 2 : -1;
     const last = Math.min(proj.count - 1, this.strips);
     this.quads = 0;
     for (let n = 0; n < last; n++) {
       const y0 = proj.y[n]!;
       const y1 = proj.y[n + 1]!;
-      // Skip strips at/above the horizon or with no height (y grows downwards).
-      if (y0 <= horizonY || y1 >= y0) continue;
+      // R30: skip strips whose far line is behind a crest (this also drops back faces, y1 >= y0,
+      // y grows downwards). A strip whose near line is hidden but far line is not is drawn: the
+      // nearer strips cover its lower part by depth, so the road meets the crest without cracks.
+      // The verge quad is the ground fill, so it rises and falls with the road.
+      if (proj.clipped[n + 1] === 1 || y1 >= y0) continue;
       const x0 = proj.x[n]!;
       const x1 = proj.x[n + 1]!;
       const w0 = proj.w[n]!;
@@ -127,17 +147,44 @@ export class RoadMesh {
 
       const r0 = w0 * road.rumbleWidth;
       const r1 = w1 * road.rumbleWidth;
-      const rumble = light ? RUMBLE_LIGHT : RUMBLE_DARK;
-      this.quad(x0 - w0 - r0, x0 - w0, y0, x1 - w1 - r1, x1 - w1, y1, zRoad, rumble);
-      this.quad(x0 + w0, x0 + w0 + r0, y0, x1 + w1, x1 + w1 + r1, y1, zRoad, rumble);
-      this.quad(x0 - w0, x0 + w0, y0, x1 - w1, x1 + w1, y1, zRoad, light ? ASPHALT_LIGHT : ASPHALT_DARK);
+      const corner = Math.abs(proj.curve[n]!) >= road.kerbMinCurve;
+      const kerb = corner ? (light ? RUMBLE_LIGHT : RUMBLE_DARK) : SHOULDER;
+      this.quad(x0 - w0 - r0, x0 - w0, y0, x1 - w1 - r1, x1 - w1, y1, zRoad, kerb);
+      this.quad(x0 + w0, x0 + w0 + r0, y0, x1 + w1, x1 + w1 + r1, y1, zRoad, kerb);
+      this.quad(
+        x0 - w0,
+        x0 + w0,
+        y0,
+        x1 - w1,
+        x1 + w1,
+        y1,
+        zRoad,
+        light ? ASPHALT_LIGHT : ASPHALT_DARK,
+      );
 
-      if (light) {
-        const h0 = (w0 * road.laneMarkerWidth) / 2;
-        const h1 = (w1 * road.laneMarkerWidth) / 2;
-        for (let lane = 1; lane < road.lanes; lane++) {
-          const c0 = x0 - w0 + (2 * w0 * lane) / road.lanes;
-          const c1 = x1 - w1 + (2 * w1 * lane) / road.lanes;
+      // Edge lines: inner side at inset + width from the asphalt edge.
+      const ei0 = w0 * (1 - road.edgeLineInset - road.edgeLineWidth);
+      const ei1 = w1 * (1 - road.edgeLineInset - road.edgeLineWidth);
+      const eo0 = w0 * (1 - road.edgeLineInset);
+      const eo1 = w1 * (1 - road.edgeLineInset);
+      this.quad(x0 - eo0, x0 - ei0, y0, x1 - eo1, x1 - ei1, y1, zMark, LANE);
+      this.quad(x0 + ei0, x0 + eo0, y0, x1 + ei1, x1 + eo1, y1, zMark, LANE);
+
+      const h0 = (w0 * road.laneMarkerWidth) / 2;
+      const h1 = (w1 * road.laneMarkerWidth) / 2;
+      const dash = proj.segment[n]! % dashPeriod < road.laneDash.on;
+      for (let lane = 1; lane < road.lanes; lane++) {
+        const c0 = x0 - w0 + (2 * w0 * lane) / road.lanes;
+        const c1 = x1 - w1 + (2 * w1 * lane) / road.lanes;
+        if (lane === centreLane) {
+          // Two lines, each laneMarkerWidth wide, centreGap apart.
+          const g0 = (w0 * road.centreGap) / 2;
+          const g1 = (w1 * road.centreGap) / 2;
+          const o0 = g0 + 2 * h0;
+          const o1 = g1 + 2 * h1;
+          this.quad(c0 - o0, c0 - g0, y0, c1 - o1, c1 - g1, y1, zMark, CENTRE);
+          this.quad(c0 + g0, c0 + o0, y0, c1 + g1, c1 + o1, y1, zMark, CENTRE);
+        } else if (dash) {
           this.quad(c0 - h0, c0 + h0, y0, c1 - h1, c1 + h1, y1, zMark, LANE);
         }
       }

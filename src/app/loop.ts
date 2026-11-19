@@ -45,6 +45,10 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.state = s.state;
     d.dir = s.dir;
     d.offTicks = s.offTicks;
+    d.angle = s.angle;
+    d.driftHeld = s.driftHeld;
+    d.armTicks = s.armTicks;
+    d.lowTicks = s.lowTicks;
   }
 }
 

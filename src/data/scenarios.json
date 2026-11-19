@@ -1,9 +1,32 @@
 {
   "straight": { "ticks": 120, "steer": 0 },
+  "roadside": { "ticks": 1, "steer": 0, "z": 55 },
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
   "map-curve": { "ticks": 300, "steer": 0.2 },
   "drift-right": { "ticks": 60, "curve": 4.5, "steer": 0.5, "speed": 0.9 },
+  "hill-crest": {
+    "ticks": 1,
+    "steer": 0,
+    "z": 72,
+    "sections": [
+      { "enter": 0, "hold": 40, "leave": 0, "curve": 0 },
+      { "enter": 0, "hold": 60, "leave": 0, "curve": 0, "hill": 40 },
+      { "enter": 0, "hold": 60, "leave": 0, "curve": 0, "hill": -40 },
+      { "enter": 0, "hold": 800, "leave": 0, "curve": 0 }
+    ]
+  },
+  "hill-dip": {
+    "ticks": 1,
+    "steer": 0,
+    "z": 70,
+    "sections": [
+      { "enter": 0, "hold": 40, "leave": 0, "curve": 0 },
+      { "enter": 0, "hold": 90, "leave": 0, "curve": 0, "hill": -40 },
+      { "enter": 0, "hold": 90, "leave": 0, "curve": 0, "hill": 40 },
+      { "enter": 0, "hold": 800, "leave": 0, "curve": 0 }
+    ]
+  },
   "stress": {
     "drawDistance": 300,
     "curve": 1.5,

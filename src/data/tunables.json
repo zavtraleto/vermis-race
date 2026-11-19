@@ -33,17 +33,41 @@
       "step": 0.05,
       "label": "driftRate — боковая в дрифте (R22)"
     },
-    "car.driftSteerMin": {
+    "car.driftAngleStart": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "driftAngleStart — угол при входе (R20)"
+    },
+    "car.driftAngleExit": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "driftAngleExit — малый угол для срыва (R21)"
+    },
+    "car.driftStraightTime": {
+      "min": 0.05,
+      "max": 2,
+      "step": 0.05,
+      "label": "driftStraightTime — срыв при малом угле, с (R21)"
+    },
+    "car.driftAngleResponse": {
+      "min": 0.5,
+      "max": 20,
+      "step": 0.5,
+      "label": "driftAngleResponse — отклик угла на руль /с (R22)"
+    },
+    "car.driftSpeedLoss": {
+      "min": 0,
+      "max": 0.6,
+      "step": 0.01,
+      "label": "driftSpeedLoss — потеря скорости от угла (R22)"
+    },
+    "car.driftBrake": {
       "min": 0,
       "max": 2,
       "step": 0.05,
-      "label": "driftSteerMin — руль наружу (R22)"
-    },
-    "car.driftSteerMax": {
-      "min": 0.5,
-      "max": 3,
-      "step": 0.05,
-      "label": "driftSteerMax — руль внутрь (R22)"
+      "label": "driftBrake — сброс скорости до потолка /с (R22)"
     },
     "car.gripDrift": {
       "min": 0.5,
@@ -57,17 +81,23 @@
       "step": 0.01,
       "label": "centMulDrift — снос в дрифте ×"
     },
-    "car.driftDrag": {
-      "min": 0,
-      "max": 0.3,
-      "step": 0.005,
-      "label": "driftDrag — потеря газа в дрифте"
-    },
     "car.driftEnterSteer": {
       "min": 0,
       "max": 1,
       "step": 0.01,
       "label": "driftEnterSteer — руль для входа (R20)"
+    },
+    "car.driftArmTime": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "label": "driftArmTime — окно взвода входа, с (R20)"
+    },
+    "car.driftOffroad": {
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "driftOffroad — дрифт на обочине: 1 = B, 0 = A (H11, R21b)"
     },
     "input.keyboard.steerRampMs": {
       "min": 10,
@@ -123,8 +153,20 @@
       "step": 0.01,
       "label": "autoDriftRelease — руль выхода из авто-дрифта (H3 C)"
     },
+    "input.touch.retouchWindowMs": {
+      "min": 50,
+      "max": 1000,
+      "step": 10,
+      "label": "retouchWindowMs — окно повторного касания, мс (H3 D)"
+    },
+    "input.touch.retouchSwipePx": {
+      "min": 2,
+      "max": 80,
+      "step": 1,
+      "label": "retouchSwipePx — свайп вбок после касания, px (H3 D)"
+    },
     "camera.fovDeg": { "min": 60, "max": 100, "step": 1, "label": "fovDeg — FOV, град" },
-    "camera.height": { "min": 650, "max": 1600, "step": 10, "label": "height — высота камеры" },
+    "camera.height": { "min": 200, "max": 1600, "step": 10, "label": "height — высота камеры" },
     "camera.horizon": {
       "min": 0.25,
       "max": 0.5,
@@ -143,17 +185,95 @@
       "step": 0.005,
       "label": "baseY — низ машины / высота"
     },
-    "sprites.drift.yawMax": {
-      "min": 0,
-      "max": 8,
-      "step": 0.1,
-      "label": "yawMax — разворот в дрифте, руль внутрь (R24)"
+    "sprites.roadside.lamps.height": {
+      "min": 200,
+      "max": 1600,
+      "step": 20,
+      "label": "lamps.height — высота фонаря, ед. мира (R32)"
     },
-    "sprites.drift.yawMin": {
+    "sprites.roadside.lamps.armLength": {
       "min": 0,
-      "max": 8,
+      "max": 800,
+      "step": 10,
+      "label": "lamps.armLength — вылет кронштейна к дороге (R32)"
+    },
+    "sprites.roadside.lamps.drawDistance": {
+      "min": 20,
+      "max": 300,
+      "step": 10,
+      "label": "lamps.drawDistance — фонари до, сегментов (R32)"
+    },
+    "sprites.roadside.lamps.every": {
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "label": "lamps.every — шаг фонарей, сегментов; после перезагрузки (R32)"
+    },
+    "sprites.roadside.lamps.offset": {
+      "min": 1.05,
+      "max": 2,
+      "step": 0.05,
+      "label": "lamps.offset — фонари от центра, полуширин; после перезагрузки (R32)"
+    },
+    "sprites.roadside.billboards.width": {
+      "min": 200,
+      "max": 2000,
+      "step": 20,
+      "label": "billboards.width — ширина билборда (R32)"
+    },
+    "sprites.roadside.billboards.height": {
+      "min": 100,
+      "max": 1200,
+      "step": 20,
+      "label": "billboards.height — высота щита (R32)"
+    },
+    "sprites.roadside.billboards.legHeight": {
+      "min": 0,
+      "max": 1000,
+      "step": 20,
+      "label": "billboards.legHeight — щит над землёй (R32)"
+    },
+    "sprites.roadside.billboards.drawDistance": {
+      "min": 20,
+      "max": 300,
+      "step": 10,
+      "label": "billboards.drawDistance — билборды до, сегментов (R32)"
+    },
+    "sprites.roadside.billboards.offset": {
+      "min": 2,
+      "max": 3,
+      "step": 0.05,
+      "label": "billboards.offset — билборды от центра, полуширин; после перезагрузки (R32)"
+    },
+    "sprites.roadside.buildings.drawDistance": {
+      "min": 20,
+      "max": 400,
+      "step": 10,
+      "label": "buildings.drawDistance — строения до, сегментов (R32)"
+    },
+    "sprites.roadside.buildings.windowMinPx": {
+      "min": 4,
+      "max": 200,
+      "step": 2,
+      "label": "buildings.windowMinPx — окна с высоты, px (R32)"
+    },
+    "sprites.roadside.buildings.offsetMin": {
+      "min": 3,
+      "max": 10,
       "step": 0.1,
-      "label": "yawMin — разворот в дрифте, руль наружу (R24)"
+      "label": "buildings.offsetMin — строения от, полуширин; после перезагрузки (R32)"
+    },
+    "sprites.roadside.buildings.offsetMax": {
+      "min": 3,
+      "max": 12,
+      "step": 0.1,
+      "label": "buildings.offsetMax — строения до, полуширин; после перезагрузки (R32)"
+    },
+    "sprites.drift.yawMaxDeg": {
+      "min": 1,
+      "max": 90,
+      "step": 1,
+      "label": "yawMaxDeg — разворот машины при угле дрифта 1, град (R24/R25)"
     },
     "sprites.drift.cameraOffset": {
       "min": 0,
@@ -165,7 +285,7 @@
   "flags": {
     "hypotheses.H1_driftBoost": ["A", "B"],
     "hypotheses.H2_touchSteering": ["A", "B", "C"],
-    "hypotheses.H3_driftEntry": ["A", "B", "C"],
+    "hypotheses.H3_driftEntry": ["A", "B", "C", "D"],
     "hypotheses.H4_fingerVertical": ["A", "B"],
     "hypotheses.H5_slipstream": ["A", "B"],
     "hypotheses.H6_trackFormat": ["P2P", "ring"],
