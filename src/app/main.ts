@@ -14,6 +14,7 @@ import { trafficConfig } from '../data/traffic';
 import scenarios from '../data/scenarios.json';
 import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
+import { createFlickDrift } from '../input/flickDrift';
 import { createRetouchDrift } from '../input/retouchDrift';
 import { attachKeyboard } from '../input/keyboardDom';
 import { createPlayerInput, type PlayerInput } from '../input/player';
@@ -163,9 +164,11 @@ const now = (): number => performance.now();
 const keyboard = createKeyboardInput(inputConfig.keyboard);
 const touchStick = createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
-// H3 D re-touch drift, live config (dev panel); fed alongside the stick.
+// H3 D re-touch drift and H3 E flick drift, live config (dev panel); fed alongside the stick.
+// Mouse (left button) goes through the same pointer path.
 const retouch = createRetouchDrift(inputConfig.touch);
-attachPointer(canvas, touchStick, now, retouch);
+const flick = createFlickDrift(inputConfig.touch);
+attachPointer(canvas, touchStick, now, retouch, flick);
 // Constant input for screenshot scenarios so the frame does not depend on the keyboard.
 function fixedInput(steer: number, drift: boolean): PlayerInput {
   const last: InputFrame = { steer, brake: false, drift };
@@ -182,10 +185,11 @@ const player = fixedScenario
   ? fixedInput(fixedScenario.steer, driftScenario !== null)
   : createPlayerInput(keyboard, touchStick, now, {
       // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
-      // D = re-touch and swipe sideways.
+      // D = re-touch and swipe sideways, E = sharp sideways flick, held until release.
       hypotheses,
       autoDrift: createAutoDrift(inputConfig.touch),
       retouch,
+      flick,
       warn: (m) => console.warn(m),
     });
 

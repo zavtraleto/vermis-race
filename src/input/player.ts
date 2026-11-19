@@ -57,6 +57,8 @@ export function createPlayerInput(
         if (entry === 'C') touchFrame.drift = drift.autoDrift.update(touchFrame.steer);
         // H3 D: the pull-down gesture is ignored, touch drift = re-touch + sideways swipe.
         else if (entry === 'D') touchFrame.drift = drift.retouch?.active ?? false;
+        // H3 E: the pull-down gesture is ignored, touch drift = a flick latched until release.
+        else if (entry === 'E') touchFrame.drift = drift.flick?.active ?? false;
       }
       combineInputs(kbFrame, touchFrame, out);
       last.steer = out.steer;

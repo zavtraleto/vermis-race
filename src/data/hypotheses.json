@@ -1,9 +1,9 @@
 {
   "H1_driftBoost": "A",
   "H2_touchSteering": "A",
-  "H3_driftEntry": "D",
+  "H3_driftEntry": "E",
   "H4_fingerVertical": "A",
-  "H5_slipstream": "A",
+  "H5_slipstream": "B",
   "H6_trackFormat": "P2P",
   "H7_rubberBand": "off",
   "H8_worldRotation": "off",
