@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar } from '../../src/data/cars';
+import { baseCar as dataCar } from '../../src/data/cars';
 import { loadTestTwisty } from '../../src/data/tracks';
 import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack, makeStraightTrack } from '../../src/sim/track';
-import type { InputFrame, RaceState } from '../../src/sim/types';
+import type { CarParams, InputFrame, RaceState } from '../../src/sim/types';
 import { constSpeed, constTrack, inp, mirrorTrack, oneCar, stepN } from './driving_helpers';
+
+// R22c halved steerRate/centrifugal and xLimit in the data (lateral world speeds kept on a road twice
+// as wide). These unit tests derive their numbers from the rules with the pre-R22c values, pinned here
+// explicitly; the real data are covered by calibration.test.ts and the R22c describe in drift_calibration.
+const baseCar: CarParams = { ...dataCar, steerRate: 2.0, centrifugal: 0.3, xLimit: 2 };
 
 const straight = makeStraightTrack(2000);
 const A = 1 - Math.exp(-baseCar.grip * DT); // per-step catch-up factor of R12

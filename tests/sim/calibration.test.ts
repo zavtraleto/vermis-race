@@ -41,8 +41,8 @@ describe('calibration easy curve at vmax in GRIP', () => {
     it(`${tag}: steer 0.6 holds the line (|dx| < 0.02 in 2 s)`, () => {
       expect(Math.abs(drift(c, side * 0.6, 1, 2))).toBeLessThan(0.02);
     });
-    it(`${tag}: steer 0.45 drifts outward by > 0.3 in 2 s`, () => {
-      expect(side * drift(c, side * 0.45, 1, 2)).toBeLessThan(-0.3);
+    it(`${tag}: steer 0.45 drifts outward by > 0.15 in 2 s`, () => {
+      expect(side * drift(c, side * 0.45, 1, 2)).toBeLessThan(-0.15);
     });
     it(`${tag}: steer 0.8 pulls inward`, () => {
       expect(side * drift(c, side * 0.8, 1, 2)).toBeGreaterThan(0);

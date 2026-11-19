@@ -1,8 +1,8 @@
 {
   "segmentLength": 200,
-  "halfWidth": 500,
+  "halfWidth": 1000,
   "rumbleLength": 3,
-  "lanes": 4,
+  "lanes": 8,
   "rumbleWidth": 0.07,
   "laneMarkerWidth": 0.012,
   "laneDash": { "on": 2, "off": 4 },

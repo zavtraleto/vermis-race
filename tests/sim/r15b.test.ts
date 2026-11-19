@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { baseCar } from '../../src/data/cars';
+import { baseCar as dataCar } from '../../src/data/cars';
 import { loadTestTwisty } from '../../src/data/tracks';
 import { DT, K_HEADING, SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';
 import type { CarParams, InputFrame, Track } from '../../src/sim/types';
 import { constTrack, inp, mirrorTrack, oneCar } from './driving_helpers';
+
+// R22c halved steerRate/centrifugal and xLimit in the data (lateral world speeds kept on a road twice
+// as wide). These unit tests derive their numbers from the rules with the pre-R22c values, pinned here
+// explicitly; the real data are covered by calibration.test.ts and the R22c describe in drift_calibration.
+const baseCar: CarParams = { ...dataCar, steerRate: 2.0, centrifugal: 0.3, xLimit: 2 };
 
 /**
  * R15b: off road (|x| > 1, evaluated on x at the START of the step) R12 uses
