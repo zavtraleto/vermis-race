@@ -1,7 +1,7 @@
 {
   "gpu": true,
   "shots": {
-    "roadside-am": {
+    "p1-roadside-am": {
       "size": "1080x1920",
       "unique": 13,
       "foreign": [],
@@ -14,7 +14,7 @@
       },
       "errors": []
     },
-    "drift-right-am": {
+    "p1-drift-right-am": {
       "size": "1080x1920",
       "unique": 13,
       "foreign": [],
@@ -27,7 +27,20 @@
       },
       "errors": []
     },
-    "curve-left-am": {
+    "p1-traffic-am": {
+      "size": "1080x1920",
+      "unique": 14,
+      "foreign": [],
+      "info": {
+        "calls": 5,
+        "triangles": 7368,
+        "instances": 401,
+        "dropped": 0,
+        "traffic": 3
+      },
+      "errors": []
+    },
+    "p1-curve-left-am": {
       "size": "1080x1920",
       "unique": 13,
       "foreign": [],
@@ -40,9 +53,61 @@
       },
       "errors": []
     },
-    "traffic-am": {
+    "p1-roadside-stipple": {
       "size": "1080x1920",
-      "unique": 15,
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7066,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "p1-roadside-bayer": {
+      "size": "1080x1920",
+      "unique": 13,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7066,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "p2-roadside-am": {
+      "size": "1080x1920",
+      "unique": 10,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7066,
+        "instances": 397,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "p2-drift-right-am": {
+      "size": "1080x1920",
+      "unique": 8,
+      "foreign": [],
+      "info": {
+        "calls": 4,
+        "triangles": 7050,
+        "instances": 389,
+        "dropped": 0,
+        "traffic": 0
+      },
+      "errors": []
+    },
+    "p2-traffic-am": {
+      "size": "1080x1920",
+      "unique": 12,
       "foreign": [],
       "info": {
         "calls": 5,
@@ -50,32 +115,6 @@
         "instances": 401,
         "dropped": 0,
         "traffic": 3
-      },
-      "errors": []
-    },
-    "roadside-stipple": {
-      "size": "1080x1920",
-      "unique": 13,
-      "foreign": [],
-      "info": {
-        "calls": 4,
-        "triangles": 7066,
-        "instances": 397,
-        "dropped": 0,
-        "traffic": 0
-      },
-      "errors": []
-    },
-    "roadside-bayer": {
-      "size": "1080x1920",
-      "unique": 13,
-      "foreign": [],
-      "info": {
-        "calls": 4,
-        "triangles": 7066,
-        "instances": 397,
-        "dropped": 0,
-        "traffic": 0
       },
       "errors": []
     }
@@ -90,13 +129,13 @@
       },
       "info": {
         "calls": 4,
-        "triangles": 1360,
-        "instances": 162,
+        "triangles": 1346,
+        "instances": 163,
         "dropped": 0,
         "traffic": 0
       },
       "maxCalls": 4,
-      "frames": 518,
+      "frames": 519,
       "renderer": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "errors": []
     },
@@ -104,25 +143,25 @@
       "stats": {
         "p50": 16.699999999999818,
         "p99": 16.800000000000182,
-        "max": 16.80000000000109,
+        "max": 16.800000000000182,
         "samples": 256
       },
       "info": {
         "calls": 3,
-        "triangles": 1340,
-        "instances": 159,
+        "triangles": 1338,
+        "instances": 160,
         "dropped": 0,
         "traffic": 0
       },
       "maxCalls": 3,
-      "frames": 518,
+      "frames": 522,
       "renderer": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "errors": []
     }
   },
   "timed": {
     "timed-print": {
-      "msPerFrame": 2.4625,
+      "msPerFrame": 2.9075,
       "info": {
         "calls": 5,
         "triangles": 7368,
@@ -133,7 +172,7 @@
       "errors": []
     },
     "timed-plain": {
-      "msPerFrame": 0.7059999999962747,
+      "msPerFrame": 0.6384999999962747,
       "info": {
         "calls": 4,
         "triangles": 7366,

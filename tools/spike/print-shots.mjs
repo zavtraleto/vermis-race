@@ -15,14 +15,17 @@ mkdirSync(out, { recursive: true });
 const palette = JSON.parse(
   readFileSync(resolve(root, 'src', 'data', 'print.json'), 'utf8'),
 ).palette.map((h) => h.toLowerCase());
-// name -> [scenario, tune diff]
+// name -> [scenario, print preset, tune diff]
 const SHOTS = {
-  'roadside-am': ['roadside', {}],
-  'drift-right-am': ['drift-right', {}],
-  'curve-left-am': ['curve-left', {}],
-  'traffic-am': ['traffic', {}],
-  'roadside-stipple': ['roadside', { 'print.screen': 1 }],
-  'roadside-bayer': ['roadside', { 'print.screen': 2 }],
+  'p1-roadside-am': ['roadside', '1', {}],
+  'p1-drift-right-am': ['drift-right', '1', {}],
+  'p1-traffic-am': ['traffic', '1', {}],
+  'p1-curve-left-am': ['curve-left', '1', {}],
+  'p1-roadside-stipple': ['roadside', '1', { 'print.screen': 1 }],
+  'p1-roadside-bayer': ['roadside', '1', { 'print.screen': 2 }],
+  'p2-roadside-am': ['roadside', '2', {}],
+  'p2-drift-right-am': ['drift-right', '2', {}],
+  'p2-traffic-am': ['traffic', '2', {}],
 };
 
 function freePort() {
@@ -79,10 +82,10 @@ async function open(query, waitFor) {
 }
 
 try {
-  for (const [name, [scenario, diff]] of Object.entries(SHOTS)) {
+  for (const [name, [scenario, preset, diff]] of Object.entries(SHOTS)) {
     const tune = encodeURIComponent(JSON.stringify(diff));
     const { page, errors } = await open(
-      `scenario=${scenario}&seed=1&print=1&tune=${tune}`,
+      `scenario=${scenario}&seed=1&print=${preset}&tune=${tune}`,
       () => window.__game?.done === true,
     );
     // Re-render the same state and read the drawing buffer in the same task (before compositing).

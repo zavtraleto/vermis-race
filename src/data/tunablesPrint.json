@@ -1,41 +1,249 @@
 {
   "numbers": {
-    "print.screen": { "min": 0, "max": 2, "step": 1 },
-    "print.cell": { "min": 3, "max": 24, "step": 0.5 },
-    "print.angle": { "min": 0, "max": 90, "step": 1 },
-    "print.stippleDot": { "min": 1, "max": 6, "step": 1 },
-    "print.misregX": { "min": -10, "max": 10, "step": 1 },
-    "print.misregY": { "min": -10, "max": 10, "step": 1 },
-    "print.contour": { "min": 0.02, "max": 1, "step": 0.01 },
-    "print.lineWidth": { "min": 1, "max": 6, "step": 1 },
-    "print.hatch": { "min": 0, "max": 16, "step": 1 },
-    "print.hatchLum": { "min": 0, "max": 1, "step": 0.01 },
-    "print.dropout": { "min": 0, "max": 0.3, "step": 0.005 },
-    "print.dropoutEdge": { "min": 0, "max": 1, "step": 0.01 },
-    "print.margin": { "min": 0, "max": 120, "step": 1 },
-    "print.marginRough": { "min": 0, "max": 30, "step": 1 },
-    "print.sky.sunR": { "min": 0, "max": 0.5, "step": 0.005 },
-    "print.sky.sunY": { "min": 0, "max": 1, "step": 0.005 },
-    "print.scale": { "min": 1, "max": 4, "step": 1 }
+    "print.screen": {
+      "min": 0,
+      "max": 2,
+      "step": 1
+    },
+    "print.cell": {
+      "min": 3,
+      "max": 24,
+      "step": 0.5
+    },
+    "print.angle": {
+      "min": 0,
+      "max": 90,
+      "step": 1
+    },
+    "print.stippleDot": {
+      "min": 1,
+      "max": 6,
+      "step": 1
+    },
+    "print.misregX": {
+      "min": -10,
+      "max": 10,
+      "step": 1
+    },
+    "print.misregY": {
+      "min": -10,
+      "max": 10,
+      "step": 1
+    },
+    "print.contour": {
+      "min": 0.02,
+      "max": 0.95,
+      "step": 0.01
+    },
+    "print.hatch": {
+      "min": 0,
+      "max": 16,
+      "step": 1
+    },
+    "print.hatchLum": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01
+    },
+    "print.dropout": {
+      "min": 0,
+      "max": 0.3,
+      "step": 0.005
+    },
+    "print.dropoutEdge": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01
+    },
+    "print.margin": {
+      "min": 0,
+      "max": 120,
+      "step": 1
+    },
+    "print.marginRough": {
+      "min": 0,
+      "max": 30,
+      "step": 1
+    },
+    "print.sky.sunR": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.005
+    },
+    "print.sky.sunY": {
+      "min": 0,
+      "max": 1,
+      "step": 0.005
+    },
+    "print.scale": {
+      "min": 1,
+      "max": 4,
+      "step": 1
+    },
+    "print.keyWeight": {
+      "min": 1,
+      "max": 2,
+      "step": 1
+    },
+    "print.dryInk": {
+      "min": 0,
+      "max": 0.3,
+      "step": 0.005
+    },
+    "print.hazeHeight": {
+      "min": 0,
+      "max": 0.5,
+      "step": 0.005
+    },
+    "print.hazeStrength": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01
+    },
+    "print.dropoutBlot": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01
+    },
+    "print.dropoutCover": {
+      "min": 0.3,
+      "max": 1,
+      "step": 0.01
+    }
   },
   "flags": {},
   "meta": {
-    "print.screen": { "title": "Тип растра", "hint": "0 — точки на повёрнутой сетке, 1 — стохастика (зерно), 2 — Байер 4×4 по пикселю игры", "tier": "core", "group": "Печать" },
-    "print.cell": { "title": "Шаг растра, px", "hint": "больше — точки крупнее и реже (пиксели экрана)", "tier": "core", "group": "Печать" },
-    "print.angle": { "title": "Угол растра, °", "hint": "поворот сетки точек", "tier": "more", "group": "Печать" },
-    "print.stippleDot": { "title": "Зерно стохастики, px", "hint": "больше — зерно крупнее", "tier": "more", "group": "Печать" },
-    "print.misregX": { "title": "Сдвиг цвета X, px", "hint": "цветная форма смещается вправо относительно контура", "tier": "core", "group": "Печать" },
-    "print.misregY": { "title": "Сдвиг цвета Y, px", "hint": "цветная форма смещается вниз относительно контура", "tier": "core", "group": "Печать" },
-    "print.contour": { "title": "Порог контура", "hint": "меньше — контуров больше (линия там, где соседние пиксели сильнее различаются)", "tier": "core", "group": "Печать" },
-    "print.lineWidth": { "title": "Толщина контура, px", "hint": "больше — линия толще", "tier": "more", "group": "Печать" },
-    "print.hatch": { "title": "Шаг штриховки, px", "hint": "штриховка самых тёмных мест; 0 — выкл.", "tier": "more", "group": "Печать" },
-    "print.hatchLum": { "title": "Штриховка: порог яркости", "hint": "больше — штрихуются и более светлые места", "tier": "more", "group": "Печать" },
-    "print.dropout": { "title": "Пропуски краски", "hint": "больше — сильнее просвечивает бумага", "tier": "core", "group": "Печать" },
-    "print.dropoutEdge": { "title": "Пропуски у края", "hint": "больше — сильнее облезает краска у края картинки", "tier": "more", "group": "Печать" },
-    "print.margin": { "title": "Поле бумаги, px", "hint": "ширина бумажного поля вокруг картинки", "tier": "core", "group": "Печать" },
-    "print.marginRough": { "title": "Неровность края, px", "hint": "больше — край картинки рваней", "tier": "more", "group": "Печать" },
-    "print.sky.sunR": { "title": "Солнце: радиус", "hint": "доля ширины экрана; 0 — без солнца", "tier": "core", "group": "Печать" },
-    "print.sky.sunY": { "title": "Солнце: высота", "hint": "доля высоты сверху; больше — ниже к горизонту", "tier": "more", "group": "Печать" },
-    "print.scale": { "title": "Масштаб печати", "hint": "холст = 360×640 × масштаб; больше — точки мельче и чётче, дороже", "tier": "more", "group": "Печать" }
+    "print.screen": {
+      "title": "Тип растра",
+      "hint": "0 — точки на повёрнутой сетке, 1 — стохастика (зерно), 2 — Байер 4×4 по пикселю игры",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.cell": {
+      "title": "Шаг растра, px",
+      "hint": "больше — точки крупнее и реже (пиксели экрана)",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.angle": {
+      "title": "Угол растра, °",
+      "hint": "поворот сетки точек",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.stippleDot": {
+      "title": "Зерно стохастики, px",
+      "hint": "больше — зерно крупнее",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.misregX": {
+      "title": "Сдвиг цвета X, px",
+      "hint": "цветная форма смещается вправо относительно контура",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.misregY": {
+      "title": "Сдвиг цвета Y, px",
+      "hint": "цветная форма смещается вниз относительно контура",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.contour": {
+      "title": "Порог контура",
+      "hint": "меньше — контуров больше (линия там, где соседние пиксели сильнее различаются)",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.hatch": {
+      "title": "Шаг штриховки, px",
+      "hint": "штриховка самых тёмных мест; 0 — выкл.",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.hatchLum": {
+      "title": "Штриховка: порог яркости",
+      "hint": "больше — штрихуются и более светлые места",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.dropout": {
+      "title": "Пропуски краски",
+      "hint": "бумага равномерно по всей картинке (обычно 0)",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.dropoutEdge": {
+      "title": "Пропуски у края",
+      "hint": "больше — сильнее облезает краска у края картинки",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.margin": {
+      "title": "Поле бумаги, px",
+      "hint": "ширина бумажного поля вокруг картинки",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.marginRough": {
+      "title": "Неровность края, px",
+      "hint": "больше — край картинки рваней",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.sky.sunR": {
+      "title": "Солнце: радиус",
+      "hint": "доля ширины экрана; 0 — без солнца",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.sky.sunY": {
+      "title": "Солнце: высота",
+      "hint": "доля высоты сверху; больше — ниже к горизонту",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.scale": {
+      "title": "Масштаб печати",
+      "hint": "холст = 360×640 × масштаб; больше — точки мельче и чётче, дороже",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.keyWeight": {
+      "title": "Толщина контура",
+      "hint": "1 или 2 пикселя игры",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.dryInk": {
+      "title": "Сухая краска",
+      "hint": "крапинки соседнего цвета палитры на тёмных заливках",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.hazeHeight": {
+      "title": "Дымка: высота",
+      "hint": "полувысота полосы у горизонта, доля экрана",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.hazeStrength": {
+      "title": "Дымка: сила",
+      "hint": "размер точек цвета горизонта на линии горизонта",
+      "tier": "core",
+      "group": "Печать"
+    },
+    "print.dropoutBlot": {
+      "title": "Пропуски в пятнах",
+      "hint": "сколько бумаги внутри больших пятен",
+      "tier": "more",
+      "group": "Печать"
+    },
+    "print.dropoutCover": {
+      "title": "Пятна пропусков: порог",
+      "hint": "больше — пятен меньше",
+      "tier": "more",
+      "group": "Печать"
+    }
   }
 }

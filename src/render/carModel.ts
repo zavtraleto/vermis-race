@@ -217,8 +217,22 @@ export class Builder {
   }
 }
 
+/**
+ * Spike ?print: two-tone shading. The body (key "player") goes from its colour toward `shadow`
+ * by (1 - face shade) x amount, so every body colour lies on one palette segment; other keys stay
+ * flat. Raw sRGB (the print mode turns colour management off).
+ */
+export interface DuoShade {
+  shadow: string;
+  amount: number;
+}
+
 /** R25: one merged, non-indexed geometry with per-vertex colours (lighting baked in). */
-export function buildCarGeometry(cfg: Car3dConfig, palette: Palette): BufferGeometry {
+export function buildCarGeometry(
+  cfg: Car3dConfig,
+  palette: Palette,
+  duo?: DuoShade,
+): BufferGeometry {
   const b = new Builder(cfg);
   b.shadow();
   const w = cfg.wheels;
@@ -230,9 +244,19 @@ export function buildCarGeometry(cfg: Car3dConfig, palette: Palette): BufferGeom
   for (const x of cfg.lights.x) b.lamp(x);
   const col = new Float32Array(b.pos.length);
   const color = new Color();
+  const sh = duo ? parseInt(duo.shadow.slice(1), 16) : 0;
   for (let i = 0; i < b.keys.length; i++) {
     const v = parseInt(paletteHex(palette, b.keys[i]!).slice(1), 16);
     const shade = b.shade[i]!;
+    if (duo) {
+      const t = b.keys[i] === 'player' ? Math.min(1, Math.max(0, (1 - shade) * duo.amount)) : 0;
+      for (let c = 0; c < 3; c++) {
+        const shift = 16 - c * 8;
+        const from = ((v >> shift) & 0xff) / 255;
+        col[i * 3 + c] = from + (((sh >> shift) & 0xff) / 255 - from) * t;
+      }
+      continue;
+    }
     // Palette is sRGB; shade in sRGB, then convert to the linear working space the material expects.
     color.setRGB(
       (((v >> 16) & 0xff) / 255) * shade,
@@ -307,6 +331,7 @@ export class CarView {
     private readonly player: SpritesConfig['player'],
     private readonly view: CameraConfig,
     palette: Palette,
+    duo?: DuoShade,
   ) {
     this.camera = new PerspectiveCamera(
       cfg.fovDeg,
@@ -315,7 +340,7 @@ export class CarView {
       cfg.far,
     );
     this.mesh = new Mesh(
-      buildCarGeometry(cfg, palette),
+      buildCarGeometry(cfg, palette, duo),
       new MeshBasicMaterial({ vertexColors: true }),
     );
     this.mesh.frustumCulled = false;
