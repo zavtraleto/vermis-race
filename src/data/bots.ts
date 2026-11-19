@@ -80,6 +80,7 @@ export function parseBot(name: string, v: unknown): BotParams {
     bDriftSteerDamp: num(r, 'bDriftSteerDamp', name),
     bDriftCurveGain: num(r, 'bDriftCurveGain', name),
     bGripMargin: num(r, 'bGripMargin', name),
+    bDriftLineX: num(r, 'bDriftLineX', name),
     bFlickLook: num(r, 'bFlickLook', name),
     bReleaseLook: num(r, 'bReleaseLook', name),
     bReleaseFrac: num(r, 'bReleaseFrac', name),
