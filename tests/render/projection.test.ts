@@ -301,22 +301,89 @@ describe('P9 finiteness', () => {
   });
 });
 
-describe('P10 createProjection validation', () => {
-  it('throws when d0 <= segmentLength', () => {
-    // inline: d0 = 200; segmentLength 200 -> d0 <= seg -> throws
-    expect(() => createProjection(ICAM, { ...IROAD, segmentLength: 200 })).toThrow(
-      /segment|d0|behind/i,
-    );
-    // segmentLength 300 > d0 = 200 -> throws
-    expect(() => createProjection(ICAM, { ...IROAD, segmentLength: 300 })).toThrow(
-      /segment|d0|behind/i,
-    );
-  });
-  it('does not throw when d0 > segmentLength', () => {
-    // d0 = 200 > 100
-    expect(() => createProjection(ICAM, IROAD)).not.toThrow();
-    // real: d0 = 536.3 > 200
+describe('P10 low camera (d0 <= segmentLength) never throws', () => {
+  // Low camera, round numbers: f = 100, height 50 -> d0 = 100*50/(100-50) = 100; segmentLength 200 > d0.
+  const LCAM: CameraConfig = { ...ICAM, height: 50 };
+  const LROAD: RoadConfig = { ...IROAD, segmentLength: 200 };
+
+  it('does not throw when d0 <= segmentLength, inline and real', () => {
+    expect(() => createProjection(LCAM, LROAD)).not.toThrow();
+    expect(() => createProjection(ICAM, { ...IROAD, segmentLength: 200 })).not.toThrow(); // d0 == seg
+    expect(() => createProjection(ICAM, { ...IROAD, segmentLength: 300 })).not.toThrow(); // d0 < seg
+    expect(() => run(makeStraightTrack(20), 3.5, 0, LCAM, LROAD)).not.toThrow();
     expect(() => createProjection(CAM, ROAD)).not.toThrow();
+  });
+
+  it('frac = 0: line 0 sits exactly on the near plane (not clamped, depth == d0)', () => {
+    // dz_n = 100 + 200n; scale = 1, 1/3, 0.2; camX = 0.5*40 = 20; straight
+    // n=0: y = 50 + 1*50 = 100 = H; x = 100 + 1*(0-20) = 80; w = 40
+    // n=1: y = 50 + 50/3 = 66.6667; x = 100 - 20/3 = 93.3333; w = 40/3
+    const p = run(makeStraightTrack(20), 3, 0.5, LCAM, LROAD);
+    near(p.y[0]!, 100, 1e-3);
+    near(p.x[0]!, 80, 1e-3);
+    near(p.w[0]!, 40, 1e-3);
+    near(p.y[1]!, 50 + 50 / 3, 1e-3);
+    near(p.x[1]!, 100 - 20 / 3, 1e-3);
+    near(p.w[1]!, 40 / 3, 1e-3);
+  });
+
+  it('frac = 0.25: line 0 is clamped onto the near plane and interpolated by depth', () => {
+    // true depths: dz_0 = 100 - 0.25*200 = 50 ; dz_1 = 100 + 0.75*200 = 250 ; dz_2 = 450
+    // true line 0: scale 2   -> x = 100 + 2*(0-20) = 60 ; w = 2*40 = 80
+    // line 1:      scale 0.4 -> x = 100 + 0.4*(-20) = 92 ; w = 16 ; y = 50 + 0.4*50 = 70
+    // clamp line 0 to depth d0 = 100: t = (100-50)/(250-50) = 0.25
+    // x_0 = 60 + 0.25*(92-60) = 68 ; w_0 = 80 + 0.25*(16-80) = 64 ; y_0 = H = 100
+    // line 2: scale 2/9 -> y = 50 + 100/9 = 61.1111 (unchanged formula)
+    const p = run(makeStraightTrack(20), 3.25, 0.5, LCAM, LROAD);
+    expect(p.count).toBe(LCAM.drawDistance + 1);
+    near(p.y[0]!, 100, 1e-3);
+    near(p.x[0]!, 68, 1e-3);
+    near(p.w[0]!, 64, 1e-3);
+    near(p.y[1]!, 70, 1e-3);
+    near(p.x[1]!, 92, 1e-3);
+    near(p.w[1]!, 16, 1e-3);
+    near(p.y[2]!, 50 + 100 / 9, 1e-3);
+    // line indices fixed: line n = base + n
+    expect(p.base).toBe(3);
+    for (let n = 0; n < p.count; n++) expect(p.segment[n]).toBe(3 + n);
+  });
+
+  it('camera x mirrors left/right for the clamped line 0', () => {
+    const t = makeStraightTrack(20);
+    const a = run(t, 3.25, 0.5, LCAM, LROAD);
+    const b = run(t, 3.25, -0.5, LCAM, LROAD);
+    near(a.x[0]! - 100, -(b.x[0]! - 100), 1e-3);
+    near(a.y[0]!, b.y[0]!, 1e-6);
+    near(a.w[0]!, b.w[0]!, 1e-6);
+  });
+
+  it('sweep fov 60..100, horizon .25..0.5, height >= 200, real road: no throw, finite, y non-increasing, strip 0 starts at the bottom', () => {
+    const t = makeStraightTrack(50);
+    for (const fovDeg of [60, 80, 100])
+      for (const horizon of [0.25, 0.35, 0.5])
+        for (const height of [200, 250, 320])
+          for (const frac of [0, 0.01, 0.3, 0.5, 0.99]) {
+            const cfg: CameraConfig = { ...CAM, fovDeg, horizon, height };
+            const tag = `fov ${fovDeg} hz ${horizon} h ${height} frac ${frac}`;
+            const p = createProjection(cfg, ROAD);
+            project(p, t, 5 + frac, 0.3, cfg, ROAD);
+            const d0 =
+              ((cfg.screenWidth / 2 / Math.tan((fovDeg * Math.PI) / 360)) * height) /
+              (cfg.screenHeight * (1 - horizon));
+            for (let n = 0; n < p.count; n++) {
+              for (const a of [p.x, p.y, p.w, p.scale])
+                expect(Number.isFinite(a[n]!), `${tag} n ${n}`).toBe(true);
+              if (n > 0) expect(p.y[n]!, `${tag} n ${n}`).toBeLessThanOrEqual(p.y[n - 1]! + 1e-4);
+              expect(p.segment[n]).toBe(5 + n);
+            }
+            if (d0 <= ROAD.segmentLength) near(p.y[0]!, cfg.screenHeight, 1e-3);
+          }
+  });
+
+  it('d0 > segmentLength: unchanged formula (frac 0.5 inline pinned value)', () => {
+    // dz_0 = 200 - 50 = 150 -> y = 50 + (100/150)*100 = 116.6667 (nothing is clamped)
+    const p = run(makeStraightTrack(20), 3.5, 0, ICAM, IROAD);
+    near(p.y[0]!, 50 + 200 / 3, 1e-3);
   });
 });
 
