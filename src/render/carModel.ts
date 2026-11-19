@@ -42,8 +42,6 @@ export interface Car3dConfig {
   width: number; // car width in model units, fitted to sprites.player.width of the screen
   rearAxleZ: number; // rear axle, model units behind the car centre; anchored at sprites.player.baseY
   yawPivotZ: number; // vertical yaw axis, model units behind the car centre
-  leanYawDeg: number; // yaw per unit steer (GRIP lean)
-  leanRollDeg: number; // roll per unit steer, into the steer
   driftRollDeg: number; // roll outward of the drift at yawMaxDeg
   shade: { top: number; front: number; side: number; rear: number; bottom: number };
   boxes: CarBox[];
@@ -58,6 +56,18 @@ export interface Car3dConfig {
   };
   lights: { color: string; radius: number; segments: number; y: number; z: number; x: number[] };
   shadow: { color: string; halfWidth: number; front: number; rear: number; y: number };
+  traffic: TrafficModelConfig;
+}
+
+/**
+ * R45 traffic bodies: exactly three variants with the same box list (same count and colour key
+ * per box, so they share one topology and one draw call). Colour key "body" = per-car colour
+ * from palette.traffic; other keys are palette colours.
+ */
+export interface TrafficModelConfig {
+  width: number; // model width, fitted to sprites.traffic.widthLanes on the road
+  shadow: Car3dConfig['shadow'];
+  bodies: { name: string; boxes: CarBox[] }[];
 }
 
 const DEG = Math.PI / 180;
@@ -68,16 +78,17 @@ function paletteHex(palette: Palette, key: string): string {
   return hex;
 }
 
-/** Collects triangles with baked colours; build time only. */
-class Builder {
+/**
+ * Collects triangles with a colour key and a face shade per vertex; build time only.
+ * The player car bakes key x shade into linear colours (buildCarGeometry); traffic keeps them
+ * apart so the body colour can come per instance (trafficModels.ts).
+ */
+export class Builder {
   readonly pos: number[] = [];
-  readonly col: number[] = [];
-  private readonly color = new Color();
+  readonly shade: number[] = [];
+  readonly keys: string[] = []; // one per vertex
 
-  constructor(
-    private readonly cfg: Car3dConfig,
-    private readonly palette: Palette,
-  ) {}
+  constructor(private readonly cfg: Pick<Car3dConfig, 'shade' | 'wheels' | 'lights' | 'shadow'>) {}
 
   /**
    * Triangle a-b-c wound outward (away from `inside`), coloured palette[key] x shade by face
@@ -119,18 +130,11 @@ class Builder {
             ? s.rear
             : s.front
           : s.side;
-    const v = parseInt(paletteHex(this.palette, key).slice(1), 16);
-    // Palette is sRGB; shade in sRGB, then convert to the linear working space the material expects.
-    this.color.setRGB(
-      (((v >> 16) & 0xff) / 255) * shade,
-      (((v >> 8) & 0xff) / 255) * shade,
-      ((v & 0xff) / 255) * shade,
-      SRGBColorSpace,
-    );
     const verts = flip ? [a, c, b] : [a, b, c];
     for (const p of verts) {
       this.pos.push(p[0]!, p[1]!, p[2]!);
-      this.col.push(this.color.r, this.color.g, this.color.b);
+      this.shade.push(shade);
+      this.keys.push(key);
     }
   }
 
@@ -202,8 +206,7 @@ class Builder {
       this.tri(ring[0]!, ring[i]!, ring[i + 1]!, inside, l.color, false);
   }
 
-  shadow(): void {
-    const s = this.cfg.shadow;
+  shadow(s: Car3dConfig['shadow'] = this.cfg.shadow): void {
     const a = [-s.halfWidth, s.y, s.front];
     const b = [s.halfWidth, s.y, s.front];
     const c = [s.halfWidth, s.y, s.rear];
@@ -216,7 +219,7 @@ class Builder {
 
 /** R25: one merged, non-indexed geometry with per-vertex colours (lighting baked in). */
 export function buildCarGeometry(cfg: Car3dConfig, palette: Palette): BufferGeometry {
-  const b = new Builder(cfg, palette);
+  const b = new Builder(cfg);
   b.shadow();
   const w = cfg.wheels;
   for (const side of [-1, 1]) {
@@ -225,9 +228,25 @@ export function buildCarGeometry(cfg: Car3dConfig, palette: Palette): BufferGeom
   }
   for (const box of cfg.boxes) b.box(box);
   for (const x of cfg.lights.x) b.lamp(x);
+  const col = new Float32Array(b.pos.length);
+  const color = new Color();
+  for (let i = 0; i < b.keys.length; i++) {
+    const v = parseInt(paletteHex(palette, b.keys[i]!).slice(1), 16);
+    const shade = b.shade[i]!;
+    // Palette is sRGB; shade in sRGB, then convert to the linear working space the material expects.
+    color.setRGB(
+      (((v >> 16) & 0xff) / 255) * shade,
+      (((v >> 8) & 0xff) / 255) * shade,
+      ((v & 0xff) / 255) * shade,
+      SRGBColorSpace,
+    );
+    col[i * 3] = color.r;
+    col[i * 3 + 1] = color.g;
+    col[i * 3 + 2] = color.b;
+  }
   const geo = new BufferGeometry();
   geo.setAttribute('position', new BufferAttribute(new Float32Array(b.pos), 3));
-  geo.setAttribute('color', new BufferAttribute(new Float32Array(b.col), 3));
+  geo.setAttribute('color', new BufferAttribute(col, 3));
   geo.computeBoundingSphere();
   return geo;
 }
@@ -300,11 +319,17 @@ export class CarView {
       new MeshBasicMaterial({ vertexColors: true }),
     );
     this.mesh.frustumCulled = false;
+    this.mesh.rotation.order = 'YXZ';
     this.scene.add(this.mesh);
   }
 
-  /** yawDeg > 0 turns the nose right; rollDeg > 0 tilts the roof right; dxPx shifts on screen. */
-  update(yawDeg: number, rollDeg: number, dxPx: number): void {
+  /**
+   * yawDeg > 0 turns the nose right; rollDeg > 0 tilts the roof right; dxPx shifts on screen;
+   * pitchDeg > 0 = nose down (R26). screenRollDeg (R27) rolls the camera about its view axis so
+   * the car turns with the rest of the picture (> 0 = picture counter-clockwise); the rear wheel
+   * points stay in unrolled screen space, like every other sprite before the shader roll.
+   */
+  update(yawDeg: number, rollDeg: number, dxPx: number, pitchDeg = 0, screenRollDeg = 0): void {
     const cfg = this.cfg;
     const view = this.view;
     const pose = carCameraPose(this.pose, view, this.player, cfg);
@@ -336,7 +361,8 @@ export class CarView {
       0,
       -cfg.rearAxleZ + pz - pz * Math.cos(b),
     );
-    m.rotation.set(0, b, -rollDeg * DEG);
+    // Order YXZ (set in the constructor): yaw about the world vertical, pitch and roll in the body.
+    m.rotation.set(-pitchDeg * DEG, b, -rollDeg * DEG);
     m.updateMatrixWorld();
     const v = this.v;
     v.set(-cfg.wheels.x, 0, cfg.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
@@ -345,5 +371,10 @@ export class CarView {
     v.set(cfg.wheels.x, 0, cfg.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
     this.rearRX = ((v.x + 1) / 2) * view.screenWidth;
     this.rearRY = ((1 - v.y) / 2) * view.screenHeight;
+    if (screenRollDeg !== 0) {
+      // Rolling the camera by -a about its view axis turns the image by +a about the centre.
+      cam.rotation.set(-pose.pitch, 0, -screenRollDeg * DEG);
+      cam.updateMatrixWorld();
+    }
   }
 }
