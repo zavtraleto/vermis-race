@@ -20,6 +20,7 @@ const COLOURS: Record<SectionClass, string> = {
   easy: '#3a9d4a',
   medium: '#e08a1e',
   hard: '#d0312d',
+  sharp: '#7b1fa2',
 };
 
 /** R22b holding angle: angle*driftRate*sp = c*sp^2*centrifugal*centMulDrift*kCurve, sp = 1 - L*angle. */
@@ -132,8 +133,8 @@ function svg(t: LoadedTrack, pl: Placement[]): { text: string; gap: number } {
     `<circle cx="${px(n)}" cy="${py(n)}" r="4" fill="none" stroke="#1565c0" stroke-width="2"/>`,
   );
   // Legend.
-  (['straight', 'easy', 'medium', 'hard'] as const).forEach((c, i) => {
-    const lx = W - pad - 300 + i * 75;
+  (['straight', 'easy', 'medium', 'hard', 'sharp'] as const).forEach((c, i) => {
+    const lx = W - pad - 375 + i * 75;
     const ly = 18;
     parts.push(
       `<line x1="${lx}" y1="${ly}" x2="${lx + 20}" y2="${ly}" stroke="${COLOURS[c]}" stroke-width="4"/>`,
@@ -167,6 +168,15 @@ function svg(t: LoadedTrack, pl: Placement[]): { text: string; gap: number } {
 
 function md(t: LoadedTrack, pl: Placement[], gap: number, p: CarParams): string {
   const n = t.track.segments.length;
+  // R31b: share of corner length (all non-straight sections) in classes that need a drift (hard, sharp).
+  let cornerLen = 0;
+  let driftLen = 0;
+  for (const s of t.sections) {
+    if (s.curveClass === 'straight') continue;
+    const len = s.enter + s.hold + s.leave;
+    cornerLen += len;
+    if (s.curveClass === 'hard' || s.curveClass === 'sharp') driftLen += len;
+  }
   let turn = 0;
   for (const s of t.track.segments) turn += (s.curve * K_HEADING) / SEG_PER_UNIT;
   const lines = [
@@ -177,6 +187,8 @@ function md(t: LoadedTrack, pl: Placement[], gap: number, p: CarParams): string 
     `Длина ${n} сегментов, ${(n / SEG_PER_UNIT).toFixed(1)} с на \`vmax\`. Угол удержания и скорость — R22b из \`cars/base.json\` (установившийся дрифт на \`hold\` класса).`,
     '',
     `Схема псевдо-3D, сама по себе не замыкается: конец кольца отстоит от старта на ${gap.toFixed(0)} сегментов, суммарный поворот курса ${turn.toFixed(1)} рад (\`K_HEADING\` ${K_HEADING}).`,
+    '',
+    `Повороты — ${cornerLen} сегментов (${((100 * cornerLen) / n).toFixed(0)}% круга); из них нужен дрифт (\`hard\`, \`sharp\`) на ${((100 * driftLen) / Math.max(cornerLen, 1)).toFixed(0)}% (R31b: 45–65%).`,
     '',
     '| # | фигура | сторона | сегментов | классы | угол удержания | скорость, vmax | hill |',
     '| --- | --- | --- | --- | --- | --- | --- | --- |',

@@ -37,6 +37,12 @@ export interface Car {
   pace: number; // R62 personal multiplier of vmax (player 1)
   nameId: number; // R62 index into the rival names (player and traffic -1)
   place: number; // R66 race place, 1 = leader (stored at the end of the step)
+  role: number; // R62b 0 close, 1 ahead, 2 behind (player 0)
+  slot: number; // R62b target gap d = z - zPlayer, segments, signed
+  slotTicks: number; // R62b ticks left until the slot is redrawn
+  nemesis: number; // R62b 1 for the single hunter, else 0
+  band: number; // R63 smoothed rubber band, cap = vmax*pace*(1 + band)
+  joinTicks: number; // R63b ticks left of the 'joined the race' notice
 }
 
 export interface RaceState {
@@ -144,10 +150,25 @@ export interface RivalConfig {
   rivalPaceSpread: number;
   rivalNameCount: number;
   rubberBand: number; // H15: 1 = A (on), 0 = B (off)
-  rubberBoost: number;
-  rubberSlow: number;
-  rubberDead: number;
-  rubberRange: number;
+  rivalRoles: [number, number, number]; // R62b counts of close / ahead / behind
+  slotClose: [number, number];
+  slotAhead: [number, number];
+  slotBehind: [number, number];
+  nemesisSlot: [number, number];
+  slotTimeMin: number; // seconds
+  slotTimeMax: number;
+  bandRange: number;
+  bandBoost: number;
+  bandSlow: number;
+  bandViewDist: number;
+  bandViewMul: number;
+  nemesisViewMul: number;
+  bandAttack: number; // 1/s
+  bandRelease: number; // 1/s
+  bandStartDelay: number; // seconds
+  poolRadius: number; // R63b segments
+  poolSpawnBehind: number;
+  joinShowTime: number; // seconds
   rivalBumpLoss: number; // R65, vmax
   lanes: number;
 }

@@ -1,29 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { step } from '../../src/sim/race';
-import type { CarParams, InputFrame, RivalConfig } from '../../src/sim/types';
+import type { Car, CarParams, InputFrame, RivalConfig } from '../../src/sim/types';
 import { baseCarA } from './baseCarA';
 import { PB } from './modelb_helpers';
+import { DT } from '../../src/sim/constants';
 import { IDLE, RC, TRACK, mkRace } from './rivals_helpers';
 
-// R63: d is taken from z at the START of the step, so the cap is exact (tolerance 1e-9).
-// Player parked (speed 0, accel 0). The rival has a huge accel/driftBrake, so after ONE step its
-// speed is exactly its cap: accel*DT = 600/120 = 5 >= any cap, driftBrake*DT = 5 pulls it down to
-// the cap. The step moves the rival by at most 0.54 segments, which changes the band by at most
-// 0.08 * 0.54 / 200 = 2.2e-4, so the tolerance 1e-3 is independent of whether the brief means the
-// distance at the start or at the end of the step (see report).
 const PLAYER: CarParams = { ...baseCarA, accel: 0 };
+/** Rival that does not move by itself (speed 0, accel 0), so d is the same at start and end of the step. */
+const STILL: CarParams = { ...baseCarA, accel: 0 };
+/** Rival whose speed after one step is exactly its cap (accel and driftBrake huge). */
 const SNAP: CarParams = { ...baseCarA, accel: 600, driftBrake: 600 };
-const TOL = 1e-9;
-
-/** Rival speed after one step; d > 0: rival d segments behind the player, d < 0: ahead. */
-function capAt(d: number, cfg: RivalConfig | undefined, pace = 1, start = 0.5): number {
-  const s = mkRace(1, 0, [
-    { z: 0, x: 0, speed: 0 },
-    { z: -d, x: 0.5, speed: start, pace },
-  ]);
-  step(s, [IDLE, IDLE], TRACK, [PLAYER, SNAP], undefined, cfg);
-  return s.cars[1]!.speed;
-}
+const LATE = 1900; // race tick after bandStartDelay (15 s = 1800 ticks)
 
 describe('R62 pace scales the speed cap', () => {
   const settle = (p: CarParams, pace: number, start: number): number => {
@@ -57,133 +45,264 @@ describe('R62 pace scales the speed cap', () => {
   });
 });
 
-describe('R63 rubber band (cap multiplier, H15 on)', () => {
-  // behind d: band = 1 + 0.08 * clamp((d - 40) / 200, 0, 1); ahead d: 1 - 0.08 * clamp((d - 40) / 200, 0, 1)
-  const behind: Array<[number, number]> = [
-    [10, 1], // inside the dead zone
-    [39, 1],
-    [40, 1], // (40 - 40)/200 = 0
-    [100, 1 + 0.08 * 0.3], // (100 - 40)/200 = 0.3 -> 1.024
-    [140, 1.04], // 100/200 = 0.5
-    [200, 1 + 0.08 * 0.8], // 160/200 = 0.8 -> 1.064
-    [240, 1.08], // 200/200 = 1
-    [300, 1.08], // clamp: (260)/200 = 1.3 -> 1
-    [1000, 1.08],
+/**
+ * R63 band tests. Player parked at z 0 (speed 0). Rival at z = d (d = z - zPlayer), given slot,
+ * smoothed band b0 at the start. `slotTicks` is huge so R62b never redraws the slot, |d| < poolRadius.
+ */
+interface Setup {
+  d: number;
+  slot: number;
+  b0?: number;
+  tick?: number;
+  nemesis?: number;
+  pace?: number;
+  cfg?: RivalConfig | undefined;
+  params?: CarParams;
+  speed?: number;
+  role?: number;
+}
+function one(o: Setup): Car {
+  const s = mkRace(1, 0, [
+    { z: 0, x: 0, speed: 0 },
+    {
+      z: o.d,
+      x: 0.5,
+      speed: o.speed ?? 0,
+      pace: o.pace ?? 1,
+      slot: o.slot,
+      slotTicks: 1e6,
+      band: o.b0 ?? 0,
+      nemesis: o.nemesis ?? 0,
+      role: o.role ?? (o.nemesis ? 0 : 1),
+    },
+  ]);
+  s.tick = o.tick ?? LATE;
+  const cfg = 'cfg' in o ? o.cfg : RC;
+  step(s, [IDLE, IDLE], TRACK, [PLAYER, o.params ?? STILL], undefined, cfg);
+  return s.cars[1]!;
+}
+const attack = 1 - Math.exp(-2 * DT); // bandAttack 2 1/s
+const release = 1 - Math.exp(-0.5 * DT); // bandRelease 0.5 1/s
+
+describe('R63 target (formula, sign conventions d = z - zPlayer, err = slot - d)', () => {
+  // With b0 = target the smoothing is at rest, so the stored band after one step equals the target
+  // whether the brief means band before or after the smoothing; the cap check uses the same trick.
+  const cases: Array<[string, number, number, number]> = [
+    // [label, d, slot, target]
+    // d -100 (rival 100 behind), slot 200: err 300, raw min(300/300,1) = 1, target 0.06*1 = 0.06
+    ['behind, slot ahead, saturated: err 300 -> raw 1 -> +0.06', -100, 200, 0.06],
+    // slot 50: err 150, raw 0.5, target 0.06*0.5 = 0.03
+    ['err 150 -> raw 0.5 -> +0.03', -100, 50, 0.03],
+    // slot 600: err 700, raw clamp 1 -> 0.06
+    ['err 700 clamps at raw 1 -> +0.06', -100, 600, 0.06],
+    // d -100, slot -250: err -150, raw -0.5, target = bandSlow*raw = 0.10*(-0.5) = -0.05
+    ['err -150 -> raw -0.5 -> -0.05 (slow, stronger)', -100, -250, -0.05],
+    // slot -500: err -400, raw clamp -1 -> -0.10
+    ['err -400 clamps at raw -1 -> -0.10', -100, -500, -0.1],
+    ['err 0 -> 0', -100, -100, 0],
+    // d 250 (ahead, outside view 200), slot 100: err -150, raw -0.5 -> -0.05
+    ['ahead beyond view distance: d 250, slot 100 -> -0.05', 250, 100, -0.05],
+    // d 250, slot 600: err 350, raw 1 -> +0.06 (ahead but wants more distance)
+    ['ahead beyond view, slot farther ahead: +0.06', 250, 600, 0.06],
   ];
-  const ahead: Array<[number, number]> = [
-    [10, 1],
-    [40, 1],
-    [100, 1 - 0.08 * 0.3], // 0.976
-    [140, 0.96],
-    [240, 0.92],
-    [300, 0.92],
-    [1000, 0.92],
-  ];
-  for (const [d, band] of behind) {
-    it(`rival ${d} segments behind the player: cap = ${band} * vmax`, () => {
-      expect(capAt(d, RC)).toBeCloseTo(band, 9);
+  for (const [label, d, slot, target] of cases) {
+    it(`${label}: stored band and speed cap 1 + target = ${1 + target}`, () => {
+      expect(one({ d, slot, b0: target }).band).toBeCloseTo(target, 12);
+      expect(one({ d, slot, b0: target, params: SNAP, speed: 0.5 }).speed).toBeCloseTo(1 + target, 9);
     });
   }
-  for (const [d, band] of ahead) {
-    it(`rival ${d} segments ahead of the player: cap = ${band} * vmax`, () => {
-      expect(capAt(-d, RC)).toBeCloseTo(band, 9);
-    });
-  }
-  it('behind the player the speed never drops below vmax, ahead never rises above it (clamp at 0 on both sides)', () => {
-    for (let d = 0; d <= 400; d += 20) {
-      expect(capAt(d, RC)).toBeGreaterThanOrEqual(1 - TOL);
-      expect(capAt(-d, RC)).toBeLessThanOrEqual(1 + TOL);
+  it('the cap multiplies pace: pace 1.02, target +0.06 -> 1.02 * 1.06 = 1.0812', () => {
+    expect(one({ d: -100, slot: 200, b0: 0.06, pace: 1.02, params: SNAP, speed: 0.5 }).speed).toBeCloseTo(1.0812, 9);
+    // target -0.10: 1.02 * 0.9 = 0.918
+    expect(one({ d: -100, slot: -500, b0: -0.1, pace: 1.02, params: SNAP, speed: 0.5 }).speed).toBeCloseTo(0.918, 9);
+  });
+  it('bandBoost, bandSlow and bandRange are independent config numbers (boost 0.1, slow 0.05, range 100)', () => {
+    const cfg: RivalConfig = { ...RC, bandBoost: 0.1, bandSlow: 0.05, bandRange: 100 };
+    // d -100 slot 0: err 100, raw 1 -> 0.1
+    expect(one({ d: -100, slot: 0, b0: 0.1, cfg }).band).toBeCloseTo(0.1, 12);
+    // slot -50: err 50, raw 0.5 -> 0.05
+    expect(one({ d: -100, slot: -50, b0: 0.05, cfg }).band).toBeCloseTo(0.05, 12);
+    // slot -150: err -50, raw -0.5 -> 0.05 * -0.5 = -0.025
+    expect(one({ d: -100, slot: -150, b0: -0.025, cfg }).band).toBeCloseTo(-0.025, 12);
+  });
+  it('monotonic: target never decreases as the slot moves ahead (fixed d), bounded in [-bandSlow, +bandBoost]', () => {
+    let prev = -Infinity;
+    for (let slot = -700; slot <= 700; slot += 50) {
+      // from rest band1 = target*attack
+      const t = one({ d: -100, slot }).band / attack;
+      expect(t).toBeGreaterThanOrEqual(prev - 1e-9);
+      expect(t).toBeGreaterThanOrEqual(-0.1 - 1e-9);
+      expect(t).toBeLessThanOrEqual(0.06 + 1e-9);
+      prev = t;
     }
   });
-  it('monotonic in the distance: farther behind -> not slower, farther ahead -> not faster', () => {
-    let prevB = 0;
-    let prevA = 10;
-    for (let d = 0; d <= 400; d += 20) {
-      const b = capAt(d, RC);
-      const a = capAt(-d, RC);
-      expect(b).toBeGreaterThanOrEqual(prevB - TOL);
-      expect(a).toBeLessThanOrEqual(prevA + TOL);
-      prevB = b;
-      prevA = a;
+});
+
+describe('R63 view window (0 < d < bandViewDist: rival ahead and visible)', () => {
+  // d 100 (inside), slot -200: err -300, raw -1, target -0.10
+  it('inside the window the target is multiplied by bandViewMul = 0: no pull-back on screen', () => {
+    expect(one({ d: 100, slot: -200, b0: 0 }).band).toBeCloseTo(0, 12);
+  });
+  it('bandViewMul 0.3: target -0.10 * 0.3 = -0.03', () => {
+    const cfg: RivalConfig = { ...RC, bandViewMul: 0.3 };
+    expect(one({ d: 100, slot: -200, b0: -0.03, cfg }).band).toBeCloseTo(-0.03, 12);
+  });
+  it('the multiplier also applies to a boost target: d 100, slot 500: err 400 -> +0.06 * 0.3 = 0.018', () => {
+    const cfg: RivalConfig = { ...RC, bandViewMul: 0.3 };
+    expect(one({ d: 100, slot: 500, b0: 0.018, cfg }).band).toBeCloseTo(0.018, 12);
+  });
+  it('d = 199 is inside, d = 200 (not < 200) and d = 201 are outside: full -0.10', () => {
+    const cfg: RivalConfig = { ...RC, bandViewMul: 0.3 };
+    expect(one({ d: 199, slot: -300, b0: -0.03, cfg }).band).toBeCloseTo(-0.03, 12); // err -499 -> -1
+    expect(one({ d: 201, slot: -300, b0: -0.1, cfg }).band).toBeCloseTo(-0.1, 12);
+    expect(one({ d: 200, slot: -300, b0: -0.1, cfg }).band).toBeCloseTo(-0.1, 12);
+  });
+  it('behind the player (d < 0) is never in the window', () => {
+    const cfg: RivalConfig = { ...RC, bandViewMul: 0.3 };
+    expect(one({ d: -1, slot: 300, b0: 0.06, cfg }).band).toBeCloseTo(0.06, 12);
+    expect(one({ d: -150, slot: 200, b0: 0.06, cfg }).band).toBeCloseTo(0.06, 12);
+  });
+  it('bandViewDist is a config number: dist 50 makes d 100 outside', () => {
+    const cfg: RivalConfig = { ...RC, bandViewDist: 50, bandViewMul: 0.3 };
+    expect(one({ d: 100, slot: -200, b0: -0.1, cfg }).band).toBeCloseTo(-0.1, 12);
+  });
+  it('the nemesis uses nemesisViewMul 0.5 inside the window: -0.10 * 0.5 = -0.05', () => {
+    expect(one({ d: 100, slot: -200, b0: -0.05, nemesis: 1 }).band).toBeCloseTo(-0.05, 12);
+    expect(one({ d: 100, slot: -200, b0: 0, nemesis: 0 }).band).toBeCloseTo(0, 12);
+  });
+  it('the nemesis outside the window gets the full target', () => {
+    expect(one({ d: 300, slot: -100, b0: -0.1, nemesis: 1 }).band).toBeCloseTo(-0.1, 12);
+  });
+  it('speed cap in the window: viewMul 0 -> cap exactly vmax (no slowdown on screen)', () => {
+    expect(one({ d: 100, slot: -200, b0: 0, params: SNAP, speed: 0.5 }).speed).toBeCloseTo(1, 9);
+  });
+});
+
+describe('R63 exponential smoothing', () => {
+  it('rising from rest: band1 = target*(1 - exp(-bandAttack*DT)); target 0.06', () => {
+    expect(one({ d: -100, slot: 200 }).band).toBeCloseTo(0.06 * attack, 12);
+  });
+  it('|target| < |band| uses bandRelease: b0 0.06, target 0.03 -> 0.06 + (0.03 - 0.06)*release', () => {
+    expect(one({ d: -100, slot: 50, b0: 0.06 }).band).toBeCloseTo(0.06 - 0.03 * release, 12);
+  });
+  it('decay to zero uses release: b0 0.06, target 0 -> 0.06*exp(-0.5*DT)', () => {
+    expect(one({ d: -100, slot: -100, b0: 0.06 }).band).toBeCloseTo(0.06 * Math.exp(-0.5 * DT), 12);
+  });
+  it('sign flip is judged by magnitude: b0 0.03, target -0.10 -> attack', () => {
+    expect(one({ d: -100, slot: -500, b0: 0.03 }).band).toBeCloseTo(0.03 - 0.13 * attack, 12);
+  });
+  it('sign flip, smaller magnitude: b0 -0.10, target +0.06 -> release', () => {
+    expect(one({ d: -100, slot: 200, b0: -0.1 }).band).toBeCloseTo(-0.1 + 0.16 * release, 12);
+  });
+  it('bandAttack / bandRelease come from the config (attack 8, release 3)', () => {
+    const cfg: RivalConfig = { ...RC, bandAttack: 8, bandRelease: 3 };
+    expect(one({ d: -100, slot: 200, cfg }).band).toBeCloseTo(0.06 * (1 - Math.exp(-8 * DT)), 12);
+    expect(one({ d: -100, slot: 50, b0: 0.06, cfg }).band).toBeCloseTo(0.06 - 0.03 * (1 - Math.exp(-3 * DT)), 12);
+  });
+  it('the cap uses the band: after a step from rest the speed is within [1, 1.06]', () => {
+    const sp = one({ d: -100, slot: 200, params: SNAP, speed: 0.5 }).speed;
+    expect(sp).toBeGreaterThanOrEqual(1 - 1e-9);
+    expect(sp).toBeLessThanOrEqual(1.06 + 1e-9);
+  });
+  it('long run to a fixed target: monotone, no overshoot, converges (10 s, target +0.06)', () => {
+    const s = mkRace(1, 0, [
+      { z: 0, x: 0, speed: 0 },
+      { z: -100, x: 0.5, speed: 0, slot: 200, slotTicks: 1e9, band: 0, role: 1 },
+    ]);
+    s.tick = LATE;
+    let prev = 0;
+    for (let i = 0; i < 1200; i++) {
+      step(s, [IDLE, IDLE], TRACK, [PLAYER, STILL], undefined, RC);
+      const b = s.cars[1]!.band;
+      expect(b).toBeGreaterThanOrEqual(prev - 1e-12);
+      expect(b).toBeLessThanOrEqual(0.06 + 1e-12);
+      prev = b;
     }
+    expect(prev).toBeCloseTo(0.06, 6); // 1 - exp(-2*10) ~ 1
   });
-  it('boost and slow are independent numbers: boost 0.1, slow 0.05, dead 50, range 100', () => {
-    const cfg: RivalConfig = {
-      ...RC,
-      rubberBoost: 0.1,
-      rubberSlow: 0.05,
-      rubberDead: 50,
-      rubberRange: 100,
-    };
-    expect(capAt(100, cfg)).toBeCloseTo(1.05, 9); // 1 + 0.1 * (50/100)
-    expect(capAt(-100, cfg)).toBeCloseTo(0.975, 9); // 1 - 0.05 * 0.5
-    expect(capAt(150, cfg)).toBeCloseTo(1.1, 9); // clamp at 1
-    expect(capAt(-150, cfg)).toBeCloseTo(0.95, 9);
-    expect(capAt(50, cfg)).toBeCloseTo(1, 9);
-    expect(capAt(-50, cfg)).toBeCloseTo(1, 9);
+  it('magnitudes: err +300 gives +0.06, err -300 gives -0.10 (asymmetry bandBoost : bandSlow)', () => {
+    expect(one({ d: -100, slot: 200 }).band / attack).toBeCloseTo(0.06, 9);
+    expect(one({ d: -100, slot: -400 }).band / attack).toBeCloseTo(-0.1, 9);
   });
-  it('the band multiplies the paced cap: pace 1.02 behind 240 -> 1.02 * 1.08 = 1.1016', () => {
-    expect(capAt(240, RC, 1.02)).toBeCloseTo(1.1016, 9);
-    expect(capAt(-240, RC, 1.02)).toBeCloseTo(1.02 * 0.92, 9); // 0.9384
+});
+
+describe('R63 bandStartDelay (first 15 s of the race: target 0)', () => {
+  it('race tick 0: target 0 even with err 300; band from b0 0.06 decays by release', () => {
+    expect(one({ d: -100, slot: 200, b0: 0.06, tick: 0 }).band).toBeCloseTo(0.06 * Math.exp(-0.5 * DT), 12);
   });
-  it('rubberBand = 0: off, the cap stays pace * vmax at any distance', () => {
-    const off: RivalConfig = { ...RC, rubberBand: 0 };
-    for (const d of [-400, -140, 0, 140, 400]) {
-      expect(capAt(d, off)).toBeCloseTo(1, 6);
-      expect(capAt(d, off, 1.03)).toBeCloseTo(1.03, 6);
-    }
+  it('tick 0 from rest: band stays 0', () => {
+    expect(one({ d: -100, slot: 200, b0: 0, tick: 0 }).band).toBe(0);
   });
-  it('no rival config passed: no band', () => {
-    expect(capAt(400, undefined)).toBeCloseTo(1, 6);
-    expect(capAt(-400, undefined)).toBeCloseTo(1, 6);
+  it('tick 1700 (14.2 s, < 15 s = 1800 ticks) still delayed; tick 1900 (15.8 s) active', () => {
+    expect(one({ d: -100, slot: 200, tick: 1700 }).band).toBe(0);
+    expect(one({ d: -100, slot: 200, tick: 1900 }).band).toBeCloseTo(0.06 * attack, 12);
   });
-  it('the player is never affected: cap stays vmax with rivals far ahead and far behind', () => {
-    for (const rivalZ of [-400, 400]) {
-      const s = mkRace(1, 0, [
-        { z: 0, x: 0, speed: 0 },
-        { z: rivalZ, x: 0.5, speed: 0 },
-      ]);
-      step(s, [IDLE, IDLE], TRACK, [SNAP, PLAYER], undefined, RC);
-      expect(s.cars[0]!.speed).toBeCloseTo(1, 6);
-    }
+  it('bandStartDelay 0: active from tick 0; bandStartDelay 30: tick 1900 still delayed (3600 ticks)', () => {
+    expect(one({ d: -100, slot: 200, tick: 0, cfg: { ...RC, bandStartDelay: 0 } }).band).toBeCloseTo(0.06 * attack, 12);
+    expect(one({ d: -100, slot: 200, tick: 1900, cfg: { ...RC, bandStartDelay: 30 } }).band).toBe(0);
   });
-  it('traffic is not affected by the band either (R70 rails)', () => {
+});
+
+describe('R63 off switches, player and traffic', () => {
+  it('rubberBand 0 (H15 B): band forced to 0, cap = pace*vmax', () => {
+    const c = one({ d: -100, slot: 200, b0: 0.05, cfg: { ...RC, rubberBand: 0 }, pace: 1.02, params: SNAP, speed: 0.5 });
+    expect(c.band).toBe(0);
+    expect(c.speed).toBeCloseTo(1.02, 9);
+  });
+  it('no rival config: band 0, cap pace*vmax', () => {
+    const c = one({ d: -100, slot: 200, b0: 0.05, cfg: undefined, params: SNAP, speed: 0.5 });
+    expect(c.band).toBe(0);
+    expect(c.speed).toBeCloseTo(1, 9);
+  });
+  it('the player is never affected: band 0 and cap vmax even with a slot written on it', () => {
+    const s = mkRace(1, 0, [
+      { z: 0, x: 0, speed: 0, band: 0, slot: 500 },
+      { z: -400, x: 0.5, speed: 0, slotTicks: 1e6 },
+    ]);
+    s.tick = LATE;
+    for (let i = 0; i < 600; i++) step(s, [IDLE, IDLE], TRACK, [SNAP, PLAYER], undefined, RC);
+    expect(s.cars[0]!.band).toBe(0);
+    expect(s.cars[0]!.speed).toBeCloseTo(1, 6);
+  });
+  it('traffic is not affected (R70 rails): speed unchanged, band stays 0', () => {
     const s = mkRace(0, 1, [
       { z: 0, x: 0, speed: 0 },
       { z: -400, x: 0.5, speed: 0.5 },
     ]);
+    s.tick = LATE;
     step(s, [IDLE, IDLE], TRACK, [PLAYER, SNAP], undefined, RC);
     expect(s.cars[1]!.speed).toBe(0.5);
+    expect(s.cars[1]!.band).toBe(0);
   });
-  it('only the cap changes: steering and lateral motion of step 1 are identical with the band on and off', () => {
+  it('only the cap changes: lateral motion of step 1 is identical with the band on and off', () => {
     const steer: InputFrame = { steer: 0.7, brake: false, drift: false };
     const run = (cfg: RivalConfig): { x: number; vx: number; speed: number } => {
       const s = mkRace(1, 0, [
         { z: 0, x: 0, speed: 0 },
-        { z: -240, x: 0.2, speed: 0.5 },
+        { z: -240, x: 0.2, speed: 0.5, slot: 400, slotTicks: 1e6, band: 0.06, role: 1 },
       ]);
+      s.tick = LATE;
       step(s, [IDLE, steer], TRACK, [PLAYER, SNAP], undefined, cfg);
       const c = s.cars[1]!;
       return { x: c.x, vx: c.vx, speed: c.speed };
     };
     const on = run(RC);
     const off = run({ ...RC, rubberBand: 0 });
-    expect(on.x).toBe(off.x); // sp0 uses the speed before R14, which is the same 0.5
+    expect(on.x).toBe(off.x);
     expect(on.vx).toBe(off.vx);
-    expect(on.speed).toBeGreaterThan(off.speed + 0.05); // 1.08 vs 1
+    expect(on.speed).toBeGreaterThan(off.speed + 0.03); // ~1.06 vs 1
   });
-  it('the band follows the player as it moves: a rival that closes in loses the boost step by step', () => {
-    // Player stands at z 0; rival starts 240 behind at its cap and drives 0.5 segments per tick.
-    // 400 ticks later it is about 200 segments closer, so the boost must have shrunk.
-    const s = mkRace(1, 0, [
-      { z: 0, x: 0, speed: 0 },
-      { z: -240, x: 0.5, speed: 1.08 },
-    ]);
-    const p: CarParams = { ...baseCarA, accel: 5, driftBrake: 5 };
-    const first = capAt(240, RC);
-    for (let i = 0; i < 400; i++) step(s, [IDLE, IDLE], TRACK, [PLAYER, p], undefined, RC);
-    expect(first).toBeCloseTo(1.08, 9);
-    expect(s.cars[1]!.speed).toBeLessThan(1.08 - 0.02);
-    expect(s.cars[1]!.speed).toBeGreaterThanOrEqual(1 - TOL);
+  it('determinism: the same race run twice gives identical JSON (band, slot included)', () => {
+    const run = (): string => {
+      const s = mkRace(2, 0, [
+        { z: 0, x: 0, speed: 0.5 },
+        { z: -300, x: 0.5, speed: 0.4, slot: 300, slotTicks: 1e6, role: 1 },
+        { z: 300, x: -0.5, speed: 0.6, slot: -300, slotTicks: 1e6, role: 2 },
+      ]);
+      s.tick = LATE;
+      for (let i = 0; i < 500; i++) step(s, [IDLE, IDLE, IDLE], TRACK, [baseCarA, baseCarA, baseCarA], undefined, RC);
+      return JSON.stringify(s);
+    };
+    expect(run()).toBe(run());
   });
 });

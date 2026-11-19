@@ -39,7 +39,7 @@ import { WorldSprites } from '../render/worldSprites';
 import { DT } from '../sim/constants';
 import { createRace, placeTraffic } from '../sim/race';
 import { buildTrack, makeStraightTrack } from '../sim/track';
-import { curveClasses, loadTestTwisty } from '../data/tracks';
+import { curveClasses, loadTestTwisty, loadTrackByName } from '../data/tracks';
 import type { InputFrame, Track, TrafficConfig } from '../sim/types';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
@@ -132,7 +132,9 @@ const driftScenario =
   params.scenario === 'drift-right' || params.scenario === 'drift-camera'
     ? scenarios[params.scenario]
     : null;
-// map-curve: the default twisty loop, pinned shortly before a corner (ribbon map screenshot).
+// sharp (R31b): drift-run (pinned), drift entered by a flick just before the first hook.
+const sharpScenario = params.scenario === 'sharp' ? scenarios.sharp : null;
+// map-curve: the test-twisty loop (pinned, not the default track), shortly before a corner (ribbon map screenshot).
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
 // R30 hill-crest / hill-dip: literal straight track with hills, car placed at a fixed z.
 const hillScenario =
@@ -148,6 +150,7 @@ const fixedScenario =
   trafficScenario ??
   mapScenario ??
   driftScenario ??
+  sharpScenario ??
   hillScenario;
 const curve = curveScenario ?? driftScenario;
 const track = curve
@@ -158,7 +161,11 @@ const track = curve
       ? makeStraightTrack(STRAIGHT_TRACK_SEGMENTS)
       : hillScenario
         ? buildTrack({ sections: hillScenario.sections })
-        : buildTrack(loadTestTwisty().def);
+        : mapScenario
+          ? buildTrack(loadTestTwisty().def)
+          : sharpScenario
+            ? buildTrack(loadTrackByName(sharpScenario.track).def)
+            : buildTrack(loadTrackByName(params.track).def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
 // R27: one roll uniform shared by every game-layer material (road, sprites, traffic).
 const screenRoll = new ScreenRoll(spritesConfig.driftCamera, view.screenWidth / view.screenHeight);
@@ -226,7 +233,8 @@ const speedReading: SpeedReading = { ratio: 0, boosting: false };
 // Input: keyboard + touch scheme (H2; only A exists, the resolve warns on a bad flag).
 resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
 const now = (): number => performance.now();
-const keyboard = createKeyboardInput(inputConfig.keyboard);
+// R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
+const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
 const touchStick = createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
 // H3 D re-touch drift and H3 E flick drift, live config (dev panel); fed alongside the stick.
@@ -250,9 +258,10 @@ function fixedInput(steer: number, drift: boolean, flickFrom = steer, flickTicks
     },
   };
 }
+const flickScenario = driftScenario ?? sharpScenario;
 const player = fixedScenario
-  ? driftScenario
-    ? fixedInput(driftScenario.steer, true, driftScenario.flickFrom, driftScenario.flickTicks)
+  ? flickScenario
+    ? fixedInput(flickScenario.steer, true, flickScenario.flickFrom, flickScenario.flickTicks)
     : fixedInput(fixedScenario.steer, false)
   : createPlayerInput(keyboard, touchStick, now, {
       // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
@@ -281,6 +290,10 @@ if (driftScenario) {
   race.cars[0]!.speed = driftScenario.speed;
   // R20 needs a rising edge with the steer already past driftEnterSteer: start with it applied.
   race.cars[0]!.steer = driftScenario.steer;
+}
+if (sharpScenario) {
+  race.cars[0]!.z = sharpScenario.z;
+  race.cars[0]!.speed = sharpScenario.speed;
 }
 if (hillScenario) race.cars[0]!.z = hillScenario.z;
 if (roadsideScenario) race.cars[0]!.z = roadsideScenario.z;

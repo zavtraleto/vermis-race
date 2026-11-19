@@ -121,7 +121,7 @@
     "overscanPx": 80
   },
   "speedometer": {
-    "vmaxKmh": 140,
+    "vmaxKmh": 180,
     "segments": 14,
     "boostSegments": 4
   }

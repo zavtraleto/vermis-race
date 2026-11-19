@@ -46,6 +46,12 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       pace: 1,
       nameId: -1,
       place: 0,
+      role: 0,
+      slot: 0,
+      slotTicks: 0,
+      nemesis: 0,
+      band: 0,
+      joinTicks: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.
@@ -68,7 +74,9 @@ export function step(
   const lead = cars[0];
   const hasPlayer = lead !== undefined && lead.kind === 'player';
   const playerZ0 = hasPlayer ? lead.z : 0;
-  const band = rivals !== undefined && rivals.rubberBand === 1 && hasPlayer;
+  const bandOn = rivals !== undefined && rivals.rubberBand === 1 && hasPlayer;
+  // R63: the band target is 0 for the first bandStartDelay seconds (tick at the start of the step).
+  const bandDelayed = rivals !== undefined && state.tick < Math.round(rivals.bandStartDelay / DT);
   // R4: cars updated in index order, each with its own input and params.
   for (let i = 0; i < cars.length; i++) {
     const car = cars[i]!;
@@ -83,16 +91,26 @@ export function step(
     // R43: the invulnerability window counts down in the car's own update.
     if (car.bumpTicks > 0) car.bumpTicks--;
 
+    if (car.kind === 'rival') {
+      if (car.joinTicks > 0) car.joinTicks--; // R63b
+      if (rivals !== undefined && car.slotTicks > 0) {
+        // R62b: the slot is redrawn from the role range on the tick the timer reaches 0.
+        car.slotTicks--;
+        if (car.slotTicks === 0) drawSlot(state, car, rivals);
+      }
+      // R63: smoothed slot band; 0 without a rival config or with H15 B.
+      if (bandOn) updateBand(car, rivals, car.z - playerZ0, bandDelayed);
+      else car.band = 0;
+    }
+
     // R48: during a crash input and the driving rules (R10-R22, R80-R87, R50-R52) do not apply.
     if (car.crashTicks > 0) {
       crashStep(car, p);
       continue;
     }
     const z0 = car.z;
-    // R62/R63: the speed cap is vmax*pace*band (pace 1 and no band for the player: exactly vmax).
-    let capScale = car.pace;
-    if (band && car.kind === 'rival') capScale *= rubberBand(rivals, playerZ0 - z0);
-    const vcap = p.vmax * capScale;
+    // R62/R63: the speed cap is vmax*pace*(1 + band) (pace 1 and band 0 for the player: exactly vmax).
+    const vcap = p.vmax * car.pace * (1 + car.band);
 
     // R11/R13: sp uses the speed before R14 updates it.
     const sp0 = car.speed / p.vmax;
@@ -235,6 +253,8 @@ export function step(
   }
   // R71: respawn after R16 of all cars, relative to the player.
   if (hasPlayer && traffic !== undefined) respawnTraffic(state, traffic, lead.z, params[0]!.vmax);
+  // R63b: rivals beyond poolRadius of the player (end of the step) are replaced on this tick.
+  if (hasPlayer && rivals !== undefined) poolRivals(state, rivals, lead);
   // R40/R64: traffic contact of every race car at the end of the step, in index order.
   for (let i = 0; i < cars.length; i++) {
     if (cars[i]!.kind !== 'traffic') bumpTraffic(cars[i]!, cars, params[i]!);
@@ -647,13 +667,124 @@ function kick(car: Car, side: number, p: CarParams): void {
   car.bumpTicks = Math.round(p.bumpInvulnTime / DT); // R43
 }
 
-/** R63: behind the player by d > 0: 1 + rubberBoost*f; ahead: 1 - rubberSlow*f; f = clamp((|d| - dead)/range, 0, 1). */
-function rubberBand(cfg: RivalConfig, d: number): number {
-  const ad = d < 0 ? -d : d;
-  let f = (ad - cfg.rubberDead) / cfg.rubberRange;
-  if (f < 0) f = 0;
-  if (f > 1) f = 1;
-  return d > 0 ? 1 + cfg.rubberBoost * f : 1 - cfg.rubberSlow * f;
+/**
+ * R63: target from the slot error (asymmetric bandBoost / bandSlow), scaled inside the view window
+ * (0 < d < bandViewDist) by bandViewMul (nemesisViewMul for the nemesis), 0 while delayed; then
+ * exponential smoothing with bandAttack when |target| > |band|, else bandRelease.
+ * d = z - zPlayer at the start of the step.
+ */
+function updateBand(car: Car, cfg: RivalConfig, d: number, delayed: boolean): void {
+  let target = 0;
+  if (!delayed) {
+    let raw = (car.slot - d) / cfg.bandRange;
+    if (raw > 1) raw = 1;
+    if (raw < -1) raw = -1;
+    target = raw > 0 ? cfg.bandBoost * raw : cfg.bandSlow * raw;
+    if (d > 0 && d < cfg.bandViewDist)
+      target *= car.nemesis === 1 ? cfg.nemesisViewMul : cfg.bandViewMul;
+  }
+  const b = car.band;
+  const k = (target < 0 ? -target : target) > (b < 0 ? -b : b) ? cfg.bandAttack : cfg.bandRelease;
+  car.band = b + (target - b) * (1 - Math.exp(-k * DT));
+}
+
+/**
+ * R62b: draws the slot from the range of the role (nemesisSlot for the nemesis) and restarts the
+ * slot timer at slotTimeMin..slotTimeMax seconds. Draws: slot, timer.
+ */
+function drawSlot(state: RaceState, car: Car, cfg: RivalConfig): void {
+  const r =
+    car.nemesis === 1
+      ? cfg.nemesisSlot
+      : car.role === 0
+        ? cfg.slotClose
+        : car.role === 1
+          ? cfg.slotAhead
+          : cfg.slotBehind;
+  car.slot = r[0] + (r[1] - r[0]) * nextRandom(state);
+  car.slotTicks = Math.round(
+    (cfg.slotTimeMin + (cfg.slotTimeMax - cfg.slotTimeMin) * nextRandom(state)) / DT,
+  );
+}
+
+/**
+ * R62: k-th name (k from the RNG) among the names no other race car holds and, when another free
+ * name exists, other than `car`'s own; with no free name at all the car keeps its name.
+ */
+function drawName(state: RaceState, car: Car, cfg: RivalConfig): void {
+  const cars = state.cars;
+  let free = 0;
+  for (let id = 0; id < cfg.rivalNameCount; id++) if (!nameUsed(cars, id)) free++;
+  if (free === 0) return;
+  let k = Math.floor(nextRandom(state) * free);
+  for (let id = 0; id < cfg.rivalNameCount; id++) {
+    if (nameUsed(cars, id)) continue;
+    if (k === 0) {
+      car.nameId = id;
+      return;
+    }
+    k--;
+  }
+}
+
+function nameUsed(cars: readonly Car[], id: number): boolean {
+  for (let j = 0; j < cars.length; j++)
+    if (cars[j]!.kind === 'rival' && cars[j]!.nameId === id) return true;
+  return false;
+}
+
+/**
+ * R63b: a rival with |z - zPlayer| > poolRadius (end of the step) is replaced on this tick: new
+ * lane, skill, pace, name and slot of the same role (nemesis kept), z = zPlayer - poolSpawnBehind,
+ * the player's speed, clean drive state, band 0, joinTicks = joinShowTime. Rivals in index order.
+ * Draws per replaced rival: lane, skill, pace, name, slot, slot timer.
+ */
+function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
+  const cars = state.cars;
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i]!;
+    if (c.kind !== 'rival') continue;
+    const d = c.z - player.z;
+    if (!(d > cfg.poolRadius || d < -cfg.poolRadius)) continue;
+    c.z = player.z - cfg.poolSpawnBehind;
+    const lane = Math.floor(nextRandom(state) * cfg.lanes);
+    c.x = -1 + ((lane + 0.5) * 2) / cfg.lanes; // R70 lane centre
+    c.speed = player.speed;
+    drawCharacter(state, c, cfg);
+    drawName(state, c, cfg);
+    drawSlot(state, c, cfg);
+    c.vx = 0;
+    c.steer = 0;
+    c.state = 'GRIP';
+    c.dir = 0;
+    c.offTicks = 0;
+    c.angle = 0;
+    c.driftHeld = false;
+    c.armTicks = 0;
+    c.lowTicks = 0;
+    c.bumpTicks = 0;
+    c.draft = 0;
+    c.boostTicks = 0;
+    c.yaw = 0;
+    c.yawRate = 0;
+    c.vel = 0;
+    c.carry = 0;
+    c.steerHistHead = 0;
+    c.steerHistCount = 0;
+    c.crashTicks = 0;
+    c.crashSpeed0 = 0;
+    c.crashX0 = 0;
+    c.band = 0;
+    c.joinTicks = Math.round(cfg.joinShowTime / DT);
+  }
+}
+
+/** R62: skill by rivalSkillWeights, pace in 1 +- rivalPaceSpread. Draws: skill, pace. */
+function drawCharacter(state: RaceState, c: Car, cfg: RivalConfig): void {
+  const w = cfg.rivalSkillWeights;
+  const r = nextRandom(state) * (w[0] + w[1] + w[2]);
+  c.skill = r < w[0] ? 0 : r < w[0] + w[1] ? 1 : 2;
+  c.pace = 1 + cfg.rivalPaceSpread * (2 * nextRandom(state) - 1);
 }
 
 /** R65: race car pairs in index order; a contact sets bumpTicks, so each car touches at most once. */
@@ -722,9 +853,8 @@ export function placeTraffic(state: RaceState, traffic: TrafficConfig, playerVma
  */
 export function placeRivals(state: RaceState, cfg: RivalConfig): void {
   const cars = state.cars;
-  const w = cfg.rivalSkillWeights;
-  const wSum = w[0] + w[1] + w[2];
   let prevLane = -1;
+  let n = 0;
   for (let i = 1; i <= cfg.rivalCount && i < cars.length; i++) {
     const c = cars[i]!;
     if (c.kind !== 'rival') break;
@@ -741,9 +871,7 @@ export function placeRivals(state: RaceState, cfg: RivalConfig): void {
     prevLane = lane;
     c.x = -1 + ((lane + 0.5) * 2) / cfg.lanes; // R70 lane centre
     // R62: skill by the weights, pace in 1 +- spread, the k-th name not taken by an earlier rival.
-    const r = nextRandom(state) * wSum;
-    c.skill = r < w[0] ? 0 : r < w[0] + w[1] ? 1 : 2;
-    c.pace = 1 + cfg.rivalPaceSpread * (2 * nextRandom(state) - 1);
+    drawCharacter(state, c, cfg);
     let k = Math.floor(nextRandom(state) * (cfg.rivalNameCount - (i - 1)));
     let id = 0;
     for (;;) {
@@ -756,5 +884,29 @@ export function placeRivals(state: RaceState, cfg: RivalConfig): void {
       id++;
     }
     c.nameId = id;
+    n = i;
+  }
+  // R62b: roles by the rivalRoles counts (close, ahead, behind; past the counts cyclically), then a
+  // seeded Fisher-Yates shuffle over the rivals. Draws: n - 1 swaps.
+  const roles = cfg.rivalRoles;
+  const listed = roles[0] + roles[1] + roles[2];
+  for (let i = 1; i <= n; i++) {
+    const r = i - 1;
+    cars[i]!.role =
+      r >= listed ? (r - listed) % 3 : r < roles[0] ? 0 : r < roles[0] + roles[1] ? 1 : 2;
+  }
+  for (let i = n; i > 1; i--) {
+    const j = 1 + Math.floor(nextRandom(state) * i);
+    const t = cars[i]!.role;
+    cars[i]!.role = cars[j]!.role;
+    cars[j]!.role = t;
+  }
+  // R62b: the first close rival by index is the nemesis; then slots and timers in index order.
+  let hunter = false;
+  for (let i = 1; i <= n; i++) {
+    const c = cars[i]!;
+    c.nemesis = !hunter && c.role === 0 ? 1 : 0;
+    if (c.nemesis === 1) hunter = true;
+    drawSlot(state, c, cfg);
   }
 }

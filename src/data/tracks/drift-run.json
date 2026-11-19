@@ -1,0 +1,167 @@
+{
+  "name": "drift-run",
+  "figures": [
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "kink",
+      "side": 1,
+      "hill": 20
+    },
+    {
+      "figure": "sweeper",
+      "side": -1,
+      "hill": -20
+    },
+    {
+      "figure": "kink",
+      "side": -1,
+      "hill": 30
+    },
+    {
+      "figure": "hairpin",
+      "side": 1,
+      "hill": -30
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "sweeper",
+      "side": 1,
+      "hill": 40
+    },
+    {
+      "figure": "sweeper",
+      "side": -1,
+      "hill": -40
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "hook",
+      "side": 1,
+      "hill": 30
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "tightening",
+      "side": -1,
+      "hill": -30
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "flick",
+      "side": 1
+    },
+    {
+      "figure": "sweeper",
+      "side": -1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "scurve",
+      "side": -1,
+      "hill": 50
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "double",
+      "side": 1,
+      "hill": -50
+    },
+    {
+      "figure": "kink",
+      "side": -1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "flick",
+      "side": -1,
+      "hill": 40
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "chicane",
+      "side": 1,
+      "hill": -40
+    },
+    {
+      "figure": "opening",
+      "side": -1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "spiral",
+      "side": 1,
+      "hill": 60
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "switchback",
+      "side": -1,
+      "hill": -60
+    },
+    {
+      "figure": "kink",
+      "side": 1
+    },
+    {
+      "figure": "hook",
+      "side": -1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    },
+    {
+      "figure": "straight",
+      "side": 1
+    }
+  ]
+}

@@ -73,6 +73,13 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.pace = s.pace;
     d.nameId = s.nameId;
     d.place = s.place;
+    // R62b role and slot, R63 band, R63b join notice.
+    d.role = s.role;
+    d.slot = s.slot;
+    d.slotTicks = s.slotTicks;
+    d.nemesis = s.nemesis;
+    d.band = s.band;
+    d.joinTicks = s.joinTicks;
   }
 }
 

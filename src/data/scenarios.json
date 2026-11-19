@@ -64,6 +64,15 @@
       { "dz": 40, "lane": 2, "speed": 0.5 }
     ]
   },
+  "sharp": {
+    "track": "drift-run",
+    "ticks": 60,
+    "steer": 0.9,
+    "speed": 0.95,
+    "flickFrom": -0.4,
+    "flickTicks": 4,
+    "z": 1560
+  },
   "hill-crest": {
     "ticks": 1,
     "steer": 0,

@@ -165,6 +165,7 @@ export interface Entry {
     easy: number;
     medium: number;
     hard: number;
+    sharp: number; // R31b
     easyMedium: number;
   };
   steerSaturation: number;
@@ -232,7 +233,7 @@ export function summarize(
   let crashes = 0;
   let nan = false;
   let finished = 0;
-  const ev = { easy: 0, medium: 0, hard: 0 };
+  const ev = { easy: 0, medium: 0, hard: 0, sharp: 0 };
   let evTotal = 0;
   const lapTimes: number[] = [];
   const byLap: number[][] = [];
@@ -257,6 +258,7 @@ export function summarize(
     ev.easy += r.offroadEventsByClass.easy;
     ev.medium += r.offroadEventsByClass.medium;
     ev.hard += r.offroadEventsByClass.hard;
+    ev.sharp += r.offroadEventsByClass.sharp ?? 0;
     r.lapTimes.forEach((lt, i) => {
       lapTimes.push(lt);
       byLap[i]?.push(lt);
@@ -307,6 +309,7 @@ export function summarize(
       easy: ev.easy / lapCount,
       medium: ev.medium / lapCount,
       hard: ev.hard / lapCount,
+      sharp: ev.sharp / lapCount,
       easyMedium: (ev.easy + ev.medium) / lapCount,
     },
     steerSaturation: sat / ticks,
