@@ -1,5 +1,6 @@
 import tunablesSpec from '../data/tunables.json';
 import { DevPanel } from './panel';
+import type { PanelItemMeta } from './panelModel';
 import { parseDevParams } from './params';
 import { createTunables, type Tunables, type TunableSpec } from './tunables';
 
@@ -51,6 +52,10 @@ export function installDev(
     ? { numbers: { ...base.numbers, ...extra.numbers }, flags: { ...base.flags, ...extra.flags } }
     : base;
   const t = createTunables(roots, spec);
+  // Panel metadata sits next to the ranges (`meta`); the registry itself ignores it.
+  const metaOf = (s: unknown): Record<string, PanelItemMeta> =>
+    (s as { meta?: Record<string, PanelItemMeta> }).meta ?? {};
+  const meta = { ...metaOf(base), ...(extra ? metaOf(extra) : {}) };
   const params = parseDevParams(search);
   const stored = load();
   if (stored !== null) applyFrom(t, stored, 'localStorage');
@@ -64,8 +69,8 @@ export function installDev(
     return u.toString();
   };
   let panel: DevPanel | null = null;
-  const open = (): DevPanel => (panel ??= new DevPanel(document.body, t, shareUrl));
-  if (params.open) open().setMode('open');
+  const open = (): DevPanel => (panel ??= new DevPanel(document.body, t, shareUrl, meta));
+  if (params.open) open().show();
   const toggle = (): void => {
     if (panel === null) open().setMode('open');
     else panel.toggle();
