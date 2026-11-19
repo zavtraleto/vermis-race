@@ -9,5 +9,7 @@
   "H8_worldRotation": "off",
   "H9_nearPerspective": "off",
   "H10_offroad": "B",
-  "H14_model": "B"
+  "H14_model": "B",
+  "H15_rubberBand": "A",
+  "H16_driftEntry": "A"
 }

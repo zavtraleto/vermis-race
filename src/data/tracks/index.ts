@@ -1,10 +1,14 @@
 import type { TrackDef, TrackSection } from '../../sim/types';
 import curves from './curves.json';
 import figures from './figures.json';
+import figuresSharp from './figures-sharp.json';
+import driftRun from './drift-run.json';
 import twisty from './test-twisty.json';
 
-export type CurveClass = 'easy' | 'medium' | 'hard';
-export type CurveClasses = Record<CurveClass, number>;
+/** R31b: `sharp` is steeper than `hard`. */
+export type CurveClass = 'easy' | 'medium' | 'hard' | 'sharp';
+/** Class values; `sharp` (R31b) is optional so older class sets stay valid (resolve throws if a section needs it). */
+export type CurveClasses = Record<Exclude<CurveClass, 'sharp'>, number> & { sharp?: number };
 /** R31: a section is a corner of one class or a straight (curve 0). */
 export type SectionClass = CurveClass | 'straight';
 
@@ -39,6 +43,7 @@ export function parseSections(raw: unknown): ClassedSection[] {
       curveClass !== 'easy' &&
       curveClass !== 'medium' &&
       curveClass !== 'hard' &&
+      curveClass !== 'sharp' &&
       curveClass !== 'straight'
     ) {
       throw new Error(`section ${i}: unknown curveClass ${String(curveClass)}`);
@@ -62,6 +67,12 @@ export function parseSections(raw: unknown): ClassedSection[] {
   });
 }
 
+function classValue(classes: CurveClasses, c: CurveClass): number {
+  const v = classes[c];
+  if (v === undefined) throw new Error(`curve class ${c} has no value`);
+  return v;
+}
+
 /** curve = side * classes[curveClass] (straight: 0); lengths copied as is. */
 export function resolveSections(
   sections: readonly ClassedSection[],
@@ -74,7 +85,7 @@ export function resolveSections(
         hold: s.hold,
         leave: s.leave,
         // R31: a straight is curve +0 on either side.
-        curve: s.curveClass === 'straight' ? 0 : s.side * classes[s.curveClass],
+        curve: s.curveClass === 'straight' ? 0 : s.side * classValue(classes, s.curveClass),
       };
       if (s.hill !== undefined) out.hill = s.hill;
       return out;
@@ -100,8 +111,11 @@ export interface FigureRef {
 }
 export type ExpandedSection = ClassedSection;
 
-/** R31 figure dictionary (src/data/tracks/figures.json). */
-export const figureDict: Readonly<Record<string, FigureDef>> = figures as Record<string, FigureDef>;
+/** R31 figure dictionary (figures.json) plus the R31b figures (figures-sharp.json). */
+export const figureDict: Readonly<Record<string, FigureDef>> = {
+  ...(figures as Record<string, FigureDef>),
+  ...(figuresSharp as Record<string, FigureDef>),
+};
 
 /**
  * R31: expands figure placements into track sections, in order. side -1 mirrors every part;
@@ -142,8 +156,26 @@ export function trackSections(raw: { sections?: unknown; figures?: unknown }): C
   return parseSections(raw.sections);
 }
 
-/** The default loop (R31 figures): classed sections (for tests and the ribbon map) and the resolved TrackDef. */
-export function loadTestTwisty(): { name: string; sections: ClassedSection[]; def: TrackDef } {
-  const sections = trackSections(twisty);
-  return { name: twisty.name, sections, def: resolveSections(sections, curveClasses) };
+export interface LoadedDef {
+  name: string;
+  sections: ClassedSection[];
+  def: TrackDef;
+}
+
+function load(raw: { name: string; figures?: unknown; sections?: unknown }): LoadedDef {
+  const sections = trackSections(raw);
+  return { name: raw.name, sections, def: resolveSections(sections, curveClasses) };
+}
+
+/** The test loop (R31 figures): classed sections (for tests and the ribbon map) and the resolved TrackDef. */
+export function loadTestTwisty(): LoadedDef {
+  return load(twisty);
+}
+
+/** R31b: the game's main track. */
+export const DEFAULT_TRACK = 'drift-run';
+
+/** Track by name (?track=): drift-run or test-twisty; anything else is the default track. */
+export function loadTrackByName(name: string): LoadedDef {
+  return load(name === twisty.name ? twisty : driftRun);
 }

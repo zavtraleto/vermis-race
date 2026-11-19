@@ -39,6 +39,20 @@
       { "dz": 58, "lane": 6, "speed": 0.5 }
     ]
   },
+  "rivals": {
+    "ticks": 1,
+    "steer": 0,
+    "z": 20,
+    "speed": 0.6,
+    "ui": true,
+    "rivals": [
+      { "dz": 9, "lane": 2, "speed": 0.6, "nameId": 0, "nemesis": 0, "join": 0 },
+      { "dz": 16, "lane": 5, "speed": 0.6, "nameId": 2, "nemesis": 1, "join": 0 },
+      { "dz": 26, "lane": 3, "speed": 0.6, "nameId": 5, "nemesis": 0, "join": 1 },
+      { "dz": 40, "lane": 6, "speed": 0.6, "nameId": 7, "nemesis": 0, "join": 0 },
+      { "dz": -12, "lane": 1, "speed": 0.6, "nameId": 11, "nemesis": 0, "join": 0 }
+    ]
+  },
   "curve-left": { "ticks": 240, "curve": -2.5, "steer": -0.28 },
   "curve-right": { "ticks": 240, "curve": 2.5, "steer": 0.28 },
   "map-curve": { "ticks": 300, "steer": 0.2 },
@@ -63,6 +77,15 @@
       { "dz": 27, "lane": 5, "speed": 0.5 },
       { "dz": 40, "lane": 2, "speed": 0.5 }
     ]
+  },
+  "sharp": {
+    "track": "drift-run",
+    "ticks": 60,
+    "steer": 0.9,
+    "speed": 0.95,
+    "flickFrom": -0.4,
+    "flickTicks": 4,
+    "z": 1560
   },
   "hill-crest": {
     "ticks": 1,

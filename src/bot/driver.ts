@@ -147,6 +147,15 @@ function inDriftCorner(segs: Track['segments'], n: number, i: number, cSkip: num
 }
 
 /**
+ * Cars the weaving (R46) steers around: every traffic car, and another race car (R65 contact,
+ * rivals) only while it is slower than this one (a faster one pulls away). Never the car itself.
+ */
+function isObstacle(t: Car, car: Car): boolean {
+  if (t === car) return false;
+  return t.kind === 'traffic' || t.speed < car.speed;
+}
+
+/**
  * True when the lateral move from x0 to x1 crosses the band (R40 hit width + margin) of a traffic
  * car in the scan window. A band that already contains x0 may be left on the side x0 is on.
  */
@@ -163,7 +172,7 @@ function crosses(
   const hi = x0 < x1 ? x1 : x0;
   for (let i = 0; i < cars.length; i++) {
     const t = cars[i]!;
-    if (t.kind !== 'traffic') continue;
+    if (!isObstacle(t, car)) continue;
     const dz = t.z - car.z;
     if (dz <= back || dz > bp.trafficLookaheadSeg) continue;
     const l = t.x - clear;
@@ -201,7 +210,7 @@ function avoidX(
   let bestD = Infinity;
   for (let i = 0; i < cars.length; i++) {
     const t = cars[i]!;
-    if (t.kind !== 'traffic') continue;
+    if (!isObstacle(t, car)) continue;
     const dz = t.z - car.z;
     if (dz <= back || dz > bp.trafficLookaheadSeg) continue;
     for (let s = -1; s <= 1; s += 2) {
@@ -346,9 +355,14 @@ function botInputB(
   if (!inDrift && bot.flick > 0) {
     // R81: a flick counts only inside one hold, so the hold starts on the last pre-kick tick (the
     // dip steer, or the line steer without a dip) and the kick follows inside it.
-    const dip = Math.round(bp.bDipTime / DT);
+    // R81b C (driftEntry 2): no flick; no dip, and the full steer is held past deflectTime (the
+    // entry comes on the tick after deflectTime/DT qualifying ticks), with a tick of margin.
+    const byDeflect = p.driftEntry === 2;
+    const dip = byDeflect ? 0 : Math.round(bp.bDipTime / DT);
     const pre = dip < 1 ? 1 : dip;
-    const kick = Math.round(bp.bKickTime / DT);
+    let kick = Math.round(bp.bKickTime / DT);
+    if (byDeflect && kick < Math.round(p.deflectTime / DT) + 2)
+      kick = Math.round(p.deflectTime / DT) + 2;
     const f = bot.flick;
     if (f <= dip) steer = -bot.flickDir * bp.bDipSteer;
     else if (f > pre && f <= pre + kick) steer = bot.flickDir;

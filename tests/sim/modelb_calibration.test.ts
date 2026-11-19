@@ -764,3 +764,70 @@ describe('R89b calibration: agility (lane = 0.25 half-widths, targets named in a
     expect(t1).toBeLessThanOrEqual(1.0);
   });
 });
+
+// R84 revision (variant H, docs/research/drift-band-spike.md): a drift against the turn with the finger
+// fully toward the turn must leave the road no later than GRIP with steer 0 on the same corner + 10%.
+describe('R84 criterion: drift against the turn leaves the road (driftCounter 0, wrongPush 0.13)', () => {
+  const REVISED: CarParams = { ...FB, driftCounter: 0, wrongPush: 0.13 };
+  const LIMIT = 20; // seconds searched
+
+  /** Seconds until |x| > 1 (Infinity if never). Speed pinned at vmax as in the spike. */
+  function leave(r: Rig, steer: number, drift: boolean): number {
+    for (let i = 1; i <= LIMIT / DT; i++) {
+      r.step(steer, drift, 1);
+      if (Math.abs(r.car.x) > 1) return i * DT;
+    }
+    return Infinity;
+  }
+  /** Steady drift to side dir on a straight (finger toward dir, 2 s), then the corner turns to -dir. */
+  function driftIntoCorner(p: CarParams, dir: 1 | -1, mag: number): Rig {
+    const r = new Rig(p, 0, 1);
+    r.enterDrift(dir, dir * 0.5);
+    for (let i = 0; i < 240; i++) r.step(dir * 0.5, true, 1);
+    r.car.x = 0;
+    r.curve = -dir * mag;
+    return r;
+  }
+  const criterion = (p: CarParams, dir: 1 | -1, name: 'medium' | 'hard') => {
+    const tDrift = leave(driftIntoCorner(p, dir, C[name]), -dir, true);
+    const tGrip = leave(new Rig(p, -dir * C[name], 1), 0, false);
+    expect(tGrip).toBeLessThan(Infinity); // the reference itself runs off
+    expect(tDrift).toBeLessThanOrEqual(tGrip * 1.1);
+  };
+  /** Outward speed (half-widths/s) over 2 s after 1 s of settling; the corner turns to -dir, so outside is the dir side. */
+  const easyOut = (p: CarParams, dir: 1 | -1): number => {
+    const r = driftIntoCorner(p, dir, C.easy);
+    for (let i = 0; i < 120; i++) r.step(-dir, true, 1);
+    const x1 = r.car.x;
+    for (let i = 0; i < 240; i++) r.step(-dir, true, 1);
+    return ((r.car.x - x1) * dir) / 2;
+  };
+
+  for (const name of ['medium', 'hard'] as const) {
+    it(`left drift into a right ${name} corner, finger fully right: off the road no later than GRIP steer 0 + 10%`, () => {
+      criterion(REVISED, -1, name);
+    });
+    it(`right drift into a left ${name} corner (mirror): off the road no later than GRIP steer 0 + 10%`, () => {
+      criterion(REVISED, 1, name);
+    });
+  }
+  it('left drift into a right easy corner, finger fully right: drifts outward at least 0.3 half-widths/s', () => {
+    expect(easyOut(REVISED, -1)).toBeGreaterThanOrEqual(0.3);
+  });
+  it('right drift into a left easy corner (mirror): drifts outward at least 0.3 half-widths/s', () => {
+    expect(easyOut(REVISED, 1)).toBeGreaterThanOrEqual(0.3);
+  });
+  it('mirror: left and right cases agree in time to leave (hard)', () => {
+    const a = leave(driftIntoCorner(REVISED, -1, C.hard), 1, true);
+    const b = leave(driftIntoCorner(REVISED, 1, C.hard), -1, true);
+    expect(Math.abs(a - b)).toBeLessThan(1e-9);
+  });
+  it('base.json itself has driftCounter 0, wrongPush 0.13 and passes the criterion', () => {
+    expect(baseCar.driftCounter).toBe(0);
+    expect(baseCar.wrongPush).toBeCloseTo(0.13, 12);
+    for (const dir of [-1, 1] as const) {
+      for (const name of ['medium', 'hard'] as const) criterion(FB, dir, name);
+      expect(easyOut(FB, dir)).toBeGreaterThanOrEqual(0.3);
+    }
+  });
+});

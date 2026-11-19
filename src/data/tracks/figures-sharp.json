@@ -1,0 +1,31 @@
+{
+  "hook": {
+    "parts": [{ "enter": 25, "hold": 80, "leave": 25, "curveClass": "sharp", "side": 1 }]
+  },
+  "chicane": {
+    "parts": [
+      { "enter": 20, "hold": 50, "leave": 15, "curveClass": "sharp", "side": 1 },
+      { "enter": 15, "hold": 50, "leave": 25, "curveClass": "sharp", "side": -1 }
+    ]
+  },
+  "spiral": {
+    "parts": [
+      { "enter": 30, "hold": 120, "leave": 0, "curveClass": "medium", "side": 1 },
+      { "enter": 0, "hold": 120, "leave": 0, "curveClass": "hard", "side": 1 },
+      { "enter": 0, "hold": 70, "leave": 30, "curveClass": "sharp", "side": 1 }
+    ]
+  },
+  "switchback": {
+    "parts": [
+      { "enter": 40, "hold": 200, "leave": 35, "curveClass": "hard", "side": 1 },
+      { "enter": 0, "hold": 40, "leave": 0, "curveClass": "straight", "side": 1 },
+      { "enter": 40, "hold": 200, "leave": 35, "curveClass": "hard", "side": -1 }
+    ]
+  },
+  "scurve": {
+    "parts": [
+      { "enter": 40, "hold": 180, "leave": 15, "curveClass": "hard", "side": 1 },
+      { "enter": 15, "hold": 180, "leave": 40, "curveClass": "hard", "side": -1 }
+    ]
+  }
+}

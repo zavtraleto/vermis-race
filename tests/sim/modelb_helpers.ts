@@ -33,6 +33,8 @@ export const PB: CarParams = {
   slipResponse: 8,
   driftLat: 0.46,
   driftPush: 0.0287,
+  wrongPush: 0.0287, // R84: equal to driftPush and driftCounter 1 = the pre-revision formula
+  driftCounter: 1,
   driftSpeedLoss: 0.15,
   slipDrag: 0.058,
   flickDelta: 0.5,

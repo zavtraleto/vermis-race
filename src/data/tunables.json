@@ -15,6 +15,14 @@
     "car.offroadVelMul": { "min": 0.3, "max": 1, "step": 0.05 },
     "car.driftLat": { "min": 0.1, "max": 1.5, "step": 0.01 },
     "car.driftPush": { "min": 0, "max": 0.1, "step": 0.001 },
+    "car.wrongPush": { "min": 0, "max": 0.3, "step": 0.005 },
+    "car.driftCounter": { "min": 0, "max": 1, "step": 0.05 },
+    "car.flickLook": { "min": 0, "max": 120, "step": 5 },
+    "car.flickCornerMin": { "min": 0, "max": 8, "step": 0.25 },
+    "car.flickCornerMul": { "min": 0.2, "max": 1.5, "step": 0.05 },
+    "car.flickStraightMul": { "min": 0.5, "max": 3, "step": 0.05 },
+    "car.deflectEnter": { "min": 0.3, "max": 1, "step": 0.05 },
+    "car.deflectTime": { "min": 0.03, "max": 0.5, "step": 0.01 },
     "car.slipFull": { "min": 0.5, "max": 5, "step": 0.02 },
     "car.slipResponse": { "min": 1, "max": 30, "step": 0.5 },
     "car.carryDecay": { "min": 0, "max": 30, "step": 0.5 },
@@ -146,6 +154,8 @@
     "hypotheses.H9_nearPerspective": ["off", "on"],
     "hypotheses.H10_offroad": ["A", "B"],
     "hypotheses.H14_model": ["A", "B"],
+    "hypotheses.H15_rubberBand": ["A", "B"],
+    "hypotheses.H16_driftEntry": ["A", "B", "C"],
     "sprites.drift.smoke": ["on", "off"]
   },
   "meta": {
@@ -180,6 +190,78 @@
       "group": "Дрифт",
       "model": "B",
       "rule": "R84"
+    },
+    "hypotheses.H16_driftEntry": {
+      "title": "Вход в дрифт (B)",
+      "hint": "A — рывок, B — порог рывка от дороги, C — удержание отклонения пальца",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "H16"
+    },
+    "car.wrongPush": {
+      "title": "Вынос против дрифта",
+      "hint": "больше — дрифт против поворота быстрее выносит с дороги",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R84"
+    },
+    "car.driftCounter": {
+      "title": "Власть контрруля",
+      "hint": "0 — палец против дрифта не уводит машину в другую сторону; 1 — уводит",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R84"
+    },
+    "car.flickLook": {
+      "title": "Взгляд вперёд для рывка",
+      "hint": "сегментов дороги впереди, где ищется поворот (вариант B)",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R81b"
+    },
+    "car.flickCornerMin": {
+      "title": "Кривизна поворота (B)",
+      "hint": "меньше — поворотом считаются и мягкие изгибы (вариант B)",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R81b"
+    },
+    "car.flickCornerMul": {
+      "title": "Порог рывка в поворот",
+      "hint": "меньше — рывок в сторону поворота срабатывает легче (вариант B)",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R81b"
+    },
+    "car.flickStraightMul": {
+      "title": "Порог рывка на прямой",
+      "hint": "больше — на прямой и против поворота рывок нужен сильнее (вариант B)",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R81b"
+    },
+    "car.deflectEnter": {
+      "title": "Отклонение для входа",
+      "hint": "насколько отвести палец, чтобы войти в дрифт (вариант C)",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R81b"
+    },
+    "car.deflectTime": {
+      "title": "Время отклонения, с",
+      "hint": "сколько держать отклонение до входа в дрифт (вариант C)",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R81b"
     },
     "car.slipDrag": {
       "title": "Цена скольжения без дрифта",
@@ -1216,6 +1298,13 @@
       "tier": "legacy",
       "group": "Переключатели",
       "rule": "H14"
+    },
+    "hypotheses.H15_rubberBand": {
+      "title": "Резиновая лента соперников",
+      "hint": "A — соперники держатся у своего места (R63), B — лента выключена",
+      "tier": "more",
+      "group": "Соперники",
+      "rule": "H15"
     }
   }
 }

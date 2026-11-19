@@ -8,8 +8,9 @@ export interface GameParams {
   ticks: number | null;
   hud: boolean;
   map: boolean; // ribbonMap off unless ?map=1
-  track: string; // reserved: track selector (only the default loop exists)
+  track: string; // R31b ?track=: drift-run (default) or test-twisty
   traffic: boolean; // R70 traffic on the default track; ?traffic=0 turns it off
+  rivals: boolean; // R60 rivals on the default track; ?rivals=0 turns them off
   ui: boolean; // R28 UI layer (speedometer); ?ui=0 hides it
   model: 0 | 1 | null; // H14 driving model: ?model=a -> 0, ?model=b -> 1, absent or other -> null (data)
   render: string; // spike E1: '3d' = true 3D renderer (src/render3d), anything else = pseudo-3D
@@ -21,6 +22,7 @@ export interface RendererStats {
   instances: number; // SpriteBatch instances drawn
   dropped: number; // SpriteBatch instances dropped in the last frame (capacity overflow)
   traffic: number; // R45 traffic models drawn in the last frame
+  rivals: number; // R67 rival models drawn in the last frame
 }
 
 /** Live tuning registry (src/dev): paths like 'car.accel', 'camera.fovDeg'. */
@@ -70,8 +72,9 @@ export function parseParams(search: string): GameParams {
     ticks: parseCount(q.get('ticks')),
     hud: q.get('hud') === '1',
     map: q.get('map') === '1',
-    track: q.get('track') ?? 'twisty',
+    track: q.get('track') ?? 'drift-run',
     traffic: q.get('traffic') !== '0',
+    rivals: q.get('rivals') !== '0',
     ui: q.get('ui') !== '0',
     model: q.get('model') === 'a' ? 0 : q.get('model') === 'b' ? 1 : null,
     render: q.get('render') ?? 'pseudo',

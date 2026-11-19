@@ -31,10 +31,11 @@ export class FrameHud {
   }
 
   /** Call once per frame; rewrites the text only every UPDATE_MS. */
-  update(nowMs: number, stats: FrameStats, drawCalls: number): void {
+  update(nowMs: number, stats: FrameStats, drawCalls: number, extra?: () => string): void {
     if (nowMs - this.last < UPDATE_MS) return;
     this.last = nowMs;
     const f = stats.summarize(this.summary);
-    this.el.textContent = `p50 ${f.p50.toFixed(1)}\np99 ${f.p99.toFixed(1)}\ndc  ${drawCalls}`;
+    const tail = extra ? `\n${extra()}` : '';
+    this.el.textContent = `p50 ${f.p50.toFixed(1)}\np99 ${f.p99.toFixed(1)}\ndc  ${drawCalls}${tail}`;
   }
 }

@@ -30,9 +30,20 @@ export interface Car {
   steerHist: number[]; // R81 ring buffer of raw steer, fixed length STEER_HIST
   steerHistHead: number; // R81 next write index
   steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
+  deflectTicks: number; // R81b (C) consecutive ticks of one-sign deflection
   crashTicks: number; // R48 remaining crash ticks, 0 = driving
   crashSpeed0: number; // R48 speed at the moment of the hit
   crashX0: number; // R48 x at the moment of the hit
+  skill: number; // R62 bot level: 0 novice, 1 average, 2 expert (player 0)
+  pace: number; // R62 personal multiplier of vmax (player 1)
+  nameId: number; // R62 index into the rival names (player and traffic -1)
+  place: number; // R66 race place, 1 = leader (stored at the end of the step)
+  role: number; // R62b 0 close, 1 ahead, 2 behind (player 0)
+  slot: number; // R62b target gap d = z - zPlayer, segments, signed
+  slotTicks: number; // R62b ticks left until the slot is redrawn
+  nemesis: number; // R62b 1 for the single hunter, else 0
+  band: number; // R63 smoothed rubber band, cap = vmax*pace*(1 + band)
+  joinTicks: number; // R63b ticks left of the 'joined the race' notice
 }
 
 export interface RaceState {
@@ -56,7 +67,9 @@ export interface CarParams {
   slipFull: number; // R83/R87 visible slip at full steer in DRIFT
   slipResponse: number; // R83 DRIFT slip chase natural rate, 1/s
   driftLat: number; // R84 DRIFT lateral authority of the slip and of counter-steer
-  driftPush: number; // R84 DRIFT push by the road turn, times A
+  driftPush: number; // R84 DRIFT push by the road turn, times A (turn toward the drift side or straight)
+  wrongPush: number; // R84 DRIFT push when the turn is against the drift side (A*dir < 0)
+  driftCounter: number; // R84 DRIFT authority of the finger against dir: 0 none, 1 full
   carryDecay: number; // R82b 1/s
   velGripDrift: number; // R84 DRIFT vel chase rate, 1/s
   driftLead: number; // R85 DRIFT lead of the finger over the body angle, 0 = off
@@ -65,6 +78,13 @@ export interface CarParams {
   flickWindow: number; // R81 seconds
   kickBase: number; // R81 initial slip rate at flickDelta
   kickGain: number; // R81 extra slip rate per unit of steer change above flickDelta
+  driftEntry: number; // R81b H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection
+  flickLook: number; // R81b segments looked ahead
+  flickCornerMin: number; // R81b smallest |curve| that counts as a corner
+  flickCornerMul: number; // R81b threshold multiplier toward a corner
+  flickStraightMul: number; // R81b threshold multiplier on a straight / against a corner
+  deflectEnter: number; // R81b |steer| that counts as a deflection
+  deflectTime: number; // R81b seconds of deflection to enter
   vmax: number;
   accel: number;
   brake: number;
@@ -128,6 +148,38 @@ export interface TrafficConfig {
   trafficGapMax: number;
   trafficSpeedMin: number;
   trafficSpeedMax: number;
+  lanes: number;
+}
+
+/** R60-R65 rivals config (src/data/rivals.json) plus the lane count of the road. */
+export interface RivalConfig {
+  rivalCount: number;
+  rivalGridGap: number;
+  rivalGridBehind: number;
+  rivalSkillWeights: [number, number, number]; // weights of novice, average, expert
+  rivalPaceSpread: number;
+  rivalNameCount: number;
+  rubberBand: number; // H15: 1 = A (on), 0 = B (off)
+  rivalRoles: [number, number, number]; // R62b counts of close / ahead / behind
+  slotClose: [number, number];
+  slotAhead: [number, number];
+  slotBehind: [number, number];
+  nemesisSlot: [number, number];
+  slotTimeMin: number; // seconds
+  slotTimeMax: number;
+  bandRange: number;
+  bandBoost: number;
+  bandSlow: number;
+  bandViewDist: number;
+  bandViewMul: number;
+  nemesisViewMul: number;
+  bandAttack: number; // 1/s
+  bandRelease: number; // 1/s
+  bandStartDelay: number; // seconds
+  poolRadius: number; // R63b segments
+  poolSpawnBehind: number;
+  joinShowTime: number; // seconds
+  rivalBumpLoss: number; // R65, vmax
   lanes: number;
 }
 

@@ -1,8 +1,11 @@
 // Shared by tools/bot.ts and tools/gate.ts: track discovery, run aggregation, result types.
+import { botInput, createBot } from '../src/bot/driver';
+import { createRivalDrivers, fillRivalInputs } from '../src/bot/rivals';
 import { runBot, type MeasureConfig, type RunResult } from '../src/bot/run';
 import { botParams, BOT_NAMES, type BotName } from '../src/data/bots';
 import { baseCar } from '../src/data/cars';
 import road from '../src/data/road.json';
+import { mistakeConfig, rivalConfig } from '../src/data/rivals';
 import { trafficConfig } from '../src/data/traffic';
 import {
   curveClasses,
@@ -12,9 +15,10 @@ import {
   type CurveClass,
   type SectionClass,
 } from '../src/data/tracks';
-import { SEG_PER_UNIT } from '../src/sim/constants';
+import { DT, SEG_PER_UNIT } from '../src/sim/constants';
+import { createRace, placeRivals, placeTraffic, step } from '../src/sim/race';
 import { buildTrack } from '../src/sim/track';
-import type { Track, TrafficConfig } from '../src/sim/types';
+import type { CarParams, InputFrame, RivalConfig, Track, TrafficConfig } from '../src/sim/types';
 import type { Io } from './io';
 
 export const TRACK_DIR = 'src/data/tracks';
@@ -165,6 +169,7 @@ export interface Entry {
     easy: number;
     medium: number;
     hard: number;
+    sharp: number; // R31b
     easyMedium: number;
   };
   steerSaturation: number;
@@ -232,7 +237,7 @@ export function summarize(
   let crashes = 0;
   let nan = false;
   let finished = 0;
-  const ev = { easy: 0, medium: 0, hard: 0 };
+  const ev = { easy: 0, medium: 0, hard: 0, sharp: 0 };
   let evTotal = 0;
   const lapTimes: number[] = [];
   const byLap: number[][] = [];
@@ -257,6 +262,7 @@ export function summarize(
     ev.easy += r.offroadEventsByClass.easy;
     ev.medium += r.offroadEventsByClass.medium;
     ev.hard += r.offroadEventsByClass.hard;
+    ev.sharp += r.offroadEventsByClass.sharp ?? 0;
     r.lapTimes.forEach((lt, i) => {
       lapTimes.push(lt);
       byLap[i]?.push(lt);
@@ -307,6 +313,7 @@ export function summarize(
       easy: ev.easy / lapCount,
       medium: ev.medium / lapCount,
       hard: ev.hard / lapCount,
+      sharp: ev.sharp / lapCount,
       easyMedium: (ev.easy + ev.medium) / lapCount,
     },
     steerSaturation: sat / ticks,
@@ -336,3 +343,120 @@ export function metricOf(e: Entry, path: string): number | undefined {
 
 export { BOT_NAMES };
 export type { BotName };
+
+/** R67 rivals run: what the bot measures per player skill (20 seeds x 3 minutes by default). */
+export interface RivalMetrics {
+  bot: BotName;
+  track: string;
+  seeds: number;
+  minutes: number;
+  placeChangesPerMin: number; // player place changes, both ways
+  close3Share: number; // share of ticks with >= 3 rivals within +-closeRadius segments
+  inViewShare: number; // share of ticks with >= 1 rival ahead in view (0 < d < viewDist)
+  medianPlace: number; // over every tick of every seed
+  crashesPerRivalMin: number;
+  bumpsPerRivalMin: number;
+  poolSwapsPerMin: number;
+  bandInViewShare: number; // share of ticks where a non-nemesis rival in view has |band| > bandEps
+  nemesisBandInViewShare: number; // the same for the nemesis
+}
+
+/** R67 bot check numbers (named in advance in docs/brief.md R67 / research §4.9). */
+export const RIVAL_CHECK = { closeRadius: 150, viewDist: 200, bandEps: 0.005 };
+
+/** R60-R67: player bot `bot` with the game's rivals (src/bot/rivals.ts) and traffic pool. */
+export function runRivals(
+  bot: BotName,
+  t: LoadedTrack,
+  seeds: readonly number[],
+  seconds: number,
+): RivalMetrics {
+  const rc: RivalConfig = { ...rivalConfig, lanes: road.lanes };
+  const ticks = Math.round(seconds / DT);
+  const places: number[] = [];
+  let placeChanges = 0;
+  let close3 = 0;
+  let inView = 0;
+  let crashes = 0;
+  let bumps = 0;
+  let swaps = 0;
+  let bandView = 0;
+  let nemView = 0;
+  let total = 0;
+  for (const seed of seeds) {
+    const race = createRace(seed, 1 + rc.rivalCount, TRAFFIC.trafficMax);
+    placeRivals(race, rc);
+    placeTraffic(race, TRAFFIC, baseCar.vmax);
+    const cars = race.cars;
+    const params: CarParams[] = cars.map((c) => (c.kind === 'rival' ? { ...baseCar } : baseCar));
+    const inputs: InputFrame[] = cars.map(() => ({ steer: 0, brake: false, drift: false }));
+    const player = cars[0]!;
+    const pb = createBot(seed);
+    const drivers = createRivalDrivers(race, seed);
+    const n = cars.length;
+    const prevCrash = new Int32Array(n);
+    const prevBump = new Int32Array(n);
+    const prevName = new Int32Array(n);
+    for (let i = 0; i < n; i++) prevName[i] = cars[i]!.nameId;
+    let prevPlace = player.place;
+    for (let k = 0; k < ticks; k++) {
+      botInput(pb, botParams[bot], player, t.track, baseCar, inputs[0]!, cars);
+      fillRivalInputs(drivers, race, t.track, params, mistakeConfig, inputs);
+      for (let i = 0; i < n; i++) {
+        prevCrash[i] = cars[i]!.crashTicks;
+        prevBump[i] = cars[i]!.bumpTicks;
+      }
+      step(race, inputs, t.track, params, TRAFFIC, rc);
+      total++;
+      if (k > 0 && player.place !== prevPlace) placeChanges++;
+      prevPlace = player.place;
+      places.push(player.place);
+      let near = 0;
+      let view = false;
+      let bv = false;
+      let nv = false;
+      for (let i = 1; i < n; i++) {
+        const c = cars[i]!;
+        if (c.kind !== 'rival') continue;
+        if (c.nameId !== prevName[i]) {
+          swaps++;
+          prevName[i] = c.nameId;
+          continue; // a fresh car: its contacts and crashes start from here
+        }
+        const d = c.z - player.z;
+        if (d <= RIVAL_CHECK.closeRadius && d >= -RIVAL_CHECK.closeRadius) near++;
+        if (d > 0 && d < RIVAL_CHECK.viewDist) {
+          view = true;
+          const big = c.band > RIVAL_CHECK.bandEps || c.band < -RIVAL_CHECK.bandEps;
+          if (big && c.nemesis === 1) nv = true;
+          else if (big) bv = true;
+        }
+        if (c.crashTicks > 0 && prevCrash[i] === 0) crashes++;
+        // R43 contact: bumpTicks rises; the R48 return from a crash also sets it (not a contact).
+        else if (c.bumpTicks > prevBump[i]! && prevCrash[i] === 0) bumps++;
+      }
+      if (near >= 3) close3++;
+      if (view) inView++;
+      if (bv) bandView++;
+      if (nv) nemView++;
+    }
+  }
+  places.sort((a, b) => a - b);
+  const minutes = (total * DT) / 60;
+  const rivalMinutes = minutes * rc.rivalCount;
+  return {
+    bot,
+    track: t.name,
+    seeds: seeds.length,
+    minutes: seconds / 60,
+    placeChangesPerMin: placeChanges / minutes,
+    close3Share: close3 / total,
+    inViewShare: inView / total,
+    medianPlace: places[Math.floor(places.length / 2)]!,
+    crashesPerRivalMin: crashes / rivalMinutes,
+    bumpsPerRivalMin: bumps / rivalMinutes,
+    poolSwapsPerMin: swaps / minutes,
+    bandInViewShare: bandView / total,
+    nemesisBandInViewShare: nemView / total,
+  };
+}

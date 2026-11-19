@@ -1,5 +1,6 @@
 // npm run bot [-- --seeds N]: every bot x every track in src/data/tracks x N seeds, headless.
 // Writes results.json for tools/gate.ts.
+// npm run bot -- --rivals [--seeds N] [--seconds S] [--track T]: R67 rivals metrics table (no results.json).
 import {
   BOT_NAMES,
   EXPERT_BLIND,
@@ -7,9 +8,11 @@ import {
   runBlindTraffic,
   runOne,
   runOneTraffic,
+  runRivals,
   summarize,
   summarizeTraffic,
   type Entry,
+  type LoadedTrack,
   type Results,
   type TrafficEntry,
 } from './botlib';
@@ -40,6 +43,7 @@ export function main(io: Io): number {
   const seeds: number[] = [];
   for (let s = 1; s <= nSeeds; s++) seeds.push(s);
   const tracks = loadTracks(io);
+  if (io.argv.includes('--rivals')) return rivalsMain(io, tracks, seeds);
   const m = cfg.measure;
   const entries: Entry[] = [];
   const traffic: TrafficEntry[] = [];
@@ -104,5 +108,55 @@ export function main(io: Io): number {
   io.log(
     `wrote ${RESULTS}: ${entries.length} bot/track entries x ${seeds.length} seeds x ${m.laps} laps`,
   );
+  return 0;
+}
+
+// R67 criteria, named in advance (docs/brief.md R67).
+const R67 = { placeChanges: 2, close3: 0.7, expertPlace: 3, novicePlace: 5, crashes: 1, bumps: 4 };
+
+function rivalsMain(io: Io, tracks: readonly LoadedTrack[], seeds: readonly number[]): number {
+  const name = argValue(io.argv, 'track') ?? 'drift-run';
+  const t = tracks.find((x) => x.name === name);
+  if (!t) {
+    io.log(`--track: no track '${name}'`);
+    return 2;
+  }
+  const seconds = Number(argValue(io.argv, 'seconds') ?? '180');
+  io.log(`R67 rivals: ${t.name}, ${seeds.length} seeds x ${seconds} s, traffic pool on`);
+  io.log(
+    'player   place/min  >=3 in +-150  >=1 in view  median place  crash/rival/min  bump/rival/min  swaps/min  band in view  nemesis band in view',
+  );
+  let ok = true;
+  for (const bot of BOT_NAMES) {
+    const r = runRivals(bot, t, seeds, seconds);
+    const pct = (v: number): string => `${(100 * v).toFixed(1)}%`;
+    io.log(
+      `${bot.padEnd(8)} ${r.placeChangesPerMin.toFixed(2).padStart(9)}  ${pct(r.close3Share).padStart(13)}  ` +
+        `${pct(r.inViewShare).padStart(11)}  ${String(r.medianPlace).padStart(12)}  ` +
+        `${r.crashesPerRivalMin.toFixed(3).padStart(15)}  ${r.bumpsPerRivalMin.toFixed(3).padStart(14)}  ` +
+        `${r.poolSwapsPerMin.toFixed(2).padStart(9)}  ${pct(r.bandInViewShare).padStart(12)}  ${pct(r.nemesisBandInViewShare).padStart(20)}`,
+    );
+    // R67: the field criteria are for the average player bot; place criteria per skill.
+    const checks: [string, boolean][] = [];
+    if (bot === 'average')
+      checks.push(
+        [`place changes >= ${R67.placeChanges}/min`, r.placeChangesPerMin >= R67.placeChanges],
+        [
+          `>= 3 rivals within +-150 for >= ${100 * R67.close3}% of time`,
+          r.close3Share >= R67.close3,
+        ],
+        [`rival crashes <= ${R67.crashes}/min`, r.crashesPerRivalMin <= R67.crashes],
+        [`rival bumps <= ${R67.bumps}/min`, r.bumpsPerRivalMin <= R67.bumps],
+      );
+    if (bot === 'expert')
+      checks.push([`median place <= ${R67.expertPlace}`, r.medianPlace <= R67.expertPlace]);
+    if (bot === 'novice')
+      checks.push([`median place >= ${R67.novicePlace}`, r.medianPlace >= R67.novicePlace]);
+    for (const [label, pass] of checks) {
+      io.log(`  ${pass ? 'PASS' : 'FAIL'} ${label}`);
+      if (!pass) ok = false;
+    }
+  }
+  io.log(ok ? 'R67: all criteria met' : 'R67: criteria not met (a finding, not a reason to tune)');
   return 0;
 }

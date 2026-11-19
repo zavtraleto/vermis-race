@@ -31,7 +31,7 @@ export interface RunResult {
   lapTimes: number[]; // s
   offroadTicks: number;
   offroadEvents: number;
-  offroadEventsByClass: Record<CurveClass, number>;
+  offroadEventsByClass: Record<Exclude<CurveClass, 'sharp'>, number> & { sharp?: number }; // sharp: R31b
   saturationTicks: number;
   brakeTicks: number;
   driftTicks: number; // ticks ending in DRIFT (R20-R22)
@@ -94,7 +94,7 @@ export function runBot(
     lapTimes: [],
     offroadTicks: 0,
     offroadEvents: 0,
-    offroadEventsByClass: { easy: 0, medium: 0, hard: 0 },
+    offroadEventsByClass: { easy: 0, medium: 0, hard: 0, sharp: 0 },
     saturationTicks: 0,
     brakeTicks: 0,
     driftTicks: 0,
@@ -186,7 +186,7 @@ export function runBot(
       r.offroadEvents++;
       corner.offroadEvents++;
       const cls = sections[si]!.curveClass;
-      if (cls !== 'straight') r.offroadEventsByClass[cls]++;
+      if (cls !== 'straight') r.offroadEventsByClass[cls] = (r.offroadEventsByClass[cls] ?? 0) + 1;
     }
     wasOff = off;
     const wall = ax >= p.xLimit;
