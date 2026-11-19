@@ -43,7 +43,8 @@
     "bReleaseFrac": 0.6,
     "bDipSteer": 0.3,
     "bDipTime": 0.03,
-    "bKickTime": 0.06
+    "bKickTime": 0.06,
+    "bTrafficGain": 1
   },
   "average": {
     "steerLookahead": 1,
@@ -88,7 +89,8 @@
     "bReleaseFrac": 0.6,
     "bDipSteer": 0.3,
     "bDipTime": 0.03,
-    "bKickTime": 0.06
+    "bKickTime": 0.06,
+    "bTrafficGain": 1
   },
   "expert": {
     "steerLookahead": 0.8,
@@ -133,6 +135,7 @@
     "bReleaseFrac": 0.6,
     "bDipSteer": 0.3,
     "bDipTime": 0.03,
-    "bKickTime": 0.06
+    "bKickTime": 0.06,
+    "bTrafficGain": 2
   }
 }

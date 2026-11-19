@@ -64,6 +64,7 @@ export interface BotParams {
   bDipSteer: number; // |steer| of the counter-steer before the flick
   bDipTime: number; // s of counter-steer
   bKickTime: number; // s of full steer into the corner after the counter-steer
+  bTrafficGain: number; // line gain multiplier while steering to a gap beside traffic (R46)
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -311,16 +312,23 @@ function botInputB(
     if (r < -1) r = -1;
     xTarget = bp.insideX * r; // + curve = right turn, inside = +x (R19 signs)
   }
+  // R46 weaving: the gap beside a traffic car in the way, taken with bTrafficGain x the line gain.
+  let lineMul = 1;
   if (weave) {
     const xa = avoidX(bp, car, cars, p, xTarget);
-    if (xa === xa) xTarget = xa;
+    if (xa === xa) {
+      xTarget = xa;
+      lineMul = bp.bTrafficGain;
+    }
   }
   const cAhead = meanCurve(segs, n, seg0, ahead(segPerSec, bp.bLookahead));
   let steer = holdDrift
     ? bp.bDriftCurveGain * cAhead * sp +
-      bp.bDriftSteerGain * (xTarget - car.x) -
+      bp.bDriftSteerGain * lineMul * (xTarget - car.x) -
       bp.bDriftSteerDamp * car.vx
-    : bp.bCurveGain * cAhead * sp + bp.bSteerGain * (xTarget - car.x) - bp.bSteerDamp * car.vx;
+    : bp.bCurveGain * cAhead * sp +
+      bp.bSteerGain * lineMul * (xTarget - car.x) -
+      bp.bSteerDamp * car.vx;
 
   // R81 planned flick: counter-steer for bDipTime with the drift input still up (else the dip itself
   // is a flick the wrong way), then full steer into the corner for bKickTime with it held, then the
