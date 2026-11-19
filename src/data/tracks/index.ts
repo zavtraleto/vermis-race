@@ -1,5 +1,6 @@
-import type { TrackDef } from '../../sim/types';
+import type { TrackDef, TrackSection } from '../../sim/types';
 import curves from './curves.json';
+import hills from './test-hills.json';
 import twisty from './test-twisty.json';
 
 export type CurveClass = 'easy' | 'medium' | 'hard';
@@ -12,6 +13,7 @@ export interface ClassedSection {
   leave: number;
   curveClass: CurveClass;
   side: -1 | 1; // +1 right, -1 left
+  hill?: number; // R30 height change over the section, segment lengths (+ up)
 }
 
 export const curveClasses: CurveClasses = curves;
@@ -35,13 +37,20 @@ export function parseSections(raw: unknown): ClassedSection[] {
     }
     const side = r.side;
     if (side !== 1 && side !== -1) throw new Error(`section ${i}: side must be 1 or -1`);
-    return {
+    const out: ClassedSection = {
       enter: parseLength(r.enter, 'enter', i),
       hold: parseLength(r.hold, 'hold', i),
       leave: parseLength(r.leave, 'leave', i),
       curveClass,
       side,
     };
+    if (r.hill !== undefined) {
+      if (typeof r.hill !== 'number' || !Number.isFinite(r.hill)) {
+        throw new Error(`section ${i}: hill must be a number`);
+      }
+      out.hill = r.hill;
+    }
+    return out;
   });
 }
 
@@ -51,12 +60,16 @@ export function resolveSections(
   classes: CurveClasses,
 ): TrackDef {
   return {
-    sections: sections.map((s) => ({
-      enter: s.enter,
-      hold: s.hold,
-      leave: s.leave,
-      curve: s.side * classes[s.curveClass],
-    })),
+    sections: sections.map((s) => {
+      const out: TrackSection = {
+        enter: s.enter,
+        hold: s.hold,
+        leave: s.leave,
+        curve: s.side * classes[s.curveClass],
+      };
+      if (s.hill !== undefined) out.hill = s.hill;
+      return out;
+    }),
   };
 }
 
@@ -64,4 +77,10 @@ export function resolveSections(
 export function loadTestTwisty(): { name: string; sections: ClassedSection[]; def: TrackDef } {
   const sections = parseSections(twisty.sections);
   return { name: twisty.name, sections, def: resolveSections(sections, curveClasses) };
+}
+
+/** R30 small loop with curves and hills (sum of hills 0), selected with ?track=hills. */
+export function loadTestHills(): { name: string; sections: ClassedSection[]; def: TrackDef } {
+  const sections = parseSections(hills.sections);
+  return { name: hills.name, sections, def: resolveSections(sections, curveClasses) };
 }
