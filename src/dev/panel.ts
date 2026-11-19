@@ -43,7 +43,7 @@ const OPACITY_STEPS = [1, 0.85, 0.7, 0.5, 0.35];
 /** Delay before a value change that adds/removes rows re-filters (never moves a row mid-drag). */
 const REFILTER_MS = 700;
 const PILL_W = 92;
-const STRIP_H = 52;
+const STRIP_H = 56;
 
 type Mode = 'hidden' | 'open' | 'collapsed';
 
@@ -160,8 +160,8 @@ export class DevPanel {
       `background:${BG};border-radius:22px;pointer-events:auto;`;
     this.strip = el(
       'div',
-      `position:absolute;left:0;top:env(safe-area-inset-top);right:${PILL_W + 12}px;height:${STRIP_H}px;` +
-        `background:${BG};border-bottom-right-radius:12px;pointer-events:auto;display:none;`,
+      `position:absolute;left:0;right:0;top:env(safe-area-inset-top);height:${STRIP_H}px;` +
+        `background:${BG};border-bottom:1px solid ${LINE};pointer-events:auto;display:none;`,
     );
 
     const box = el(
@@ -172,32 +172,24 @@ export class DevPanel {
     );
     this.box = box;
 
-    // Title bar = drag handle.
+    // Row 1: drag grip, search, opacity, dock, collapse.
     const bar = el(
       'div',
       `display:flex;align-items:center;gap:4px;padding:4px;border-bottom:1px solid ${LINE};`,
     );
     const handle = el(
       'div',
-      `flex:1 1 auto;min-width:0;height:${TAP}px;display:flex;align-items:center;gap:8px;` +
-        'padding:0 6px;cursor:move;touch-action:none;user-select:none;',
+      `flex:0 0 auto;width:36px;height:${TAP}px;display:flex;align-items:center;` +
+        `justify-content:center;font-size:20px;color:${DIM};cursor:move;touch-action:none;` +
+        'user-select:none;',
+      '⠿',
     );
     handle.title = 'перетащить панель';
-    handle.append(el('span', `font-size:18px;color:${DIM};`, '⠿'), el('b', '', 'Настройки'));
-    this.counter = el('span', `font-size:12px;color:${DIM};white-space:nowrap;`);
-    handle.appendChild(this.counter);
     this.dragOn(handle, (dx, dy, s) => {
       if (this.layout.dock === 'side') this.layout.dock = 'float';
       this.layout.x = s.x + dx;
       this.layout.y = s.y + dy;
     });
-    this.opacityBtn = button('', () => this.cycleOpacity(), 'прозрачность');
-    this.dockBtn = button('', () => this.toggleDock());
-    const collapse = button('▴', () => this.setMode('collapsed'), 'свернуть');
-    bar.append(handle, this.opacityBtn, this.dockBtn, collapse);
-
-    // Search.
-    const searchRow = el('div', 'display:flex;gap:4px;padding:6px 6px 0;');
     this.search = el(
       'input',
       `flex:1 1 auto;min-width:0;height:${TAP}px;box-sizing:border-box;padding:0 10px;` +
@@ -205,7 +197,8 @@ export class DevPanel {
         `border:1px solid ${LINE};border-radius:10px;user-select:text;-webkit-user-select:text;`,
     );
     this.search.type = 'search';
-    this.search.placeholder = 'поиск: дрифт, камера, руль…';
+    this.search.placeholder = 'поиск…';
+    this.search.title = 'поиск по названию, подсказке, группе';
     this.search.enterKeyHint = 'search';
     this.search.addEventListener('input', () => {
       this.view.query = this.search.value;
@@ -214,16 +207,12 @@ export class DevPanel {
     this.search.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === 'Escape') this.search.blur();
     });
-    const clear = button(
-      '✕',
-      () => {
-        this.search.value = '';
-        this.view.query = '';
-        this.refilter();
-      },
-      'очистить поиск',
-    );
-    searchRow.append(this.search, clear);
+    this.opacityBtn = button('', () => this.cycleOpacity(), 'прозрачность');
+    this.opacityBtn.style.padding = '0 6px';
+    this.dockBtn = button('', () => this.toggleDock());
+    const collapse = button('▴', () => this.setMode('collapsed'), 'свернуть');
+    collapse.style.fontSize = '18px';
+    bar.append(handle, this.search, this.opacityBtn, this.dockBtn, collapse);
 
     // Filters and actions.
     const tools = el('div', 'display:flex;flex-wrap:wrap;gap:4px;padding:6px;');
@@ -247,7 +236,11 @@ export class DevPanel {
     );
     const reset = button('↺ Reset', () => this.resetAll(), 'сбросить всё');
     const more = button('⋯', () => this.toggleIo(), 'экспорт и вставка');
-    tools.append(this.moreBtn, this.changedBtn, reset, more);
+    this.counter = el(
+      'span',
+      `flex:1 1 auto;align-self:center;text-align:right;font-size:12px;color:${ACCENT};white-space:nowrap;`,
+    );
+    tools.append(this.moreBtn, this.changedBtn, reset, more, this.counter);
     this.status = el('div', `display:none;padding:0 8px 6px;font-size:12px;color:${FG};`);
 
     this.io = el('div', 'display:none;padding:0 6px 6px;');
@@ -292,7 +285,7 @@ export class DevPanel {
       this.layout.h = s.h + dy;
     });
 
-    box.append(bar, searchRow, tools, this.status, this.io, this.list, grip);
+    box.append(bar, tools, this.status, this.io, this.list, grip);
     root.append(box, this.strip, this.tab, this.pool);
 
     const ctx = this.ctx;
@@ -320,7 +313,12 @@ export class DevPanel {
     this.root.style.display = mode === 'hidden' ? 'none' : 'block';
     this.box.style.display = mode === 'open' ? 'flex' : 'none';
     this.tab.style.display = mode === 'collapsed' ? 'block' : 'none';
-    this.strip.style.display = mode === 'collapsed' && this.pinned !== null ? 'block' : 'none';
+    const strip = mode === 'collapsed' && this.pinned !== null;
+    this.strip.style.display = strip ? 'block' : 'none';
+    // With a pinned strip the pill sits just under it.
+    this.tab.style.top = strip
+      ? `calc(env(safe-area-inset-top) + ${STRIP_H + 4}px)`
+      : 'calc(env(safe-area-inset-top) + 4px)';
     if (mode !== 'hidden' && this.layout.collapsed !== (mode === 'collapsed')) {
       this.layout.collapsed = mode === 'collapsed';
       this.saveView();

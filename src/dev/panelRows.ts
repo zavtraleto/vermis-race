@@ -93,6 +93,11 @@ function frame(
   };
 }
 
+function star(b: HTMLButtonElement, on: boolean): void {
+  b.textContent = on ? '★' : '☆';
+  b.style.color = on ? '#ffd27a' : DIM;
+}
+
 function markChanged(row: HTMLElement, back: HTMLSpanElement, changed: boolean, def: string): void {
   row.style.background = changed ? CHANGED_BG : 'transparent';
   row.style.borderLeftColor = changed ? ACCENT : 'transparent';
@@ -131,7 +136,7 @@ export function numberRow(n: NumberTunable, m: PanelItemMeta | undefined, ctx: R
     const update = (): void => {
       seg.set(Math.round((n.value - n.min) / n.step));
       markChanged(f.row, f.def, n.value !== n.default, label(n.default));
-      f.fav.textContent = ctx.isFavourite(n.path) ? '★' : '☆';
+      star(f.fav, ctx.isFavourite(n.path));
     };
     update();
     return { el: f.row, update };
@@ -210,7 +215,7 @@ export function numberRow(n: NumberTunable, m: PanelItemMeta | undefined, ctx: R
     value.style.borderColor = changed ? ACCENT : LINE;
     value.style.color = changed ? '#fff' : FG;
     markChanged(f.row, f.def, changed, fmt(n.default, dec));
-    f.fav.textContent = ctx.isFavourite(n.path) ? '★' : '☆';
+    star(f.fav, ctx.isFavourite(n.path));
   };
   update();
   return { el: f.row, update };
@@ -249,13 +254,13 @@ export function flagRow(fl: FlagTunable, m: PanelItemMeta | undefined, ctx: RowC
   const update = (): void => {
     set(fl.value);
     markChanged(f.row, f.def, fl.value !== fl.default, fl.default);
-    f.fav.textContent = ctx.isFavourite(fl.path) ? '★' : '☆';
+    star(f.fav, ctx.isFavourite(fl.path));
   };
   update();
   return { el: f.row, update };
 }
 
-/** The pinned one-slider strip: title + value, − slider +, unpin. */
+/** The pinned one-slider strip: − [title, value / slider] + and unpin. */
 export function pinStrip(n: NumberTunable, m: PanelItemMeta | undefined, ctx: RowContext): Row {
   const t = ctx.t;
   const dec = decimals(n.step);
@@ -264,24 +269,21 @@ export function pinStrip(n: NumberTunable, m: PanelItemMeta | undefined, ctx: Ro
     'display:flex;align-items:center;gap:4px;padding:2px 4px;box-sizing:border-box;height:100%;',
   );
   strip.dataset.pin = n.path;
-  const label = el(
+  const mid = el('div', 'flex:1 1 auto;min-width:0;display:flex;flex-direction:column;');
+  const top = el(
     'div',
-    'flex:0 1 92px;min-width:0;display:flex;flex-direction:column;justify-content:center;',
+    `display:flex;gap:6px;align-items:baseline;font:600 12px/1.2 system-ui,sans-serif;color:${FG};`,
   );
   const name = el(
-    'div',
-    `font:600 11px/1.15 system-ui,sans-serif;color:${FG};overflow:hidden;` +
-      'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;',
+    'span',
+    'flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;',
     m?.title ?? n.path,
   );
-  const val = el('div', `font:700 14px ui-monospace,Menlo,monospace;color:#fff;`);
-  label.append(name, val);
-  const nudge = (dir: number): void => {
-    t.set(n.path, Number((n.value + dir * n.step).toFixed(dec)));
-  };
+  const val = el('span', 'font:700 13px ui-monospace,Menlo,monospace;');
+  top.append(name, val);
   const range = el(
     'input',
-    `flex:1 1 auto;min-width:40px;height:${TAP}px;margin:0;accent-color:${ACCENT};touch-action:none;`,
+    `width:100%;height:32px;margin:0;accent-color:${ACCENT};touch-action:none;`,
   );
   range.type = 'range';
   range.min = String(n.min);
@@ -289,12 +291,16 @@ export function pinStrip(n: NumberTunable, m: PanelItemMeta | undefined, ctx: Ro
   range.step = String(n.step);
   range.addEventListener('input', () => t.set(n.path, Number(range.value)));
   range.addEventListener('change', () => range.blur());
+  mid.append(top, range);
+  const nudge = (dir: number): void => {
+    t.set(n.path, Number((n.value + dir * n.step).toFixed(dec)));
+  };
   const minus = button('−', () => nudge(-1), 'меньше на шаг');
   const plus = button('+', () => nudge(1), 'больше на шаг');
   minus.style.fontSize = plus.style.fontSize = '20px';
   const close = button('✕', () => ctx.pin(null), 'открепить');
   close.style.background = 'transparent';
-  strip.append(label, minus, range, plus, close);
+  strip.append(minus, mid, plus, close);
   const update = (): void => {
     range.value = String(n.value);
     val.textContent = fmt(n.value, dec);
