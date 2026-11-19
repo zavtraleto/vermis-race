@@ -9,8 +9,10 @@ const cfg = { retouchWindowMs: 300, retouchSwipePx: 30 };
 const mk = () => createRetouchDrift(cfg);
 
 describe('H3 variant D: data and flag', () => {
-  it('H3 D is the default drift entry', () => {
-    expect(hypotheses.H3_driftEntry).toBe('D');
+  // Rewritten 2026-11-19 (author decision, brief H3 row): E is the default now; D stays selectable.
+  // The default itself is asserted in flickDrift.test.ts.
+  it('H3 D stays a valid drift entry value (default moved to E)', () => {
+    expect(['D', 'E']).toContain(hypotheses.H3_driftEntry);
   });
   it('H3 resolveDriftEntry accepts D silently', () => {
     const warnings: string[] = [];

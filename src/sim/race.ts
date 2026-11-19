@@ -22,6 +22,8 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       armTicks: 0,
       lowTicks: 0,
       bumpTicks: 0,
+      draft: 0,
+      boostTicks: 0,
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.

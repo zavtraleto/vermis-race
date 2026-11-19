@@ -157,12 +157,13 @@ describe('R22b on a straight a drift ends by R21', () => {
       car.speed = 0.8 * P.vmax;
       car.steer = side * 0.5;
       const track = constTrack(0, 3000);
-      step(race, [{ steer: side * 0.5, brake: false, drift: true }], track, [P]);
+      const PA = { ...P, driftAutoExit: 1 }; // R21c: the small-angle exit is H12 A, explicit here
+      step(race, [{ steer: side * 0.5, brake: false, drift: true }], track, [PA]);
       expect(car.state).toBe('DRIFT');
       const limit = Math.ceil((P.driftStraightTime + 1) * 120);
       let exitedAt = -1;
       for (let i = 0; i < limit; i++) {
-        step(race, [{ steer: 0, brake: false, drift: true }], track, [P]);
+        step(race, [{ steer: 0, brake: false, drift: true }], track, [PA]);
         if (car.state === 'GRIP') {
           exitedAt = i;
           break;
@@ -177,26 +178,29 @@ describe('R22b on a straight a drift ends by R21', () => {
 });
 
 describe('R22b GRIP vs drift: who needs the drift (real data)', () => {
-  it('R22b easy in GRIP at vmax needs 55-65% steer: c * centrifugal * kCurve / (steerRate * 0.75)', () => {
+  // R22d rewrite (author decision 2026-11-19): easy needs 40-50% steer at vmax (was 55-65%).
+  it('R22d easy in GRIP at vmax needs 40-50% steer: c * centrifugal * kCurve / (steerRate * 0.75)', () => {
     // steady vx = s*steerRate*0.75 (sp = 1), push = c*centrifugal*kCurve.
     const need = (curveClasses.easy * P.centrifugal * P.kCurve) / (P.steerRate * 0.75);
-    expect(need).toBeGreaterThanOrEqual(0.55);
-    expect(need).toBeLessThanOrEqual(0.65);
+    expect(need).toBeGreaterThanOrEqual(0.4);
+    expect(need).toBeLessThanOrEqual(0.5);
   });
-  it('R22b easy holds the line in GRIP with 60% steer at vmax (|x| bounded 3 s)', () => {
+  it('R22d easy holds the line in GRIP with the derived steer at vmax (|x| bounded 3 s)', () => {
+    const need = (curveClasses.easy * P.centrifugal * P.kCurve) / (P.steerRate * 0.75);
     const race = createRace(1, 1);
     const car = race.cars[0]!;
     car.speed = P.vmax;
-    car.steer = 0.6;
-    car.vx = 0.6 * P.steerRate * 0.75;
+    car.steer = need;
+    car.vx = need * P.steerRate * 0.75;
     const track = constTrack(curveClasses.easy, 3000);
     const noAccel = { ...P, accel: 0 };
     for (let i = 0; i < 360; i++) {
-      step(race, [{ steer: 0.6, brake: false, drift: false }], track, [noAccel]);
+      step(race, [{ steer: need, brake: false, drift: false }], track, [noAccel]);
       expect(Math.abs(car.x)).toBeLessThan(0.1);
     }
   });
-  for (const cls of ['medium', 'hard'] as const)
+  // R22d rewrite: medium is no longer "drift only"; only hard leaves the asphalt (medium: r22d.test.ts).
+  for (const cls of ['hard'] as const)
     for (const side of [1, -1] as const)
       it(`R22b ${cls} ${side > 0 ? 'right' : 'left'}: full steer in GRIP at vmax leaves the asphalt`, () => {
         const race = createRace(1, 1);

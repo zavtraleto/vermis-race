@@ -45,6 +45,7 @@ const P: CarParams = {
   driftAngleResponse: 6,
   driftSpeedLoss: 0.3,
   driftBrake: 0.4,
+  driftAutoExit: 1, // R21c / H12 A: these tests describe the small-angle exit, so it is set explicitly
 };
 /** accel 0: a manually set speed stays constant (R14) unless the test wants otherwise. */
 const PC: CarParams = { ...P, accel: 0 };
