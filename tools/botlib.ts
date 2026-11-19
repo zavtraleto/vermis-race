@@ -19,6 +19,7 @@ export const TRACK_DIR = 'src/data/tracks';
 
 export interface LoadedTrack {
   name: string;
+  file?: string; // file name in TRACK_DIR (set by loadTracks)
   sections: ClassedSection[];
   track: Track;
 }
@@ -36,7 +37,12 @@ export function loadTracks(io: Io): LoadedTrack[] {
     if (!Array.isArray(raw.sections) && !Array.isArray(raw.figures)) continue;
     const sections = trackSections(raw);
     const name = typeof raw.name === 'string' ? raw.name : f.replace(/\.json$/, '');
-    out.push({ name, sections, track: buildTrack(resolveSections(sections, curveClasses)) });
+    out.push({
+      name,
+      file: f,
+      sections,
+      track: buildTrack(resolveSections(sections, curveClasses)),
+    });
   }
   return out;
 }

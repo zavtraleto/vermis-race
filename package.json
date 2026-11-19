@@ -13,7 +13,8 @@
     "shot": "node tools/shot.mjs",
     "format": "prettier --write .",
     "bot": "node tools/run-ts.mjs tools/bot.ts",
-    "gate": "node tools/run-ts.mjs tools/gate.ts"
+    "gate": "node tools/run-ts.mjs tools/gate.ts",
+    "trackmap": "node tools/run-ts.mjs tools/trackmap.ts"
   },
   "dependencies": {
     "three": "0.187.0"
