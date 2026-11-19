@@ -40,8 +40,17 @@ function applyFrom(t: Tunables, json: string, source: string): void {
  * and installs the panel triggers: ?dev=1, three-finger tap, backquote key.
  * Call before the render objects are built so drawDistance starts from the tuned value.
  */
-export function installDev(roots: Record<string, object>, search: string): Tunables {
-  const t = createTunables(roots, tunablesSpec as TunableSpec);
+export function installDev(
+  roots: Record<string, object>,
+  search: string,
+  // Spike E1: extra ranges (render3d sliders) merged in only when that renderer runs.
+  extra?: TunableSpec,
+): Tunables {
+  const base = tunablesSpec as TunableSpec;
+  const spec: TunableSpec = extra
+    ? { numbers: { ...base.numbers, ...extra.numbers }, flags: { ...base.flags, ...extra.flags } }
+    : base;
+  const t = createTunables(roots, spec);
   const params = parseDevParams(search);
   const stored = load();
   if (stored !== null) applyFrom(t, stored, 'localStorage');
