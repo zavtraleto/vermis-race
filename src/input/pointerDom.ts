@@ -1,10 +1,17 @@
+import type { RetouchDrift } from './retouchDrift';
 import type { TouchStick } from './touchStick';
 
 /**
  * Thin DOM adapter: Pointer Events -> pure touch stick. Coordinates are relative to `area`
- * (the letterboxed game canvas). Mouse uses the same scheme while the left button is held.
+ * (the letterboxed game canvas), CSS px. Mouse uses the same scheme while the left button is held.
+ * `retouch` (H3 D) gets the same events of the stick's active pointer.
  */
-export function attachPointer(area: HTMLElement, stick: TouchStick, now: () => number): void {
+export function attachPointer(
+  area: HTMLElement,
+  stick: TouchStick,
+  now: () => number,
+  retouch?: RetouchDrift,
+): void {
   // Rect cached at pointerdown for move conversion. A resize/rotation in the middle of a gesture
   // keeps the old origin and R until the finger is lifted (accepted for now).
   let left = 0;
@@ -18,7 +25,9 @@ export function attachPointer(area: HTMLElement, stick: TouchStick, now: () => n
     const y = e.clientY - rect.top;
     if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
     stick.setArea(rect.width, rect.height);
-    if (!stick.pointerDown(e.pointerId, x, y, now())) return;
+    const t = now();
+    if (!stick.pointerDown(e.pointerId, x, y, t)) return;
+    retouch?.down(x, t);
     left = rect.left;
     top = rect.top;
     try {
@@ -36,21 +45,36 @@ export function attachPointer(area: HTMLElement, stick: TouchStick, now: () => n
     if (coalesced !== undefined && coalesced.length > 0) {
       for (let i = 0; i < coalesced.length; i++) {
         const c = coalesced[i]!;
-        stick.pointerMove(id, c.clientX - left, c.clientY - top, now());
+        const t = now();
+        stick.pointerMove(id, c.clientX - left, c.clientY - top, t);
+        retouch?.move(c.clientX - left, t);
       }
-    } else stick.pointerMove(id, e.clientX - left, e.clientY - top, now());
+    } else {
+      const t = now();
+      stick.pointerMove(id, e.clientX - left, e.clientY - top, t);
+      retouch?.move(e.clientX - left, t);
+    }
   });
   window.addEventListener('pointerup', (e) => {
-    if (e.pointerId === stick.activeId) stick.pointerUp(e.pointerId, now());
+    if (e.pointerId !== stick.activeId) return;
+    const t = now();
+    stick.pointerUp(e.pointerId, t);
+    retouch?.up(t);
   });
   window.addEventListener('pointercancel', (e) => {
-    if (e.pointerId === stick.activeId) stick.pointerCancel(e.pointerId, now());
+    if (e.pointerId !== stick.activeId) return;
+    const t = now();
+    stick.pointerCancel(e.pointerId, t);
+    retouch?.up(t);
   });
 
   // Losing focus may swallow pointerup (desktop mouse): treat it as a cancel.
   const cancelActive = (): void => {
     const id = stick.activeId;
-    if (id !== null) stick.pointerCancel(id, now());
+    if (id === null) return;
+    const t = now();
+    stick.pointerCancel(id, t);
+    retouch?.up(t);
   };
   window.addEventListener('blur', cancelActive);
   document.addEventListener('visibilitychange', () => {
