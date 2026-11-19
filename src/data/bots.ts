@@ -5,6 +5,7 @@ import {
   type DriftLine,
   type DriftMode,
   type SpeedMode,
+  type TrafficMode,
 } from '../bot/driver';
 import { DT } from '../sim/constants';
 import raw from './bots.json';
@@ -37,6 +38,10 @@ export function parseBot(name: string, v: unknown): BotParams {
   if (driftLine !== 'fixed' && driftLine !== 'width') {
     throw new Error(`bots.${name}.driftLine: fixed | width`);
   }
+  const traffic = r.traffic;
+  if (traffic !== 'ignore' && traffic !== 'avoid') {
+    throw new Error(`bots.${name}.traffic: ignore | avoid`);
+  }
   const bp: BotParams = {
     steerLookahead: num(r, 'steerLookahead', name),
     brakeLookahead: num(r, 'brakeLookahead', name),
@@ -62,7 +67,15 @@ export function parseBot(name: string, v: unknown): BotParams {
     driftExitX: num(r, 'driftExitX', name),
     driftAngleFloor: num(r, 'driftAngleFloor', name),
     driftPlanMin: num(r, 'driftPlanMin', name),
+    traffic: traffic as TrafficMode,
+    trafficLookaheadSeg: num(r, 'trafficLookaheadSeg', name),
+    trafficMargin: num(r, 'trafficMargin', name),
+    trafficEdge: num(r, 'trafficEdge', name),
+    trafficSteerTime: num(r, 'trafficSteerTime', name),
   };
+  if (bp.traffic === 'avoid' && bp.trafficSteerTime <= 0) {
+    throw new Error(`bots.${name}.trafficSteerTime must be > 0`);
+  }
   if (bp.steerLookahead <= 0) throw new Error(`bots.${name}.steerLookahead must be > 0`);
   if (bp.reactionDelay < 0 || bp.reactionDelay > MAX_DELAY_TICKS * DT) {
     throw new Error(`bots.${name}.reactionDelay must be in [0, ${MAX_DELAY_TICKS * DT}] s`);

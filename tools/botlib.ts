@@ -2,6 +2,8 @@
 import { runBot, type MeasureConfig, type RunResult } from '../src/bot/run';
 import { botParams, BOT_NAMES, type BotName } from '../src/data/bots';
 import { baseCar } from '../src/data/cars';
+import road from '../src/data/road.json';
+import { trafficConfig } from '../src/data/traffic';
 import {
   curveClasses,
   resolveSections,
@@ -12,7 +14,7 @@ import {
 } from '../src/data/tracks';
 import { SEG_PER_UNIT } from '../src/sim/constants';
 import { buildTrack } from '../src/sim/track';
-import type { Track } from '../src/sim/types';
+import type { Track, TrafficConfig } from '../src/sim/types';
 import type { Io } from './io';
 
 export const TRACK_DIR = 'src/data/tracks';
@@ -49,6 +51,67 @@ export function loadTracks(io: Io): LoadedTrack[] {
 
 export function runOne(bot: BotName, t: LoadedTrack, seed: number, m: MeasureConfig): RunResult {
   return runBot(botParams[bot], baseCar, t.track, t.sections, seed, m);
+}
+
+/** R70/R71 traffic pool of the game (src/data/traffic.json, lanes from road.json). */
+export const TRAFFIC: TrafficConfig = { ...trafficConfig, lanes: road.lanes };
+
+/** Same run with the traffic pool (R46). */
+export function runOneTraffic(
+  bot: BotName,
+  t: LoadedTrack,
+  seed: number,
+  m: MeasureConfig,
+): RunResult {
+  return runBot(botParams[bot], baseCar, t.track, t.sections, seed, m, TRAFFIC);
+}
+
+/** R46 per bot and track: the same seeds with and without traffic. */
+export interface TrafficEntry {
+  bot: BotName;
+  track: string;
+  runs: number;
+  finishedFraction: number;
+  bumpsPerLap: number; // mean R40 contacts per lap
+  bumpsInDriftPerLap: number;
+  zeroDriftBumpRuns: number; // share of runs with no contact in DRIFT
+  passedPerLap: number; // traffic cars overtaken per lap
+  lapTime: { traffic: number; clear: number; ratio: number }; // mean lap, s; ratio = traffic / clear
+}
+
+export function summarizeTraffic(
+  clear: Entry,
+  runs: readonly RunResult[],
+  m: MeasureConfig,
+): TrafficEntry {
+  let bumps = 0;
+  let inDrift = 0;
+  let zero = 0;
+  let passed = 0;
+  let finished = 0;
+  const laps: number[] = [];
+  for (const r of runs) {
+    const t = r.traffic ?? { bumps: 0, bumpsInDrift: 0, passed: 0 };
+    bumps += t.bumps;
+    inDrift += t.bumpsInDrift;
+    passed += t.passed;
+    if (t.bumpsInDrift === 0) zero++;
+    if (r.finished) finished++;
+    laps.push(...r.lapTimes);
+  }
+  const lapCount = runs.length * m.laps;
+  const lap = stat(laps).mean;
+  return {
+    bot: clear.bot,
+    track: clear.track,
+    runs: runs.length,
+    finishedFraction: finished / runs.length,
+    bumpsPerLap: bumps / lapCount,
+    bumpsInDriftPerLap: inDrift / lapCount,
+    zeroDriftBumpRuns: zero / runs.length,
+    passedPerLap: passed / lapCount,
+    lapTime: { traffic: lap, clear: clear.lapTime.mean, ratio: lap / clear.lapTime.mean },
+  };
 }
 
 export interface Stat {
@@ -107,6 +170,8 @@ export interface Results {
   measure: MeasureConfig;
   tracks: string[];
   entries: Entry[];
+  /** R46: every bot also run with the traffic pool on the same seeds. */
+  traffic?: TrafficEntry[];
   /** R15b feel check: seconds back to asphalt after an exit (null = did not return). */
   recovery: { curveClass: CurveClass; speed: number; depth: number; seconds: number | null };
 }

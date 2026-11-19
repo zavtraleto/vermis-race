@@ -16,6 +16,8 @@ export type DriftMode = 'never' | 'corners';
  * smallest that still keeps the car on the asphalt.
  */
 export type DriftLine = 'fixed' | 'width';
+/** ignore: drive as if the road were empty; avoid: weave around traffic cars ahead (R70, R46). */
+export type TrafficMode = 'ignore' | 'avoid';
 
 export interface BotParams {
   steerLookahead: number; // s of road ahead used for steering, also the x-correction time constant
@@ -42,6 +44,11 @@ export interface BotParams {
   driftExitX: number; // width line: x toward the outside to reach at the end of the drift, half-widths
   driftAngleFloor: number; // width line: lowest |angle| held (kept above driftAngleExit, R21)
   driftPlanMin: number; // width line: s, lower bound of the time left used to aim at the exit
+  traffic: TrafficMode;
+  trafficLookaheadSeg: number; // segments ahead scanned for traffic cars in the path
+  trafficMargin: number; // half-widths of clearance added to the R40 hit width when passing
+  trafficEdge: number; // |x| limit of a passing gap, half-widths
+  trafficSteerTime: number; // s, x-correction time constant toward the gap in GRIP
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -108,7 +115,81 @@ function inDriftCorner(segs: Track['segments'], n: number, i: number, cSkip: num
   return false;
 }
 
-/** Writes this tick's input for `car` into `out`. Reads car + track ahead only. */
+/**
+ * True when the lateral move from x0 to x1 crosses the band (R40 hit width + margin) of a traffic
+ * car in the scan window. A band that already contains x0 may be left on the side x0 is on.
+ */
+function crosses(
+  x0: number,
+  x1: number,
+  car: Car,
+  cars: readonly Car[],
+  bp: BotParams,
+  clear: number,
+  back: number,
+): boolean {
+  const lo = x0 < x1 ? x0 : x1;
+  const hi = x0 < x1 ? x1 : x0;
+  for (let i = 0; i < cars.length; i++) {
+    const t = cars[i]!;
+    if (t.kind !== 'traffic') continue;
+    const dz = t.z - car.z;
+    if (dz <= back || dz > bp.trafficLookaheadSeg) continue;
+    const l = t.x - clear;
+    const h = t.x + clear;
+    if (h <= lo || l >= hi) continue; // band outside the move
+    const startsIn = x0 > l && x0 < h;
+    const endsIn = x1 > l && x1 < h;
+    // Inside a band the car may only leave it on its own side (never across the traffic car).
+    if (!startsIn || endsIn || (x0 - t.x) * (x1 - t.x) < 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Weaving (R46): if reaching xWant means ending in or crossing the band of a traffic car within
+ * trafficLookaheadSeg, the reachable free position beside one of those cars (|x| <= trafficEdge)
+ * nearest to xWant; NaN when the way is clear or no gap exists. Reads positions only.
+ */
+function avoidX(
+  bp: BotParams,
+  car: Car,
+  cars: readonly Car[],
+  p: CarParams,
+  xWant: number,
+): number {
+  const clear = (p.carHitW + p.trafficHitW) / 2 + bp.trafficMargin;
+  const back = -p.carLength;
+  // A car already inside a band always steers out of it (never through it).
+  if (
+    !crosses(car.x, xWant, car, cars, bp, clear, back) &&
+    !crosses(car.x, car.x, car, cars, bp, clear, back)
+  )
+    return NaN;
+  let best = NaN;
+  let bestD = Infinity;
+  for (let i = 0; i < cars.length; i++) {
+    const t = cars[i]!;
+    if (t.kind !== 'traffic') continue;
+    const dz = t.z - car.z;
+    if (dz <= back || dz > bp.trafficLookaheadSeg) continue;
+    for (let s = -1; s <= 1; s += 2) {
+      const c = t.x + s * clear;
+      if (c > bp.trafficEdge || c < -bp.trafficEdge) continue;
+      const d = c > xWant ? c - xWant : xWant - c;
+      if (d < bestD && !crosses(car.x, c, car, cars, bp, clear, back)) {
+        best = c;
+        bestD = d;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Writes this tick's input for `car` into `out`. Reads car + track ahead only, and (traffic =
+ * avoid) the positions of the traffic cars in `cars`, read-only.
+ */
 export function botInput(
   bot: BotState,
   bp: BotParams,
@@ -116,7 +197,9 @@ export function botInput(
   track: Track,
   p: CarParams,
   out: InputFrame,
+  cars?: readonly Car[],
 ): void {
+  const weave = bp.traffic === 'avoid' && cars !== undefined;
   const segs = track.segments;
   const n = segs.length;
   const sp = car.speed / p.vmax;
@@ -168,6 +251,9 @@ export function botInput(
     (!inDrift || driftSign === car.dir);
 
   let steer: number;
+  // DRIFT: the inward move around a traffic car needs more than the full angle; slow down (R14
+  // brake) so the push (sp^2) shrinks faster than the angle's lateral speed (sp).
+  let trafficBrake = false;
   if (inDrift && wantDrift && sp > 0) {
     // R22: hold the angle whose lateral target equals the push of the curve just ahead, plus a
     // pull toward the line. Lateral target = angle*driftRate*sp, and the angle settles at
@@ -200,6 +286,15 @@ export function botInput(
       xTarget = bp.driftLineX * car.dir;
       vxReq = push + bp.driftGain * (xTarget - car.x);
     }
+    if (weave) {
+      // R22: in DRIFT the line is moved through the angle; the path runs to the planned line.
+      const xLine = bp.driftLine === 'width' ? -bp.driftExitX * car.dir : bp.driftLineX * car.dir;
+      const xa = avoidX(bp, car, cars, p, xLine);
+      if (xa === xa) {
+        vxReq = push + (xa - car.x) / bp.trafficSteerTime;
+        trafficBrake = (vxReq * car.dir) / (p.driftRate * sp) > 1;
+      }
+    }
     let angle = (vxReq * car.dir) / (p.driftRate * sp);
     if (angle < floor) angle = floor;
     if (angle > 1) angle = 1;
@@ -212,11 +307,23 @@ export function botInput(
       xTarget = bp.driftEntryX * driftSign;
       cFeed = segs[seg0]!.curve;
     }
-    const vxReq = (xTarget - car.x) / bp.steerLookahead + cFeed * sp * sp * k;
+    let tau = bp.steerLookahead;
+    let away = 0; // side the car must move to clear a traffic car, 0 = no traffic in the way
+    if (weave) {
+      const xa = avoidX(bp, car, cars, p, xTarget);
+      if (xa === xa) {
+        xTarget = xa;
+        tau = bp.trafficSteerTime;
+        away = xa > car.x ? 1 : -1;
+      }
+    }
+    const vxReq = (xTarget - car.x) / tau + cFeed * sp * sp * k;
     const authority = p.steerRate * sp * (1 - 0.25 * sp); // R11 vx per unit steer
     steer = authority > 0 ? vxReq / authority : 0;
     // R20: in GRIP, turn into the coming drift corner past driftEnterSteer.
-    if (wantDrift && steer * driftSign < bp.driftKickSteer) steer = driftSign * bp.driftKickSteer;
+    // (Not toward a traffic car being avoided: the entry waits until it is clear.)
+    if (wantDrift && away !== -driftSign && steer * driftSign < bp.driftKickSteer)
+      steer = driftSign * bp.driftKickSteer;
   }
 
   if (bp.noiseAmp > 0) {
@@ -243,7 +350,8 @@ export function botInput(
     : wantDrift && !car.driftHeld && car.steer * driftSign > p.driftEnterSteer;
 
   // Speed. Drift corners are taken without braking: their segments are ignored here.
-  out.brake = false;
+  out.brake = trafficBrake;
+  if (trafficBrake) return;
   if (bp.speed === 'never') return;
   let dBrake = Math.round(segPerSec * bp.brakeLookahead);
   if (dBrake < 1) dBrake = 1;
