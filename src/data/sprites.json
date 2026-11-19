@@ -61,7 +61,7 @@
   "drift": {
     "yawMaxDeg": 42,
     "yawTau": 0.05,
-    "cameraOffset": 0.19,
+    "cameraOffset": 0,
     "cameraTau": 0.2,
     "smoke": "on",
     "smokeCapacity": 48,
@@ -106,7 +106,7 @@
     "velDeg": 5
   },
   "driftCamera": {
-    "rollDeg": 6,
+    "rollDeg": 0,
     "rollTau": 0.25,
     "overscanPx": 80
   },
