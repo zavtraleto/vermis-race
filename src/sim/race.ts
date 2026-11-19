@@ -105,7 +105,7 @@ export function step(
     } else if (
       !input.drift ||
       car.speed < p.driftExitSpeed * p.vmax ||
-      car.lowTicks * DT > p.driftStraightTime || // R21 small angle for too long
+      (p.driftAutoExit === 1 && car.lowTicks * DT > p.driftStraightTime) || // R21 / R21c (H12 A)
       (offroadBlocks && car.offTicks * DT > p.driftOffroadTime)
     ) {
       car.state = 'GRIP';
@@ -114,6 +114,11 @@ export function step(
       car.lowTicks = 0;
     }
     const drift = car.state === 'DRIFT';
+
+    // R50-R52: slipstream of the player, on the positions at the start of the step (traffic after
+    // the player in index order has not moved yet). R40 (end of step) zeroes it on contact.
+    let boosted = false;
+    if (car.kind === 'player') boosted = slipstream(car, cars, p, drift);
 
     let target: number;
     let grip: number;
@@ -160,19 +165,23 @@ export function step(
       if (car.vx < 0) car.vx = 0;
     }
 
-    // R14: automatic throttle, brake, speed in [0, vmax] (capMul = 1 until stage 4).
+    // R14: automatic throttle, brake, speed not below 0; the cap is vmax (R22 in DRIFT, R52 boosted).
     // R22: in DRIFT, above the cap speed falls by driftBrake (not below the cap), below it the
     // normal R14 throttle runs up to the cap. Brake input is plain R14 in both states.
+    // R52: boosted, the GRIP cap is vmax * draftCapMul and the throttle accel * draftAccelMul; in
+    // DRIFT the R22 cap stays (caps do not stack). Above the cap (boost over, cone left) speed
+    // falls by driftBrake down to the cap, as in R22.
+    if (boosted && !drift) cap = p.vmax * p.draftCapMul;
+    const accel = boosted ? p.accel * p.draftAccelMul : p.accel;
     let speed: number;
     if (input.brake) speed = car.speed - p.brake * DT;
-    else if (drift && car.speed > cap) {
+    else if (car.speed > cap) {
       speed = car.speed - p.driftBrake * DT;
       if (speed < cap) speed = cap;
     } else {
-      speed = car.speed + p.accel * DT;
+      speed = car.speed + accel * DT;
       if (speed > cap) speed = cap;
     }
-    if (speed > p.vmax) speed = p.vmax;
     if (speed < 0) speed = 0;
     // R15: offroad slowdown.
     if (car.x > 1 || car.x < -1) speed *= Math.pow(p.offroadMul, 60 * DT);
@@ -193,6 +202,38 @@ export function step(
   }
   // R1: one fixed step.
   state.tick++;
+}
+
+/** R50: a traffic car ahead with 0 < zT - z <= draftLength and |x - xT| <= draftWidth / 2. */
+function inCone(car: Car, cars: readonly Car[], p: CarParams): boolean {
+  const halfW = p.draftWidth / 2;
+  for (let i = 0; i < cars.length; i++) {
+    const t = cars[i]!;
+    if (t.kind !== 'traffic') continue;
+    const dz = t.z - car.z;
+    const dx = car.x - t.x;
+    if (dz > 0 && dz <= p.draftLength && dx <= halfW && dx >= -halfW) return true;
+  }
+  return false;
+}
+
+/** R51/R52: updates draft and boostTicks of the player for this step; returns whether it is boosted. */
+function slipstream(car: Car, cars: readonly Car[], p: CarParams, drift: boolean): boolean {
+  if (car.boostTicks > 0) car.boostTicks--; // R52 (H5 B): counts down from the step after it starts
+  const cone = inCone(car, cars, p);
+  if (car.draft >= 1 && !cone && p.draftBoost === 1) {
+    // R52 (H5 B): leaving the cone with a full charge starts the boost (also in DRIFT).
+    car.boostTicks = Math.round(p.boostTime / DT);
+    car.draft = 0;
+  } else if (!drift) {
+    // R51: charge in the cone, decay outside, clamped to [0, 1]; frozen in DRIFT.
+    let d = cone ? car.draft + DT / p.draftChargeTime : car.draft - DT / p.draftDecayTime;
+    if (d > 1) d = 1;
+    if (d < 0) d = 0;
+    car.draft = d;
+  }
+  // R52: full charge in the cone (H5 A and B), or the H5 B boost counter.
+  return car.boostTicks > 0 || (cone && car.draft >= 1);
 }
 
 /** R71: furthest z among traffic cars other than `skip`, -Infinity when there is none. */
@@ -263,6 +304,8 @@ function bumpPlayer(car: Car, cars: readonly Car[], p: CarParams): void {
       car.angle = car.dir * abs;
     }
     car.bumpTicks = Math.round(p.bumpInvulnTime / DT); // R43
+    car.draft = 0; // R51: a contact zeroes the charge and the boost
+    car.boostTicks = 0;
     return;
   }
 }
