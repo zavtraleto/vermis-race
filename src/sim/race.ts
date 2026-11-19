@@ -453,8 +453,17 @@ function stepModelB(
     slip = car.yaw - car.vel;
   }
 
-  // R85: lateral shift; R18 walls zero vel toward the wall, vx follows the clamped vel.
-  car.x += car.vel * sp * p.latScale * DT;
+  // R85: lateral shift; in DRIFT plus the lead dir*driftLead*e, e = the part of the finger the
+  // body angle has not caught yet (0 in steady drift). The lead never feeds back into vel or yaw.
+  let lead = 0;
+  if (drift) {
+    const dir = car.dir;
+    const u = steer * dir;
+    const uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    lead = dir * p.driftLead * (uc - (slip * dir) / p.slipFull) * sp * p.latScale;
+  }
+  // R18: walls zero vel toward the wall, vx follows the clamped vel.
+  car.x += (car.vel * sp * p.latScale + lead) * DT;
   if (car.x > p.xLimit) {
     car.x = p.xLimit;
     if (car.vel > 0) car.vel = 0;
@@ -464,7 +473,7 @@ function stepModelB(
   }
   // R84: in DRIFT yaw = vel + slip also holds after the wall (the slip keeps its side, R83).
   if (drift) car.yaw = car.vel + slip;
-  car.vx = car.vel * sp * p.latScale;
+  car.vx = car.vel * sp * p.latScale + lead;
 
   // R86: R14 with the cap vmax*capMul (R52); in DRIFT the cap also falls with the angle (as R22)
   // and the carry costs nothing; in GRIP the visible slip costs speed. Then R15.

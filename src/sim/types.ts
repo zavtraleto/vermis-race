@@ -59,6 +59,7 @@ export interface CarParams {
   driftPush: number; // R84 DRIFT push by the road turn, times A
   carryDecay: number; // R82b 1/s
   velGripDrift: number; // R84 DRIFT vel chase rate, 1/s
+  driftLead: number; // R85 DRIFT lead of the finger over the body angle, 0 = off
   slipDrag: number; // R86 GRIP speed cost of the visible slip
   flickDelta: number; // R81 steer change that enters a drift (car param, distinct from the H3 E input config)
   flickWindow: number; // R81 seconds
