@@ -66,9 +66,17 @@ export function runOneTraffic(
   return runBot(botParams[bot], baseCar, t.track, t.sections, seed, m, TRAFFIC);
 }
 
+/** R46: expert parameters with traffic avoidance off (only in the traffic runs, not in the gate). */
+export const EXPERT_BLIND = 'expert-blind';
+
+export function runBlindTraffic(t: LoadedTrack, seed: number, m: MeasureConfig): RunResult {
+  const bp = { ...botParams.expert, traffic: 'ignore' as const };
+  return runBot(bp, baseCar, t.track, t.sections, seed, m, TRAFFIC);
+}
+
 /** R46 per bot and track: the same seeds with and without traffic. */
 export interface TrafficEntry {
-  bot: BotName;
+  bot: BotName | typeof EXPERT_BLIND;
   track: string;
   runs: number;
   finishedFraction: number;
@@ -77,12 +85,16 @@ export interface TrafficEntry {
   zeroDriftBumpRuns: number; // share of runs with no contact in DRIFT
   passedPerLap: number; // traffic cars overtaken per lap
   lapTime: { traffic: number; clear: number; ratio: number }; // mean lap, s; ratio = traffic / clear
+  /** expert-blind only: its lap with traffic / the weaving expert's lap with traffic (R46 >= 1.05). */
+  vsWeaving?: number;
 }
 
+/** `clear` = the no-traffic entry the lap is compared with; `bot` overrides its name. */
 export function summarizeTraffic(
   clear: Entry,
   runs: readonly RunResult[],
   m: MeasureConfig,
+  bot: TrafficEntry['bot'] = clear.bot,
 ): TrafficEntry {
   let bumps = 0;
   let inDrift = 0;
@@ -102,7 +114,7 @@ export function summarizeTraffic(
   const lapCount = runs.length * m.laps;
   const lap = stat(laps).mean;
   return {
-    bot: clear.bot,
+    bot,
     track: clear.track,
     runs: runs.length,
     finishedFraction: finished / runs.length,

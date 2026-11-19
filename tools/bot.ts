@@ -2,7 +2,9 @@
 // Writes results.json for tools/gate.ts.
 import {
   BOT_NAMES,
+  EXPERT_BLIND,
   loadTracks,
+  runBlindTraffic,
   runOne,
   runOneTraffic,
   summarize,
@@ -16,6 +18,16 @@ import { baseCar } from '../src/data/cars';
 import { curveClasses } from '../src/data/tracks';
 import { GATE_CONFIG, readGateConfig, RESULTS } from './gateConfig';
 import { argValue, type Io } from './io';
+
+function trafficLine(label: string, tr: TrafficEntry): string {
+  return (
+    `${''.padEnd(12)} ${label.padEnd(8)} lap ${tr.lapTime.traffic.toFixed(2)} s ` +
+    `(x${tr.lapTime.ratio.toFixed(3)})  bumps/lap ${tr.bumpsPerLap.toFixed(2)}  ` +
+    `in drift/lap ${tr.bumpsInDriftPerLap.toFixed(2)}  ` +
+    `runs w/o drift bump ${(100 * tr.zeroDriftBumpRuns).toFixed(0)}%  ` +
+    `passed/lap ${tr.passedPerLap.toFixed(1)}  finished ${tr.finishedFraction * tr.runs}/${tr.runs}`
+  );
+}
 
 export function main(io: Io): number {
   const cfg = readGateConfig(io.read(GATE_CONFIG));
@@ -48,13 +60,24 @@ export function main(io: Io): number {
         m,
       );
       traffic.push(tr);
-      io.log(
-        `${''.padEnd(12)} ${'+traffic'.padEnd(8)} lap ${tr.lapTime.traffic.toFixed(2)} s ` +
-          `(x${tr.lapTime.ratio.toFixed(3)})  bumps/lap ${tr.bumpsPerLap.toFixed(2)}  ` +
-          `in drift/lap ${tr.bumpsInDriftPerLap.toFixed(2)}  ` +
-          `runs w/o drift bump ${(100 * tr.zeroDriftBumpRuns).toFixed(0)}%  ` +
-          `passed/lap ${tr.passedPerLap.toFixed(1)}  finished ${tr.finishedFraction * tr.runs}/${tr.runs}`,
-      );
+      io.log(trafficLine('+traffic', tr));
+      if (bot === 'expert') {
+        // R46: expert pace with avoidance off, compared with the weaving expert.
+        const bl = summarizeTraffic(
+          e,
+          seeds.map((s) => runBlindTraffic(t, s, m)),
+          m,
+          EXPERT_BLIND,
+        );
+        bl.vsWeaving = bl.lapTime.traffic / tr.lapTime.traffic;
+        traffic.push(bl);
+        io.log(
+          `${t.name.padEnd(12)} ${EXPERT_BLIND}
+` +
+            trafficLine('+traffic', bl) +
+            `  vs weaving x${bl.vsWeaving.toFixed(3)}`,
+        );
+      }
     }
   }
   const { curveClass, speed, depth, maxSeconds } = cfg.recovery;
