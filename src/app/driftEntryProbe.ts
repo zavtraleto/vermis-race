@@ -1,12 +1,12 @@
-import { DT, STEER_HIST } from '../sim/constants';
+import { DT, SEG_PER_UNIT, STEER_HIST } from '../sim/constants';
 import { flickMul } from '../sim/race';
 import type { Car, CarParams, Segment } from '../sim/types';
 
 /** R81b (отладка): "the largest |d| of the last second" when no entry was counted. */
 const MISS_WINDOW_S = 1;
-const VARIANTS = ['A', 'B', 'C', 'D'];
+const VARIANTS = ['A', 'B', 'C', 'D', 'E'];
 
-/** H16 flag -> CarParams.driftEntry (R81b, R81c): A 0, B 1, C 2, D 3; anything else falls back to A. */
+/** H16 flag -> CarParams.driftEntry (R81b, R81c, R81e): A 0, B 1, C 2, D 3, E 4; anything else falls back to A. */
 export function driftEntryOf(flag: string): number {
   const i = VARIANTS.indexOf(flag);
   return i < 0 ? 0 : i;
@@ -37,6 +37,8 @@ export class DriftEntryProbe {
   private thr = 0;
   private lastThr = 0;
   private tryVariant = 0;
+  private autoTicks = 0;
+  private need = 0;
 
   /** Call once per sim tick with the player car after that tick and the params it ran with. */
   observe(car: Car, p: CarParams, segments: readonly Segment[]): void {
@@ -46,7 +48,24 @@ export class DriftEntryProbe {
     if (seg < 0) seg += n;
     let mag = 0;
     let thr = p.deflectEnter;
-    if (p.driftEntry === 3) {
+    if (p.driftEntry === 4) {
+      // R81e: the count and needAhead (from the segment of the start of the tick and the speed
+      // after it, a debug approximation of the sim's start-of-step value); threshold = autoNeed.
+      const sp = car.speed / p.vmax;
+      const k = Math.ceil(sp * SEG_PER_UNIT * p.autoLook);
+      let cA = 0;
+      let j = seg;
+      for (let i = 0; i <= k; i++) {
+        const c = segments[j]!.curve;
+        if ((c < 0 ? -c : c) > (cA < 0 ? -cA : cA)) cA = c;
+        j = j + 1 >= n ? 0 : j + 1;
+      }
+      const gripA = p.yawRateMax / (1 + p.yawAlign / p.velGrip);
+      this.need = ((cA < 0 ? -cA : cA) * sp * p.kYaw) / gripA;
+      this.autoTicks = car.autoTicks;
+      mag = this.need;
+      thr = p.autoNeed;
+    } else if (p.driftEntry === 3) {
       // R81c: zone stick, no threshold on steer; magnitude = |steer| on entry.
       mag = car.steer < 0 ? -car.steer : car.steer;
       thr = 0;
@@ -94,6 +113,12 @@ export class DriftEntryProbe {
   /** Overlay text: the last entry, or "не засчитан" with the largest magnitude of the last second. */
   text(): string {
     if (this.tryTick < 0) return 'дрифт: —';
+    // R81e: auto drift; the last entry side and the live count / needAhead.
+    if (this.tryVariant === 4) {
+      const last = this.entryTick < 0 ? '—' : this.side > 0 ? 'вправо' : 'влево';
+      return `дрифт E (авто) ${last}
+счёт ${this.autoTicks} need ${this.need.toFixed(2)} / ${this.lastThr.toFixed(2)}`;
+    }
     // R81c: the zone entry has no threshold to miss; only the side of the last entry is shown.
     if (this.tryVariant === 3) {
       if (this.entryTick < 0) return 'дрифт D (зона): —';

@@ -58,5 +58,6 @@
   "mistakeBandMul": 0.6,
   "rivalNameDistance": 40,
   "leaderboardRows": 5,
-  "placeFlashTime": 0.8
+  "placeFlashTime": 0.8,
+  "rivalDriftEntry": 3
 }

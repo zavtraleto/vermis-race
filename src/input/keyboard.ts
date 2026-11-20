@@ -67,6 +67,8 @@ function codeBit(code: string): number {
  * a steer key pressed while drift is held sets the full steer at once. Model 0 / no car: ramp only.
  * Model 1 with `car.driftEntry` 3 (R81c, read live): steer = held keys at full value at once, no ramp
  * and no synthesized zero read; drift = a drift key held.
+ * Model 1 with `car.driftEntry` 4 (R81e, read live): steer as in variant 3; drift = a steer key held
+ * (control held); the drift keys do not matter.
  */
 export function createKeyboardInput(
   cfg: KeyboardConfig,
@@ -104,7 +106,7 @@ export function createKeyboardInput(
       const bit = codeBit(code);
       const wasDrift = (held & DRIFT) !== 0;
       held |= bit;
-      if (car?.model === 1 && car.driftEntry !== 3) {
+      if (car?.model === 1 && car.driftEntry !== 3 && car.driftEntry !== 4) {
         // A new drift press (not auto-repeat, not a second drift key) with a steer key held.
         if ((bit & DRIFT) !== 0 && !wasDrift && (held & (LEFT | RIGHT)) !== 0) zeroNext = true;
         // A steer key pressed while drift is held: full steer at once.
@@ -127,8 +129,9 @@ export function createKeyboardInput(
     },
     read(tMs: number, out: InputFrame): void {
       advance(tMs);
-      // R81c: zone-stick variant, the arrows give the full steer at once.
-      if (car?.model === 1 && car.driftEntry === 3) {
+      // R81c/R81e: zone-stick and auto-drift variants, the arrows give the full steer at once.
+      const v4 = car?.model === 1 && car.driftEntry === 4;
+      if (v4 || (car?.model === 1 && car.driftEntry === 3)) {
         zeroNext = snapNext = false;
         steer = target();
       }
@@ -143,7 +146,8 @@ export function createKeyboardInput(
         out.steer = 0;
       }
       out.brake = (held & BRAKE) !== 0;
-      out.drift = (held & DRIFT) !== 0;
+      // R81e: in variant 4 input.drift = control held, i.e. a steer key held.
+      out.drift = v4 ? (held & (LEFT | RIGHT)) !== 0 : (held & DRIFT) !== 0;
     },
   };
 }

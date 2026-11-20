@@ -7,7 +7,8 @@ import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState } from '../../src/sim/types';
 import { Q, car, inp, mk, slipOf, stepB, stepN } from './modelb_helpers';
 
-// Spec: docs/brief.md R81c (stick with a zone, driftEntry 3, H16 = D), R81 speed condition, R81b C entry
+// Spec: docs/brief.md R81c (stick with a zone, driftEntry 3; replaced for the player by R81e, kept for
+// bots, rivals and model tests, so every test below is pinned to driftEntry 3), R81 speed condition, R81b C entry
 // effects, R82 exit, R82b. Explicit params (Q: accel 0, slipDrag 0, H17/H18 off, lamps off), straight road.
 // Q numbers used below: driftEnterSpeed 0.45, driftExitSpeed 0.3, kickBase 2, slipFull 2.64,
 // slipResponse 8, carryDecay 8.
@@ -40,9 +41,9 @@ const phys = (c: Car) => ({
   turboTicks: c.turboTicks,
 });
 
-describe('R81c data: the player default is the zone stick (H16 D, driftEntry 3)', () => {
-  it('hypotheses.json H16_driftEntry is "D"', () => {
-    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('D');
+describe('R81c data: base.json keeps driftEntry 3 (bots, gate, tests); the player default moved to H16 E (R81e)', () => {
+  it('hypotheses.json H16_driftEntry is "E" (R81e replaced R81c for the player, 2026-11-20)', () => {
+    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('E');
   });
   it('base.json driftEntry is 3', () => {
     expect(baseCar.driftEntry).toBe(3);
@@ -294,7 +295,9 @@ describe('R81c driftEntry 3 is per car: cars with other variants are unaffected'
   /** Three cars far apart (no contact), same held input steer 0.9 + drift for 5 ticks. */
   const run = (params: CarParams[]): RaceState => {
     const s = createRace(3, 3);
-    s.cars.forEach((c, i) => Object.assign(c, { speed: SPEED, z: 10 + 150 * i, x: -0.6 + 0.6 * i }));
+    s.cars.forEach((c, i) =>
+      Object.assign(c, { speed: SPEED, z: 10 + 150 * i, x: -0.6 + 0.6 * i }),
+    );
     const f: InputFrame[] = params.map(() => ({ steer: 0.9, brake: false, drift: true }));
     for (let i = 0; i < 5; i++) step(s, f, STR, params);
     return s;
