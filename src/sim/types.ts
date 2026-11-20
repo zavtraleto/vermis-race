@@ -101,7 +101,7 @@ export interface CarParams {
   flickWindow: number; // R81 seconds
   kickBase: number; // R81 initial slip rate at flickDelta
   kickGain: number; // R81 extra slip rate per unit of steer change above flickDelta
-  driftEntry: number; // R81b/R81c H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection, 3 = D zone stick, 4 = E auto drift (R81e)
+  driftEntry: number; // R81b/R81c H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection, 3 = D zone stick, 4 = E auto drift (R81e), 5 = F drift in every corner (R81f)
   flickLook: number; // R81b segments looked ahead
   flickCornerMin: number; // R81b smallest |curve| that counts as a corner
   flickCornerMul: number; // R81b threshold multiplier toward a corner
@@ -112,6 +112,10 @@ export interface CarParams {
   autoHold: number; // R81e seconds of counted ticks to enter
   autoLook: number; // R81e seconds of road looked ahead
   autoNeed: number; // R81e needAhead that counts
+  cornerCurve: number; // R81f |curve| at or above which a segment is a corner segment
+  cornerGap: number; // R81f segments ahead in which a same-side corner segment keeps the drift
+  cornerSpan: number; // R83c line share per unit of steer around the hold share h
+  cornerMinU: number; // R83c lowest share uc in variant 5
   vmax: number;
   accel: number;
   brake: number;

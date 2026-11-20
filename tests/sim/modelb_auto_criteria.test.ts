@@ -4,6 +4,7 @@ import { curveClasses } from '../../src/data/tracks';
 import { DT, SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, Segment, Track } from '../../src/sim/types';
+import { T70_NUMBERS } from './pinT70';
 
 // Spec: docs/brief.md R81e "Критерии" (a)-(f), measured by tools/spike/auto-drift.ts with the real
 // step on variant 3 plus a wrapper; here the same runs go through the real step on variant 4.
@@ -14,7 +15,8 @@ import type { Car, CarParams, InputFrame, Segment, Track } from '../../src/sim/t
 // Entry after 12 counted ticks = tick 13 = 13/120 = 0.1083 s (brief: "0.108 с (13 тиков)").
 
 const AUTO = { autoSteer: 0.7, autoHold: 0.1, autoLook: 0.25, autoNeed: 1.0 };
-const P4: CarParams = { ...baseCar, driftTurbo: 0, ...AUTO, driftEntry: 4 };
+// T71: R81e is rejected but variant 4 stays in code; its criteria keep the T70 numbers they were measured with.
+const P4: CarParams = { ...baseCar, ...T70_NUMBERS, driftTurbo: 0, ...AUTO, driftEntry: 4 };
 const free = (p: CarParams): CarParams => ({
   ...p,
   xLimit: 1e9,
@@ -335,11 +337,11 @@ describe('R81e criterion (d): drop and re-touch', () => {
       expect(r.car.state).toBe('DRIFT');
     });
   }
-  it('release straightens: outward 0.30 / 0.38 / 0.42 half-widths in 0.3 s (medium / hard / sharp), held drift about 0.01', () => {
+  it('release straightens: outward 0.30 / 0.39 / 0.43 half-widths in 0.3 s (medium / hard / sharp), held drift about 0.01', () => {
     const want: Record<string, [number, number]> = {
       medium: [0.301, 0.603],
-      hard: [0.379, 0.73],
-      sharp: [0.417, 0.773],
+      hard: [0.389, 0.75], // re-measured T71 after R86f (was 0.379 / 0.73)
+      sharp: [0.431, 0.802], // re-measured T71 after R86f (was 0.417 / 0.773)
     };
     for (const cls of ['medium', 'hard', 'sharp']) {
       const tr = cornerTrack(C[cls]!, 0, 8000);

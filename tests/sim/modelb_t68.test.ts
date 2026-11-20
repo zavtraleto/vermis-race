@@ -16,6 +16,7 @@ import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 import { Q, STRAIGHT, car, constTrack, inp, mk, stepB, stepN } from './modelb_helpers';
+import { ENTRY_D } from './pinT70';
 
 const C = curves as { easy: number; medium: number; hard: number; sharp: number };
 const B = base as unknown as Record<string, number>;
@@ -28,13 +29,14 @@ const num = (p: CarParams, k: string): number => (p as unknown as Record<string,
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
 /** Real data, model B, lamps off, driftTurbo 0 (R86c postponed), walls and off-road loss removed. */
-const REAL: CarParams = H(baseCar, { model: 1, crashMinSpeed: 1e9, driftTurbo: 0 });
+// T71: T68 criteria (R83b, R85d on a straight) are variant 3 drifts: driftEntry 3 pinned (brief R81f).
+const REAL: CarParams = H(baseCar, { model: 1, crashMinSpeed: 1e9, driftTurbo: 0, ...ENTRY_D });
 const FREE: CarParams = H(REAL, { xLimit: 1e9, offroadMul: 1, offroadSteerMul: 1 });
 
 // ------------------------------------------------------------------------------------------------
 describe('T68 data (cars/base.json, hypotheses.json)', () => {
-  it('R85c: gripDodge 0.45, dodgeFadeA 4', () => {
-    expect(B.gripDodge).toBe(0.45);
+  it('R85c: gripDodge 0.1 (T71, author; was 0.45), dodgeFadeA 4', () => {
+    expect(B.gripDodge).toBe(0.1);
     expect(B.dodgeFadeA).toBe(4);
   });
   it('R83b: driftMinU 0.5 (T69, author: keep the floor, slightly stronger; was 0.4)', () =>
@@ -45,7 +47,8 @@ describe('T68 data (cars/base.json, hypotheses.json)', () => {
     if (B.driftKnee !== undefined) expect(B.driftKnee).toBeLessThan(1);
   });
   it('R85d: leadRamp 0.4 s', () => expect(B.leadRamp).toBe(0.4));
-  it('R86e: debtTime 0.5 s', () => expect(B.debtTime).toBe(0.5));
+  it('R86e withdrawn (T71, with R86f): debtTime 0 = off (was 0.5 s)', () =>
+    expect(B.debtTime).toBe(0));
   // R86c postponed (driftTurbo 0, H18 A): asserted in modelb_turbo.test.ts 'R86c data (H18)'.
 });
 

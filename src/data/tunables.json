@@ -65,7 +65,8 @@
     "input.keyboard.steerRampMs": { "min": 10, "max": 600, "step": 10 },
     "input.touch.stickRadiusFrac": { "min": 0.05, "max": 0.5, "step": 0.01 },
     "input.touch.stickRadius": { "min": 0.05, "max": 0.5, "step": 0.01 },
-    "input.touch.driftEdge": { "min": 1, "max": 3, "step": 0.05 },
+    "input.touch.driftEdge": { "min": 0, "max": 3, "step": 0.05 },
+    "input.touch.driftPull": { "min": 0, "max": 2, "step": 0.05 },
     "input.touch.deadZone": { "min": 0, "max": 0.3, "step": 0.01 },
     "input.touch.responseExp": { "min": 0.5, "max": 3, "step": 0.05 },
     "input.touch.releaseMs": { "min": 10, "max": 500, "step": 10 },
@@ -171,7 +172,7 @@
     "hypotheses.H10_offroad": ["A", "B"],
     "hypotheses.H14_model": ["A", "B"],
     "hypotheses.H15_rubberBand": ["A", "B"],
-    "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E"],
+    "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E", "F"],
     "hypotheses.H17_gripScrub": ["A", "B"],
     "hypotheses.H18_driftTurbo": ["A", "B"],
     "sprites.drift.smoke": ["on", "off"],
@@ -212,7 +213,7 @@
     },
     "hypotheses.H16_driftEntry": {
       "title": "Вход в дрифт (B)",
-      "hint": "E — автодрифт (игрок); D — стик с зоной; A, B — рывок; C — удержание отклонения",
+      "hint": "F — дрифт в каждом повороте (палец, пробел); E — авто; D — зона; A, B — рывок; C — руль",
       "tier": "more",
       "group": "Дрифт",
       "model": "B",
@@ -1109,10 +1110,17 @@
     },
     "input.touch.driftEdge": {
       "title": "Граница дрифта",
-      "hint": "во сколько радиусов стика палец должен уйти, чтобы включить дрифт",
+      "hint": "во сколько радиусов стика палец уходит вбок до дрифта; 0 — границы нет",
       "tier": "more",
       "group": "Управление",
       "rule": "R81c"
+    },
+    "input.touch.driftPull": {
+      "title": "Тяга вниз для дрифта",
+      "hint": "во сколько радиусов стика палец тянут вниз до дрифта; 0 — выкл",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R81g"
     },
     "input.touch.stickRadiusFrac": {
       "title": "Ход пальца",

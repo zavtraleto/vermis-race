@@ -41,11 +41,11 @@ const phys = (c: Car) => ({
   turboTicks: c.turboTicks,
 });
 
-describe('R81c data: base.json keeps driftEntry 3 (bots, gate, tests); the player default moved to H16 E (R81e)', () => {
-  it('hypotheses.json H16_driftEntry is "E" (R81e replaced R81c for the player, 2026-11-20)', () => {
-    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('E');
+describe('R81c data: T73 (R81g) makes variant 3 the default again (driftEntry 3, H16 D)', () => {
+  it('hypotheses.json H16_driftEntry is "D" (R81g, T73; was "F" in T71)', () => {
+    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('D');
   });
-  it('base.json driftEntry is 3', () => {
+  it('base.json driftEntry is 3 (R81g: bots, gate, rivals and player; was 5 in T71)', () => {
     expect(baseCar.driftEntry).toBe(3);
   });
   it('the H16 flag maps D -> 3 (A, B, C stay 0, 1, 2)', () => {

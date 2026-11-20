@@ -48,6 +48,7 @@ import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
 import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
+import { roadPointAt, TyreMarks } from '../render/tyreMarks';
 import { WorldSprites } from '../render/worldSprites';
 import { DT, SEG_PER_UNIT } from '../sim/constants';
 import { createRivalDrivers, fillRivalInputs } from '../bot/rivals';
@@ -122,7 +123,7 @@ const tunables = installDev(
 // keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
 baseCar.lampEvery = spritesConfig.roadside.lamps.every;
 baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
-// H16 (R81b, R81c, R81e): the model B drift entry variant follows the hypothesis flag (A..E -> 0..4), on
+// H16 (R81b, R81c, R81e, R81f): the model B drift entry variant follows the hypothesis flag (A..F -> 0..5), on
 // load and on every panel change (the rival copies below take the rest of baseCar, but R81e: their
 // driftEntry is rivalDriftEntry).
 const applyDriftEntry = (): void => {
@@ -235,6 +236,18 @@ const driftVisual = new DriftVisual(spritesConfig.drift);
 const carView = new CarView(car3dConfig, spritesConfig.player, view, paletteConfig);
 // R25b: front-wheel angle from the player's steer.
 const wheelSteer = new WheelSteer();
+// R24b: drift smoke in an overlay batch inside the car scene, drawn after the car (one extra draw
+// call only while puffs are alive: the mesh is hidden when empty).
+const smokeBatch = new SpriteBatch(
+  spritesConfig.drift.smokeCapacity,
+  view.screenWidth,
+  view.screenHeight,
+  screenRoll.uniform,
+  true,
+);
+carView.scene.add(smokeBatch.mesh);
+// R24c: tyre marks of the player in DRIFT, drawn into the road-pass sprite batch.
+const tyreMarks = new TyreMarks(spritesConfig.tyreMarks);
 // R26: yaw from the real lateral motion, roll and pitch with weight.
 const weight = new CarWeight(spritesConfig.weight);
 // R45: traffic as 3D bodies, one instanced draw call in the road pass.
@@ -292,11 +305,14 @@ resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
 const now = (): number => performance.now();
 // R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
 const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
-// R81c/R81e: in model B with driftEntry 3 (H16 D) or 4 (H16 E, the default) the touch input is the zone
-// stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a reload). In
-// variant 4 the player input ignores the stick's drift latch: touch drift = finger down (player.ts).
+// R81c/R81g/R81e/R81f: in model B with driftEntry 3 (H16 D, the default: drift = the stick's pull-down
+// latch, R81g), 4 (H16 E) or 5 (H16 F) the touch
+// input is the zone stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a
+// reload). In variants 4 and 5 the player input ignores the stick's drift latch: touch drift = finger
+// down (player.ts).
 const zoneStick =
-  baseCar.model === 1 && (baseCar.driftEntry === 3 || baseCar.driftEntry === 4)
+  baseCar.model === 1 &&
+  (baseCar.driftEntry === 3 || baseCar.driftEntry === 4 || baseCar.driftEntry === 5)
     ? createZoneStick(inputConfig.touch)
     : null;
 const touchStick = zoneStick ?? createTouchStick(inputConfig.touch);
@@ -423,7 +439,7 @@ const render3d = use3d
   : null;
 // R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
 // the copies follow live dev-panel edits of the player car.
-// R81e: the rival copies keep driftEntry = rivalDriftEntry (bots do not know variant 4).
+// R81e/R81f: the rival copies keep driftEntry = rivalDriftEntry (3 since T73, R81g: the same rule as the player).
 const carParams: CarParams[] = race.cars.map((c) =>
   c.kind === 'rival' ? { ...baseCar, driftEntry: rivalDriftEntry } : baseCar,
 );
@@ -534,18 +550,12 @@ window.__game = game;
   renderFrame();
 };
 
-function renderFrame(): void {
-  if (render3d) {
-    render3d.render();
-    const c3 = loop.curr.cars[0]!;
-    const p3 = loop.prev.cars[0]!;
-    const speed3 = p3.speed + (c3.speed - p3.speed) * loop.alpha;
-    if (speedometer) speedometer.update(readSpeed(speedReading, c3, speed3, baseCar.vmax));
-    lastCalls = renderer.info.render.calls;
-    lastTriangles = renderer.info.render.triangles;
-    game.frames += 1;
-    return;
-  }
+/**
+ * Projects the road and poses the player car for the current interpolated state, then records the
+ * R24c tyre marks from the rear wheel points. Called by renderFrame and, on the fixed screenshot
+ * path, after every tick so the marks are laid like in the live loop.
+ */
+function poseFrame(): void {
   rebuildForDrawDistance();
   // Camera follows the player car, interpolated between the last two sim states.
   const a = loop.alpha;
@@ -556,8 +566,6 @@ function renderFrame(): void {
   // R27b: everything is projected from the lagging camPosX; the car is drawn x - camPosX off it.
   const camX = driftVisual.cameraX + bump.shake;
   project(proj, track, p.z + (c.z - p.z) * a, camLag.posX + camX, view, roadConfig);
-  road.update(proj);
-  sprites.begin();
   const carY = spritesConfig.player.baseY * view.screenHeight;
   const carDx =
     (p.x + (c.x - p.x) * a - camLag.posX - camX) * roadHalfWidthPxAt(carY, view, roadConfig);
@@ -574,8 +582,37 @@ function renderFrame(): void {
     spritesConfig.crash.pivotY,
     wheelSteer.deg,
   );
-  carView.scene.visible = bump.visible; // R45 blink while bumpTicks > 0
-  world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
+  const found =
+    roadPointAt(tyreMarks.left, proj, carView.rearLX, carView.rearLY) &&
+    roadPointAt(tyreMarks.right, proj, carView.rearRX, carView.rearRY);
+  tyreMarks.track(c.state === 'DRIFT' && c.dir !== 0, found, proj.length);
+}
+
+function renderFrame(): void {
+  if (render3d) {
+    render3d.render();
+    const c3 = loop.curr.cars[0]!;
+    const p3 = loop.prev.cars[0]!;
+    const speed3 = p3.speed + (c3.speed - p3.speed) * loop.alpha;
+    if (speedometer) speedometer.update(readSpeed(speedReading, c3, speed3, baseCar.vmax));
+    lastCalls = renderer.info.render.calls;
+    lastTriangles = renderer.info.render.triangles;
+    game.frames += 1;
+    return;
+  }
+  poseFrame();
+  const a = loop.alpha;
+  const p = loop.prev.cars[0]!;
+  const c = loop.curr.cars[0]!;
+  road.update(proj);
+  sprites.begin();
+  // R45 blink while bumpTicks > 0 (the car only: the R24b smoke stays in view).
+  carView.mesh.visible = bump.visible;
+  smokeBatch.begin();
+  world.drawSmoke(smokeBatch, driftVisual, carView);
+  smokeBatch.end();
+  smokeBatch.mesh.visible = smokeBatch.count > 0;
+  world.drawTyreMarks(sprites, proj, tyreMarks);
   world.drawRoadside(sprites, proj, roadside, roadsideIndex);
   tailLights.begin(sprites, focalPx(view), view.screenWidth / 2, view.horizon * view.screenHeight);
   trafficModels.update(
@@ -704,6 +741,7 @@ if (fixedTicks !== null) {
   for (let i = 0; i < fixedTicks; i++) {
     loop.stepTicks(1);
     updateVisuals(DT, loop.curr.cars[0]!.angle, 1);
+    if (!render3d) poseFrame();
   }
   renderFrame();
   game.done = true;

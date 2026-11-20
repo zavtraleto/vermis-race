@@ -297,6 +297,11 @@ function botInputB(
   const turn = sp * p.kYaw; // A per unit curve at the current speed
   const inDrift = car.state === 'DRIFT';
   if (inDrift) bot.flick = 0;
+  // R81f "Боты" (driftEntry 5): the sim decides entry and exit by the road; a drifting bot keeps the
+  // drift input down all lap, plans no flick and does not brake; the side search uses gripCap 0.
+  const v5 = p.driftEntry === 5;
+  const v5Drift = v5 && bp.drift === 'corners';
+  const cap = v5 ? 0 : gripCap;
 
   // Drift corner ahead within bFlickLook (GRIP) / bReleaseLook (DRIFT): the first segment GRIP
   // cannot hold; in DRIFT a bend the other way first ends the drift.
@@ -306,8 +311,8 @@ function botInputB(
     for (let i = 0; i < look; i++) {
       const c = segs[wrap(seg0 + i, n)]!.curve;
       const a = (c < 0 ? -c : c) * turn;
-      if (inDrift && c * car.dir < 0 && a > gripCap * bp.bReleaseFrac) break;
-      if (a > (inDrift ? gripCap * bp.bReleaseFrac : gripCap)) {
+      if (inDrift && c * car.dir < 0 && a > cap * bp.bReleaseFrac) break;
+      if (a > (inDrift ? cap * bp.bReleaseFrac : cap)) {
         driftSign = c > 0 ? 1 : -1;
         break;
       }
@@ -347,7 +352,13 @@ function botInputB(
   // the dip itself is a flick the wrong way), then full steer into the corner for bKickTime with it held, then the
   // line controller; held until DRIFT, or until the flick has had time to reach the car (reaction
   // delay + dip + kick + flickWindow) and failed. The drift input goes through the same delay.
-  if (!inDrift && bot.flick === 0 && driftSign !== 0 && car.speed > p.driftEnterSpeed * p.vmax) {
+  if (
+    !v5 &&
+    !inDrift &&
+    bot.flick === 0 &&
+    driftSign !== 0 &&
+    car.speed > p.driftEnterSpeed * p.vmax
+  ) {
     bot.flick = 1;
     bot.flickDir = driftSign;
   }
@@ -382,10 +393,13 @@ function botInputB(
   const dq = bot.driftQueue;
   dq[bot.head] = drift ? 1 : 0;
   out.drift = dq[wrap(bot.head - delayTicks(bp, dq.length), dq.length)] === 1;
+  // R81f "Боты": the drift input is held on every tick (no reaction delay: the finger never lifts).
+  if (v5) out.drift = v5Drift;
 
   // Speed: brake only for a corner the bot neither drifts nor trusts GRIP with at this speed.
+  // R81f "Боты": a drifting bot (drift 'corners') never brakes.
   out.brake = false;
-  if (bp.speed === 'never' || inDrift || bot.flick > 0) return;
+  if (bp.speed === 'never' || inDrift || bot.flick > 0 || v5Drift) return;
   const dBrake = ahead(segPerSec, bp.brakeLookahead);
   for (let i = 0; i < dBrake; i++) {
     const c = segs[wrap(seg0 + i, n)]!.curve;

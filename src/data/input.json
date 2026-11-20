@@ -14,7 +14,8 @@
     "flickDelta": 0.5,
     "flickWindowMs": 120,
     "stickRadius": 0.16,
-    "driftEdge": 1.35,
+    "driftEdge": 0,
+    "driftPull": 0.6,
     "zoneReleaseMs": 0
   }
 }
