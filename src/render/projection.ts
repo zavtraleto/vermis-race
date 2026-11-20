@@ -39,6 +39,49 @@ function startHeight(track: Track, seg: number): number {
   return seg === 0 ? 0 : (track.segments[seg - 1]!.y ?? 0);
 }
 
+/**
+ * R30 road height at track position z (segments, any real; wraps by the track length), in
+ * segment lengths: startHeight of the segment plus the fraction of its rise.
+ */
+export function roadHeightAt(track: Track, z: number): number {
+  const segs = track.segments;
+  const len = segs.length;
+  const zFloor = Math.floor(z);
+  const frac = z - zFloor;
+  const seg = ((zFloor % len) + len) % len;
+  const h = startHeight(track, seg);
+  return h + frac * ((segs[seg]!.y ?? 0) - h);
+}
+
+/**
+ * R30b guard for steep descents: the lineOffset to pass to project(). With the camera riding
+ * camera.height above the road at z + lineOffset, a descent steeper than about
+ * height / (lineOffset*segmentLength + nearDistance) (0.81 with the real config) puts the eye below
+ * the road under it: line 0 projects above line 1, the near strips face away and crest clipping
+ * hides the road under the car. So the eye is kept about minClear world units or more above the road
+ * under it (nearDistance behind z) by moving the camera's road point back toward z (linear between
+ * the heights at z and z + lineOffset: approximate when a segment boundary lies between them). The car is then drawn above the road there, by the height
+ * difference between z + lineOffset and the returned offset. Inactive on the real tracks (slope
+ * <= 0.59 leaves the eye >= 86 units above the road).
+ */
+export function cameraLineOffset(
+  track: Track,
+  z: number,
+  lineOffset: number,
+  camera: CameraConfig,
+  road: RoadConfig,
+  minClear: number,
+): number {
+  const eyeZ = z - nearDistance(camera, focalPx(camera)) / road.segmentLength;
+  // Lowest camera road height that keeps the eye minClear above the road under it.
+  const need = roadHeightAt(track, eyeZ) + (minClear - camera.height) / road.segmentLength;
+  const hL = roadHeightAt(track, z + lineOffset);
+  if (hL >= need) return lineOffset;
+  const h0 = roadHeightAt(track, z);
+  if (h0 <= need) return 0;
+  return (lineOffset * (h0 - need)) / (h0 - hL);
+}
+
 export function focalPx(camera: CameraConfig): number {
   return camera.screenWidth / 2 / Math.tan((camera.fovDeg * Math.PI) / 360);
 }
@@ -79,6 +122,9 @@ export function project(
   x: number,
   camera: CameraConfig,
   road: RoadConfig,
+  // R30b: segments from z to the line the player car is drawn on; the camera rides camera.height
+  // above the road there, so that road passes through the car's anchor on any slope.
+  lineOffset = 0,
 ): void {
   const segs = track.segments;
   const len = segs.length;
@@ -92,10 +138,8 @@ export function project(
   const count = camera.drawDistance + 1;
   const camX = x * road.halfWidth;
   // R30: world height = y * segmentLength (y is in segment lengths, as in javascript-racer).
-  // The camera rides camera.height above the road under it, linear inside the base segment.
-  const hBase = startHeight(track, base);
-  const camRoad = (hBase + frac * ((segs[base]!.y ?? 0) - hBase)) * road.segmentLength;
-  const camY = camera.height + camRoad;
+  // The camera rides camera.height above the road at z + lineOffset (R30b), linear in a segment.
+  const camY = camera.height + roadHeightAt(track, z + lineOffset) * road.segmentLength;
 
   // Curve accumulation starts mid-segment so edges stay continuous across boundaries.
   const c0 = segs[base]!.curve;
@@ -117,11 +161,14 @@ export function project(
     // Clamp line 0 onto the near plane (depth d0, the bottom of the screen). Depth is linear
     // in n, so depth d0 lies frac of the way from line 0 to line 1; the world offset is
     // interpolated there (line 0: c0*frac, line 1: 0) and then projected.
-    // R30: the road height there is the one under the camera, so y stays camera.height below.
+    // R30: the road height there is the one at z. With lineOffset 0 that is the camera's own
+    // road point, so y stays camera.height below; with an offset (R30b) the two heights differ.
     const s = f / d0;
     const offNear = c0 * frac * (1 - frac);
     out.scale[0] = s;
-    out.y[0] = horizonY + s * camera.height;
+    out.y[0] =
+      horizonY +
+      s * (lineOffset === 0 ? camera.height : camY - roadHeightAt(track, z) * road.segmentLength);
     out.w[0] = s * road.halfWidth;
     out.x[0] = halfW + s * (offNear - camX);
   }

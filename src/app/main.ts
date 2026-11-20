@@ -42,7 +42,8 @@ import { TailLights } from '../render/tailLights';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
-import { createProjection, focalPx, project } from '../render/projection';
+import { cameraLineOffset, createProjection, focalPx, project } from '../render/projection';
+import { slopePitchDeg } from '../render/roadSlope';
 import { ribbonThresholds } from '../render/ribbonMap';
 import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
@@ -182,11 +183,16 @@ const sharpScenario = params.scenario === 'sharp' ? scenarios.sharp : null;
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
 // R67 rivals look: literal straight track, rivals at fixed gaps ahead, labels and leaderboard.
 const rivalsScenario = params.scenario === 'rivals' ? scenarios.rivals : null;
+// R30b hill-cars / hill-cars-down: a steady climb / descent with traffic and a rival on the slope.
+const hillCarsScenario =
+  params.scenario === 'hill-cars' || params.scenario === 'hill-cars-down'
+    ? scenarios[params.scenario]
+    : null;
 // R30 hill-crest / hill-dip: literal straight track with hills, car placed at a fixed z.
 const hillScenario =
   params.scenario === 'hill-crest' || params.scenario === 'hill-dip'
     ? scenarios[params.scenario]
-    : null;
+    : hillCarsScenario;
 // Screenshot scenarios: literal track, fixed tick count and a fixed scenario input.
 const fixedScenario =
   curveScenario ??
@@ -361,25 +367,29 @@ const trafficOn = fixedScenario === null && stress === null && params.traffic;
 const traffic: TrafficConfig = { ...trafficConfig, lanes: roadConfig.lanes };
 // Screenshot scenarios that place traffic cars at fixed gaps (no respawn).
 const scenarioCars =
-  trafficScenario ?? (params.scenario === 'drift-camera' ? scenarios['drift-camera'] : null);
+  trafficScenario ??
+  (params.scenario === 'drift-camera' ? scenarios['drift-camera'] : null) ??
+  hillCarsScenario;
 const trafficCount = trafficOn ? traffic.trafficMax : scenarioCars ? scenarioCars.cars.length : 0;
 // R60: the default track runs with rivals (off with ?rivals=0); screenshot and stress scenarios
 // run without them so their frames do not change (the rivals scenario places its own).
 const rivalsOn = fixedScenario === null && stress === null && params.rivals;
+// Screenshot scenarios that place rivals at fixed gaps.
+const scenarioRivals = rivalsScenario ?? hillCarsScenario;
 const rivalCount = rivalsOn
   ? Math.max(0, Math.floor(rivalsCfg.rivalCount))
-  : rivalsScenario
-    ? rivalsScenario.rivals.length
+  : scenarioRivals
+    ? scenarioRivals.rivals.length
     : 0;
 const race = createRace(params.seed, 1 + rivalCount, trafficCount);
 if (rivalsOn) placeRivals(race, rivalsCfg);
 if (trafficOn) placeTraffic(race, traffic, baseCar.vmax);
-if (rivalsScenario) {
-  race.cars[0]!.z = rivalsScenario.z;
-  race.cars[0]!.speed = rivalsScenario.speed;
-  rivalsScenario.rivals.forEach((t, i) => {
+if (scenarioRivals) {
+  race.cars[0]!.z = scenarioRivals.z;
+  race.cars[0]!.speed = scenarioRivals.speed;
+  scenarioRivals.rivals.forEach((t, i) => {
     const c = race.cars[i + 1]!;
-    c.z = rivalsScenario.z + t.dz;
+    c.z = scenarioRivals.z + t.dz;
     c.x = -1 + ((t.lane + 0.5) * 2) / roadConfig.lanes; // R70 lane centre
     c.speed = t.speed;
     c.nameId = t.nameId;
@@ -407,7 +417,8 @@ if (crashScenario) {
 if (scenarioCars) {
   race.cars[0]!.z = scenarioCars.z;
   scenarioCars.cars.forEach((t, i) => {
-    const c = race.cars[i + 1]!;
+    // R70: traffic comes after the player and the rivals.
+    const c = race.cars[1 + rivalCount + i]!;
     c.z = scenarioCars.z + t.dz;
     c.x = -1 + ((t.lane + 0.5) * 2) / roadConfig.lanes; // R70 lane centre
     c.speed = t.speed;
@@ -550,6 +561,9 @@ window.__game = game;
   renderFrame();
 };
 
+// R30b: segments from the camera to the player's line, set by poseFrame for the frame.
+let lineOff = 0;
+
 /**
  * Projects the road and poses the player car for the current interpolated state, then records the
  * R24c tyre marks from the rear wheel points. Called by renderFrame and, on the fixed screenshot
@@ -565,7 +579,22 @@ function poseFrame(): void {
   // R45: the contact shake moves the whole camera (road, traffic and the car line together).
   // R27b: everything is projected from the lagging camPosX; the car is drawn x - camPosX off it.
   const camX = driftVisual.cameraX + bump.shake;
-  project(proj, track, p.z + (c.z - p.z) * a, camLag.posX + camX, view, roadConfig);
+  const zCam = p.z + (c.z - p.z) * a;
+  // R30b: the camera rides above the road at the player's line (the line traffic and rivals are
+  // drawn at too), pulled back toward z only on descents too steep for it (cameraLineOffset).
+  lineOff = playerLineOffset(view, roadConfig, spritesConfig.player.baseY);
+  const slope = car3dConfig.slope;
+  const camOff = cameraLineOffset(track, zCam, lineOff, view, roadConfig, slope.eyeClearance);
+  project(proj, track, zCam, camLag.posX + camX, view, roadConfig, camOff);
+  // R30b (c): pitch along the road under the car; CarView pitch > 0 is nose down, so subtract.
+  // The car's own camera looks down at it far less than the road camera does, so the angle is
+  // scaled by playerPitchGain to read the same on screen.
+  const slopePitch = slopePitchDeg(
+    track,
+    zCam + lineOff,
+    slope.slopeHalfSpan,
+    slope.slopePitchGain * slope.playerPitchGain,
+  );
   const carY = spritesConfig.player.baseY * view.screenHeight;
   const carDx =
     (p.x + (c.x - p.x) * a - camLag.posX - camX) * roadHalfWidthPxAt(carY, view, roadConfig);
@@ -575,7 +604,7 @@ function poseFrame(): void {
     weight.yaw + tumble.yawDeg,
     weight.roll,
     carDx,
-    weight.pitch,
+    weight.pitch - slopePitch,
     screenRoll.deg,
     tumble.rollDeg,
     tumble.hop,
@@ -620,10 +649,11 @@ function renderFrame(): void {
     loop.prev.cars,
     loop.curr.cars,
     a,
-    playerLineOffset(view, roadConfig, spritesConfig.player.baseY),
+    lineOff,
     // R45: car width in world units (one lane = 2 * halfWidth / lanes), read live.
     (spritesConfig.traffic.widthLanes * 2 * roadConfig.halfWidth) / roadConfig.lanes,
     tailLights,
+    track,
   );
   if (rivalModels) {
     rivalModels.update(
@@ -632,12 +662,13 @@ function renderFrame(): void {
       loop.curr.cars,
       a,
       visualDt,
-      playerLineOffset(view, roadConfig, spritesConfig.player.baseY),
+      lineOff,
       baseCar.model,
       Math.round(baseCar.crashTime / DT),
       spritesConfig.drift.yawMaxDeg,
       rivalUiConfig.rivalNameDistance,
       tailLights,
+      track,
     );
     nameLabels?.draw(rivalModels, loop.curr.cars);
   }

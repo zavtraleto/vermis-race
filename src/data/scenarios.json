@@ -109,6 +109,44 @@
       { "enter": 0, "hold": 800, "leave": 0, "curve": 0 }
     ]
   },
+  "hill-cars": {
+    "ticks": 1,
+    "steer": 0,
+    "z": 120,
+    "speed": 0,
+    "sections": [
+      { "enter": 0, "hold": 40, "leave": 0, "curve": 0 },
+      { "enter": 0, "hold": 160, "leave": 0, "curve": 0, "hill": 60 },
+      { "enter": 0, "hold": 100, "leave": 0, "curve": 0 },
+      { "enter": 0, "hold": 160, "leave": 0, "curve": 0, "hill": -60 },
+      { "enter": 0, "hold": 600, "leave": 0, "curve": 0 }
+    ],
+    "cars": [
+      { "dz": 0.3, "lane": 5, "speed": 0.5 },
+      { "dz": 5, "lane": 2, "speed": 0.5 },
+      { "dz": 12, "lane": 6, "speed": 0.5 }
+    ],
+    "rivals": [{ "dz": 8, "lane": 1, "speed": 0.5, "nameId": 0, "nemesis": 0, "join": 0 }]
+  },
+  "hill-cars-down": {
+    "ticks": 1,
+    "steer": 0,
+    "z": 120,
+    "speed": 0,
+    "sections": [
+      { "enter": 0, "hold": 40, "leave": 0, "curve": 0 },
+      { "enter": 0, "hold": 160, "leave": 0, "curve": 0, "hill": -51 },
+      { "enter": 0, "hold": 100, "leave": 0, "curve": 0 },
+      { "enter": 0, "hold": 160, "leave": 0, "curve": 0, "hill": 51 },
+      { "enter": 0, "hold": 600, "leave": 0, "curve": 0 }
+    ],
+    "cars": [
+      { "dz": 0.3, "lane": 5, "speed": 0.5 },
+      { "dz": 5, "lane": 2, "speed": 0.5 },
+      { "dz": 12, "lane": 6, "speed": 0.5 }
+    ],
+    "rivals": [{ "dz": 8, "lane": 1, "speed": 0.5, "nameId": 0, "nemesis": 0, "join": 0 }]
+  },
   "stress": {
     "drawDistance": 300,
     "curve": 1.5,

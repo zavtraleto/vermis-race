@@ -11,7 +11,7 @@ import {
 } from 'three';
 import type { Palette } from '../data/render';
 import { DT } from '../sim/constants';
-import type { Car } from '../sim/types';
+import type { Car, Track } from '../sim/types';
 import type { CarWeightConfig } from './carWeight';
 import { Builder, type Car3dConfig } from './carModel';
 import { CrashTumble, type CrashTumbleConfig } from './crashTumble';
@@ -25,6 +25,7 @@ import {
   type RoadConfig,
 } from './projection';
 import { writeHex } from './roadMesh';
+import { slopePitchDeg } from './roadSlope';
 import { ROLL_GLSL, type RollUniform } from './screenRoll';
 import type { TailLights } from './tailLights';
 import type { BumpFeedbackConfig, TrafficDrawConfig } from './worldSprites';
@@ -43,7 +44,8 @@ const DEG = Math.PI / 180;
 // Same pinhole as trafficModels.ts. Per instance: iA = (camera-relative x, camera height above the
 // car's ground, depth, world units per model unit), iB = (cos yaw, sin yaw, depth base, depth
 // gain), iC = (body colour, unused), iD = (crest clip line in NDC y, depth of the car's rear),
-// iE = (R49 tumble roll in rad, hop in model units, roll pivot height, unused).
+// iE = (R49 tumble roll in rad, hop in model units, roll pivot height, R30b slope pitch in rad,
+// nose up > 0).
 const VERTEX = /* glsl */ `
 attribute vec3 aShade;
 attribute vec3 aColor;
@@ -66,6 +68,11 @@ void main() {
   float sr = sin(iE.x);
   float py = p.y - iE.z;
   p = vec3(p.x * cr - py * sr, p.x * sr + py * cr + iE.z + iE.y, p.z);
+  // R30b: pitch along the road slope in the car's own frame (nose = -z), pivot at the ground point
+  // under the car centre, before the yaw.
+  float cp = cos(iE.w);
+  float sp = sin(iE.w);
+  p = vec3(p.x, p.y * cp - p.z * sp, p.z * cp + p.y * sp);
   float k = iA.w;
   float lx = p.x * iB.x - p.z * iB.y;
   float lz = p.x * iB.y + p.z * iB.x;
@@ -243,8 +250,10 @@ export class RivalModels {
     driftYawMaxDeg: number,
     nameDistance: number,
     lights: TailLights,
+    track: Track,
   ): void {
     const cam = this.camera;
+    const slope = this.cfg.slope;
     const road = this.road;
     const tc = this.traffic;
     const w = this.weight;
@@ -348,7 +357,9 @@ export class RivalModels {
       this.e[o] = -tb.rollDeg * DEG;
       this.e[o + 1] = tb.hop;
       this.e[o + 2] = this.crash.pivotY;
-      this.e[o + 3] = 0;
+      // R30b: pitch along the road under the car, at the z it is drawn at.
+      const pitch = slopePitchDeg(track, z, slope.slopeHalfSpan, slope.slopePitchGain) * DEG;
+      this.e[o + 3] = pitch;
       lights.addCar(
         this.a[o]!,
         this.a[o + 1]!,
@@ -360,7 +371,8 @@ export class RivalModels {
         this.b[o + 2]! - 0.05 * step,
         clip,
         this.e[o]!,
-        tb.hop,
+        // R30b: the lights follow the vertical displacement of the rear under the pitch.
+        tb.hop - this.halfLength * Math.sin(pitch),
         this.crash.pivotY,
       );
       n++;
