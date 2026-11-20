@@ -10,7 +10,13 @@ import {
 } from '../data/render';
 import hypotheses from '../data/hypotheses.json';
 import { inputConfig } from '../data/input';
-import { mistakeConfig, rivalConfig, rivalNames, rivalUiConfig } from '../data/rivals';
+import {
+  mistakeConfig,
+  rivalConfig,
+  rivalDriftEntry,
+  rivalNames,
+  rivalUiConfig,
+} from '../data/rivals';
 import { trafficConfig } from '../data/traffic';
 import tunablesRivals from '../data/tunablesRivals.json';
 import scenarios from '../data/scenarios.json';
@@ -115,8 +121,9 @@ const tunables = installDev(
 // keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
 baseCar.lampEvery = spritesConfig.roadside.lamps.every;
 baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
-// H16 (R81b, R81c): the model B drift entry variant follows the hypothesis flag (A/B/C/D -> 0..3), on load
-// and on every panel change (the rival copies below take it with the rest of baseCar).
+// H16 (R81b, R81c, R81e): the model B drift entry variant follows the hypothesis flag (A..E -> 0..4), on
+// load and on every panel change (the rival copies below take the rest of baseCar, but R81e: their
+// driftEntry is rivalDriftEntry).
 const applyDriftEntry = (): void => {
   baseCar.driftEntry = driftEntryOf(hypotheses.H16_driftEntry);
   baseCar.gripScrub = onOffOf(hypotheses.H17_gripScrub); // H17 (R86b)
@@ -282,10 +289,13 @@ resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
 const now = (): number => performance.now();
 // R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
 const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
-// R81c: in model B with driftEntry 3 (H16 D, the default) the touch input is the zone stick, chosen at
-// load (a panel switch of H14 / H16 changes the touch stick after a reload).
+// R81c/R81e: in model B with driftEntry 3 (H16 D) or 4 (H16 E, the default) the touch input is the zone
+// stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a reload). In
+// variant 4 the player input ignores the stick's drift latch: touch drift = finger down (player.ts).
 const zoneStick =
-  baseCar.model === 1 && baseCar.driftEntry === 3 ? createZoneStick(inputConfig.touch) : null;
+  baseCar.model === 1 && (baseCar.driftEntry === 3 || baseCar.driftEntry === 4)
+    ? createZoneStick(inputConfig.touch)
+    : null;
 const touchStick = zoneStick ?? createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
 // H3 D re-touch drift and H3 E flick drift, live config (dev panel); fed alongside the stick.
@@ -410,12 +420,18 @@ const render3d = use3d
   : null;
 // R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
 // the copies follow live dev-panel edits of the player car.
+// R81e: the rival copies keep driftEntry = rivalDriftEntry (bots do not know variant 4).
 const carParams: CarParams[] = race.cars.map((c) =>
-  c.kind === 'rival' ? { ...baseCar } : baseCar,
+  c.kind === 'rival' ? { ...baseCar, driftEntry: rivalDriftEntry } : baseCar,
 );
 tunables.onChange(() => {
   applyDriftEntry();
-  for (const p of carParams) if (p !== baseCar) Object.assign(p, baseCar);
+  for (const p of carParams) {
+    if (p !== baseCar) {
+      Object.assign(p, baseCar);
+      p.driftEntry = rivalDriftEntry; // R81e
+    }
+  }
 });
 const rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;
 const readPlayerRaw = createReadInput(player);

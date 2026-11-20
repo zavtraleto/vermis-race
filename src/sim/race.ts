@@ -41,6 +41,7 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       steerHistHead: 0,
       steerHistCount: 0,
       deflectTicks: 0,
+      autoTicks: 0,
       turbo: 0,
       turboTicks: 0,
       driftTicks: 0,
@@ -337,6 +338,7 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
     car.scrubDebt = 0;
     car.steerHistCount = 0;
     car.deflectTicks = 0;
+    car.autoTicks = 0; // R81e: a crash zeroes the count
     return;
   }
 }
@@ -349,6 +351,7 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
 function crashStep(car: Car, p: CarParams): void {
   car.steer = 0;
   car.driftHeld = false;
+  car.autoTicks = 0; // R81e: nothing counts during a crash
   car.crashTicks--;
   const target = car.crashX0 < 0 ? -p.crashReturnX : p.crashReturnX;
   if (car.crashTicks === 0) {
@@ -473,7 +476,46 @@ function stepModelB(
     !(offroadBlocks && off);
 
   const hist = car.steerHist;
-  if (p.driftEntry === 3) {
+  if (p.driftEntry === 4) {
+    // R81e: auto drift. armTicks > 0 = the drift ended by speed during this hold (R82): no count
+    // until the hold breaks. speed, z (seg) and state are those of the start of the step.
+    if (!input.drift) car.armTicks = 0;
+    if (car.state === 'GRIP') {
+      // R81e: needAhead over the road covered in autoLook s: the largest |curve| of seg..seg+k
+      // (current included, wrapping over the lap; the nearer one wins a tie).
+      const sp0 = car.speed / p.vmax;
+      const n = segments.length;
+      const k = Math.ceil(sp0 * SEG_PER_UNIT * p.autoLook);
+      let cA = 0;
+      let j = seg;
+      for (let i = 0; i <= k; i++) {
+        const c = segments[j]!.curve;
+        if ((c < 0 ? -c : c) > (cA < 0 ? -cA : cA)) cA = c;
+        j = j + 1 >= n ? 0 : j + 1;
+      }
+      const gripA = p.yawRateMax / (1 + p.yawAlign / p.velGrip); // R86b
+      const need = ((cA < 0 ? -cA : cA) * sp0 * p.kYaw) / gripA;
+      const side = cA > 0 ? 1 : cA < 0 ? -1 : 0;
+      if (
+        canEnter &&
+        car.armTicks === 0 &&
+        side !== 0 &&
+        need >= p.autoNeed &&
+        steer * side >= p.autoSteer
+      ) {
+        car.autoTicks++;
+        // R81e: as R81b C, entry on the first tick after autoHold/DT full counted ticks.
+        if (car.autoTicks > Math.round(p.autoHold / DT)) {
+          enterDrift(car, side > 0 ? 1 : -1, p.kickBase);
+          car.autoTicks = 0;
+        }
+      } else {
+        car.autoTicks = 0;
+      }
+    } else {
+      car.autoTicks = 0; // R81e: outside GRIP
+    }
+  } else if (p.driftEntry === 3) {
     // R81c: zone stick. Entry on a held tick with steer != 0; no flick, no buffer. armTicks > 0 =
     // the drift ended by speed during this hold (R82): no entry until the hold breaks.
     if (!input.drift) car.armTicks = 0;
@@ -521,7 +563,8 @@ function stepModelB(
   }
   // R81: the current steer is recorded every held tick, in any state; a flick counts only within
   // one hold, so a tick without input.drift clears the buffer and records nothing.
-  if (input.drift && p.driftEntry !== 3) {
+  // R81c/R81e: variants 3 and 4 do not use the buffer.
+  if (input.drift && p.driftEntry !== 3 && p.driftEntry !== 4) {
     hist[car.steerHistHead] = steer;
     car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
     if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
@@ -554,8 +597,10 @@ function stepModelB(
     car.state = 'GRIP';
     car.dir = 0;
     // R81b C: an exit while still held blocks the deflection count until the hold breaks.
-    // R81c: the same block in variant 3.
-    if ((p.driftEntry === 2 || p.driftEntry === 3) && input.drift) car.armTicks = 1;
+    // R81c/R81e: the same block in variants 3 and 4.
+    if ((p.driftEntry === 2 || p.driftEntry === 3 || p.driftEntry === 4) && input.drift) {
+      car.armTicks = 1;
+    }
     let sG = A / p.velGrip;
     if (sG > p.slipGripMax) sG = p.slipGripMax;
     if (sG < -p.slipGripMax) sG = -p.slipGripMax;
@@ -976,6 +1021,7 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.steerHistHead = 0;
     c.steerHistCount = 0;
     c.deflectTicks = 0;
+    c.autoTicks = 0; // R81e: a replaced rival starts with no count
     c.turbo = 0;
     c.turboTicks = 0;
     c.driftTicks = 0;

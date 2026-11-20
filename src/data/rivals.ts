@@ -14,6 +14,7 @@ const {
   rivalNameDistance,
   leaderboardRows,
   placeFlashTime,
+  rivalDriftEntry,
   ...sim
 } = rivals;
 
@@ -41,6 +42,9 @@ export const mistakeConfig: MistakeConfig = {
   mistakeBandMul,
   bandBoost: rivals.bandBoost,
 };
+
+/** R81e: the drift entry variant of the rival param copies (bots do not know variant 4). */
+export { rivalDriftEntry };
 
 /** R67 rival names (src/data/rivalNames.json), indexed by Car.nameId. */
 export const rivalNames: readonly string[] = names;
