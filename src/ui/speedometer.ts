@@ -1,7 +1,19 @@
 import type { Car } from '../sim/types';
 
+/** Size and corner offset of a HUD block over the canvas (src/data/sprites.json). */
+export interface HudLayout {
+  widthEm: number; // canvas width in em: em = min(canvas width / widthEm, canvas height / heightEm)
+  heightEm: number; // canvas height in em (caps em when the canvas is wider than a tall phone)
+  marginEm: number; // offset from the canvas corner, em
+}
+
+/** HUD em in CSS px for the canvas rectangle: width governs on a portrait phone. */
+export function hudEm(r: DOMRect, l: HudLayout): number {
+  return Math.min(r.width / l.widthEm, r.height / l.heightEm);
+}
+
 /** R28 speedometer (numbers in src/data/sprites.json "speedometer"). */
-export interface SpeedometerConfig {
+export interface SpeedometerConfig extends HudLayout {
   vmaxKmh: number; // km/h shown at speed = vmax
   segments: number; // bar segments from 0 to vmax
   boostSegments: number; // extra segments past vmax (boost zone)
@@ -24,18 +36,27 @@ export function readSpeed(out: SpeedReading, car: Car, speed: number, vmax: numb
   return out;
 }
 
+// HUD look (docs/art-bible.md "HUD"): flat dark chamfered plate, hard edges, skewed bar segments,
+// stencil-like spaced label; accent colour only for boost. No transitions: state changes are steps.
 const STYLE = `
 #speedo{position:fixed;pointer-events:none;z-index:5;display:flex;flex-direction:column;
 align-items:flex-start;font-family:ui-monospace,"Lucida Console",Consolas,monospace;
 font-weight:900;color:#e8e8e8;line-height:1;-webkit-font-smoothing:none;font-smooth:never;
-text-shadow:0.08em 0.08em 0 #0c0c12}
+background:rgba(12,12,18,0.78);border-left:0.25em solid #8a8a92;padding:0.35em 0.8em 0.4em 0.5em;
+clip-path:polygon(0 0,calc(100% - 1.1em) 0,100% 1.1em,100% 100%,0.45em 100%,0 calc(100% - 0.45em))}
+#speedo .top{display:flex;align-items:flex-end}
 #speedo .num{font-size:3.2em;letter-spacing:0.02em;font-variant-numeric:tabular-nums}
-#speedo .unit{font-size:0.9em;color:#8a8a92;margin:0.15em 0 0.35em 0.15em;letter-spacing:0.12em}
-#speedo .bar{display:flex;gap:0.18em;align-items:flex-end}
-#speedo .seg{width:0.5em;background:#2a2a31;box-shadow:0.1em 0.1em 0 #0c0c12}
-#speedo .seg.on{background:#d8d8d8}
-#speedo .seg.boost{background:#3a1a22}
+#speedo .unit{font-family:"Arial Narrow","Roboto Condensed",sans-serif-condensed,Bahnschrift,
+ui-monospace,monospace;font-stretch:condensed;font-size:0.85em;font-weight:700;color:#8a8a92;
+letter-spacing:0.3em;margin:0 0 0.35em 0.45em;padding-top:0.3em;border-top:0.12em solid #8a8a92}
+#speedo .bar{display:flex;gap:0.14em;align-items:flex-end;margin-top:0.3em;padding:0 0.3em 0.18em 0.2em;
+border-bottom:0.12em solid #8a8a92}
+#speedo .seg{width:0.42em;background:#3a3a42;transform:skewX(-18deg)}
+#speedo .seg.on{background:#e8e8e8}
+#speedo .seg:not(.boost)+.seg.boost{margin-left:0.32em}
+#speedo .seg.boost{background:#4a1c26}
 #speedo .seg.boost.on{background:#c0283c}
+#speedo.boosting{border-left-color:#ffe14a}
 #speedo.boosting .num{color:#ffe14a}
 #speedo.boosting .seg.boost.on{background:#ffe14a}
 `;
@@ -81,7 +102,10 @@ export class Speedometer {
       bar.appendChild(s);
       this.segs.push(s);
     }
-    root.append(this.num, unit, bar);
+    const top = document.createElement('div');
+    top.className = 'top';
+    top.append(this.num, unit);
+    root.append(top, bar);
     parent.appendChild(root);
     this.root = root;
     this.layout();
@@ -92,10 +116,11 @@ export class Speedometer {
   layout(): void {
     const r = this.canvas.getBoundingClientRect();
     const s = this.root.style;
-    const em = r.height / 48;
+    const em = hudEm(r, this.cfg);
+    const m = em * this.cfg.marginEm;
     s.fontSize = `${em}px`;
-    s.left = `${r.left + em * 1.2}px`;
-    s.bottom = `${window.innerHeight - r.bottom + em * 1.2}px`;
+    s.left = `${r.left + m}px`;
+    s.bottom = `${window.innerHeight - r.bottom + m}px`;
   }
 
   update(reading: SpeedReading): void {

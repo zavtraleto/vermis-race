@@ -487,6 +487,7 @@ const leaderboard = rivalUiOn
       rivalNames,
       1 + rivalCount,
       metersPerSegment,
+      spritesConfig.leaderboard,
     )
   : null;
 // Frame seconds of the last updateVisuals() (rival yaw smoothing and the place flash).
