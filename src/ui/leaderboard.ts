@@ -21,7 +21,7 @@ const STYLE = `
 #board{position:fixed;pointer-events:none;z-index:5;font-family:ui-monospace,"Lucida Console",
 Consolas,monospace;font-weight:900;color:#e8e8e8;line-height:1;-webkit-font-smoothing:none;
 font-smooth:never;display:flex;flex-direction:column;align-items:flex-end;
-background:rgba(12,12,18,0.78);border-right:0.25em solid #8a8a92;padding:0 0 0.5em 0.3em;
+background:rgba(28,28,34,0.88);border-right:0.25em solid #8a8a92;padding:0 0 0.5em 0.3em;
 clip-path:polygon(0 0,calc(100% - 0.45em) 0,100% 0.45em,100% 100%,1.1em 100%,0 calc(100% - 1.1em))}
 #board .big{font-size:2.6em;font-variant-numeric:tabular-nums;background:#ffe14a;color:#0c0c12;
 padding:0.06em 0.12em 0.04em 0.4em;clip-path:polygon(0 0,100% 0,100% 100%,0.3em 100%,0 calc(100% - 0.3em))}
