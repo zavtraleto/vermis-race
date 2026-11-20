@@ -18,7 +18,12 @@ import { ENTRY_A } from './pinEntryA';
 import { PB, Q, STRAIGHT, car, constTrack, inp, mk, slipOf, stepB, stepN } from './modelb_helpers';
 
 const C = curves as { easy: number; medium: number; hard: number };
-const SLIP_DEG = (sprites as { weight: { slipDeg: number } }).weight.slipDeg; // R89 degrees per unit of slip
+const W = (
+  sprites as unknown as {
+    weight: { slipDeg: number; velDeg: number; minSpeed: number; leadDeg?: number };
+  }
+).weight;
+const SLIP_DEG = W.slipDeg; // R89 degrees per unit of slip
 /** Real data pinned to model B. */
 // H17/H18 off and flick entry (R81) pinned: this test is about R89b
 const REAL: CarParams = { ...baseCar, model: 1, ...NO_H17_H18, ...ENTRY_A };
@@ -99,13 +104,18 @@ function driftLat(p: CarParams, curve: number, s: number, pin: number | null, se
       n++;
     }
   }
-  return { vx: sum / n, slip: sl / n, speed: r.car.speed };
+  const c = r.car;
+  const sp = c.speed / p.vmax;
+  const lead = sp < W.minSpeed ? 0 : c.vx / (sp * p.latScale) - c.vel;
+  // R89 body angle at the end: vis*slipDeg + vel*velDeg + leadDeg*lead (leadDeg 8 until the data has it)
+  const body = (c.yaw - c.vel + c.carry) * W.slipDeg + c.vel * W.velDeg + (W.leadDeg ?? 8) * lead;
+  return { vx: sum / n, slip: sl / n, speed: r.car.speed, body };
 }
 /** Bisection on the steer for zero mean lateral speed in DRIFT (dir +1). */
 function driftHold(p: CarParams, curve: number, pin: number | null, secs: number) {
   let lo = -1;
   let hi = 1;
-  let res = { vx: 0, slip: 0, speed: 0 };
+  let res = { vx: 0, slip: 0, speed: 0, body: 0 };
   for (let i = 0; i < 22; i++) {
     const mid = (lo + hi) / 2;
     res = driftLat(p, curve, mid, pin, secs);
@@ -132,6 +142,8 @@ function hold(name: 'A' | 'B', curve: number, mode: 'free' | 'pinned') {
 }
 const lat = (name: 'A' | 'B', curve: number, s: number) =>
   driftLat(name === 'A' ? FA : FB, curve, s, 1, 3).vx;
+/** T68 (R83b, R84b criteria): model B, steady drift dir +1 from vmax, speed free, 3 s; mean dx/dt of the last 1 s. */
+const latFree = (curve: number, s: number) => driftLat(FB, curve, s, null, 3).vx;
 
 /** GRIP hold steer at pinned vmax: bisection on a constant steer so that the mean vel is 0 (3 s). */
 function gripHold(p: CarParams, curve: number): number {
@@ -170,12 +182,14 @@ function gripOut(p: CarParams, curve: number, steer: number): number[] {
 }
 
 describe('R89b calibration: GRIP on a straight (lane change, response)', () => {
-  it('R89b full steer on a straight gives 1.0-1.1 half-widths per second at vmax', () => {
-    // spike T8: Y/al = 15.75/15 = 1.05 (A: 1.05)
+  it('R89b full steer on a straight: course vel 1.0-1.1, lateral speed vx (with R85b lead and R85c dodge) 1.45-1.55 at vmax', () => {
+    // spike T8: vel = Y/al = 15.75/15 = 1.05 (A: 1.05); T68: vx = vel + gripDodge*1 = 1.05 + 0.45 = 1.50
     const r = new Rig(FB, 0, 1);
     for (let i = 0; i < 240; i++) r.step(1, false, 1);
-    expect(r.lastDx).toBeGreaterThanOrEqual(1.0);
-    expect(r.lastDx).toBeLessThanOrEqual(1.1);
+    expect(r.car.vel).toBeGreaterThanOrEqual(1.0);
+    expect(r.car.vel).toBeLessThanOrEqual(1.1);
+    expect(r.lastDx).toBeGreaterThanOrEqual(1.45);
+    expect(r.lastDx).toBeLessThanOrEqual(1.55);
   });
   // straight, vmax, steer 0.5 for 0.4 s, then 0
   function pulse() {
@@ -319,17 +333,22 @@ describe('R89b calibration: DRIFT on hard (spike T1, T6)', () => {
     expect(hf.steer).toBeGreaterThanOrEqual(0.7);
     expect(hf.steer).toBeLessThanOrEqual(0.85);
   });
-  it('R89b hard: steer 0 -> outward 0.3-0.5 half-widths/s (spike 0.402, the same as model A)', () => {
-    const v = lat('B', C.hard, 0);
-    expect(-v).toBeGreaterThanOrEqual(0.3);
-    expect(-v).toBeLessThanOrEqual(0.5);
-  });
-  it('R89b hard: full steer -> inward at most 0.2 (spike 0.058)', () => {
-    expect(lat('B', C.hard, 1)).toBeLessThanOrEqual(0.2);
+  it.each([0, -0.5, -1])(
+    'R89b hard: steer %f (<= 0) -> outward at most 0.25 (R83b, free speed)',
+    (st) => {
+      expect(-latFree(C.hard, st)).toBeLessThanOrEqual(0.25);
+    },
+  );
+  it('R89b hard: full steer -> inward at least 1.2 (R84b, free speed)', () => {
+    expect(latFree(C.hard, 1)).toBeGreaterThanOrEqual(1.2);
   });
   it('R89b hard: slope d(vx)/d(steer) at the hold point 0.4-0.8 (spike 0.46, model A 0.45)', () => {
+    // The bound describes the response below the R84b knee (above it R84b's own criterion applies), so
+    // the stencil is one-sided downward with the same width 2e = 0.1: [hold - 0.1, hold], both below the
+    // knee as long as hold < driftKnee.
     const e = 0.05;
-    const slope = (lat('B', C.hard, hp.steer + e) - lat('B', C.hard, hp.steer - e)) / (2 * e);
+    expect(hp.steer).toBeLessThan(REAL.driftKnee);
+    const slope = (lat('B', C.hard, hp.steer) - lat('B', C.hard, hp.steer - 2 * e)) / (2 * e);
     expect(slope).toBeGreaterThanOrEqual(0.4);
     expect(slope).toBeLessThanOrEqual(0.8);
   });
@@ -357,15 +376,14 @@ describe('R89b calibration: DRIFT on medium (spike T2, T6)', () => {
     expect(hf.steer).toBeGreaterThanOrEqual(0.45);
     expect(hf.steer).toBeLessThanOrEqual(0.55);
   });
-  it('R89b medium: steer 0 -> outward 0.2-0.35 (spike 0.258)', () => {
-    const v = lat('B', C.medium, 0);
-    expect(-v).toBeGreaterThanOrEqual(0.2);
-    expect(-v).toBeLessThanOrEqual(0.35);
-  });
-  it('R89b medium: full steer -> inward 0.15-0.3 (spike 0.202)', () => {
-    const v = lat('B', C.medium, 1);
-    expect(v).toBeGreaterThanOrEqual(0.15);
-    expect(v).toBeLessThanOrEqual(0.3);
+  it.each([0, -0.5, -1])(
+    'R89b medium: steer %f (<= 0) -> outward at most 0.10 (R83b, free speed)',
+    (st) => {
+      expect(-latFree(C.medium, st)).toBeLessThanOrEqual(0.1);
+    },
+  );
+  it('R89b medium: full steer -> inward at least 1.3 (R84b, free speed)', () => {
+    expect(latFree(C.medium, 1)).toBeGreaterThanOrEqual(1.3);
   });
   it('R89b medium: steady speed >= 0.92 vmax (spike 0.922)', () => {
     expect(hf.speed).toBeGreaterThanOrEqual(0.92);
@@ -378,14 +396,19 @@ describe('R89b calibration: DRIFT on medium (spike T2, T6)', () => {
 });
 
 describe('R89b calibration: DRIFT on a straight (spike T3)', () => {
-  it('R89b straight: full steer -> at most 0.6 half-widths/s (spike 0.46, model A 0.45)', () => {
-    const v = lat('B', 0, 1);
-    expect(v).toBeGreaterThan(0);
-    expect(v).toBeLessThanOrEqual(0.6);
+  it('R89b straight: full steer -> 1.4-1.9 half-widths/s toward the drift side (R84b, free speed)', () => {
+    const v = latFree(0, 1);
+    expect(v).toBeGreaterThanOrEqual(1.4);
+    expect(v).toBeLessThanOrEqual(1.9);
   });
-  it('R89b straight: steer 0 -> at most 0.05 (spike 0.000)', () => {
-    expect(Math.abs(lat('B', 0, 0))).toBeLessThanOrEqual(0.05);
-  });
+  it.each([0, -0.5, -1])(
+    'R89b straight: steer %f (<= 0) -> at least 0.15 toward the drift side, body angle >= 15 deg (R83b)',
+    (st) => {
+      const r = driftLat(FB, 0, st, null, 3);
+      expect(r.vx).toBeGreaterThanOrEqual(0.15);
+      expect(r.body).toBeGreaterThanOrEqual(15);
+    },
+  );
 });
 
 describe('R89b calibration: DRIFT entry (spike T5)', () => {
@@ -496,15 +519,16 @@ describe('R89b calibration: DRIFT exit (spike T7, T13)', () => {
   });
 });
 
-describe('R89b calibration: closeness to model A (spike T9)', () => {
+describe('R89b calibration: closeness to model A (spike T9; driftLead 0 and driftDive 0)', () => {
   // Hard from vmax: 0.3 s straight in GRIP; at t = 0 the corner starts and the steer jumps to model A's own free hold
   // steer with drift held (a flick from 0); +0.2 on 2.0-2.5 s, -0.2 on 2.5-3.0 s; trajectories up to the release
   // at 3.0 s. The same input for both models.
-  it('R89b the A-vs-B trace on the same input diverges by at most 0.15 half-widths', () => {
+  it('R89b the A-vs-B trace on the same input diverges by at most 0.15 half-widths (lead and dive off)', () => {
     const h = hold('A', C.hard, 'free').steer;
     const seq = (t: number) => (t < 2 ? h : t < 2.5 ? h + 0.2 : h - 0.2);
     const a = new Rig(FA, 0, 1);
-    const b = new Rig({ ...FB, driftLead: 0 }, 0, 1); // brief: closeness is measured with driftLead = 0
+    // brief: closeness is measured with driftLead = 0 and driftDive = 0 (both intended differences from A)
+    const b = new Rig({ ...FB, driftLead: 0, driftDive: 0 } as CarParams, 0, 1);
     for (let i = 0; i < 30; i++) {
       a.step(0, false);
       b.step(0, false);
@@ -742,48 +766,78 @@ describe('R89b calibration: agility (lane = 0.25 half-widths, targets named in a
     let st = 0;
     let t1 = NaN;
     let drifted = false;
-    let xStop = NaN;
-    let maxAfter = -Infinity;
+    let iZero = -1;
+    let dir0 = 0;
+    let dirKept = true;
+    let stillDrift = true;
+    let vSum = 0;
+    let vN = 0;
     for (let i = 1; i <= 480; i++) {
       const back = !Number.isNaN(t1) && rampBack;
       st = approach(st, back ? 0 : 1, 0.08);
+      const x0 = r.car.x;
       r.step(st, true);
+      if (r.car.state === 'DRIFT' && !drifted) dir0 = r.car.dir;
       if (r.car.state === 'DRIFT') drifted = true;
       if (Number.isNaN(t1) && r.car.x >= LANE) t1 = i * DT;
-      if (back) {
-        if (Number.isNaN(xStop) && st === 0) xStop = r.car.x;
-        if (!Number.isNaN(xStop)) maxAfter = Math.max(maxAfter, r.car.x);
+      if (back && st === 0) {
+        if (iZero < 0) iZero = i;
+        if (r.car.state !== 'DRIFT') stillDrift = false;
+        if (r.car.dir !== dir0) dirKept = false;
+        const age = (i - iZero) * DT;
+        if (age >= 1 && age < 2) {
+          vSum += ((r.car.x - x0) / DT) * dir0;
+          vN++;
+        }
       }
       if (!rampBack && !Number.isNaN(t1)) break;
     }
-    return { t1, drifted, coast: maxAfter - xStop };
+    let releasedGrip = false;
+    if (rampBack) {
+      r.step(0, false); // R82: only the release exits
+      releasedGrip = r.car.state === 'GRIP';
+    }
+    return { t1, drifted, stillDrift, dirKept, vLate: vN > 0 ? vSum / vN : NaN, releasedGrip };
   }
   it('R89b straight, sharp steer 0 -> 1 in 80 ms with the finger held (becomes a drift): one lane in at most 0.45 s', () => {
     const m = sharp(false);
     expect(m.drifted).toBe(true);
     expect(m.t1).toBeLessThanOrEqual(0.45);
   });
-  it('R89b the same, finger returned to the centre (steer back to 0 in 80 ms, finger kept): coasts at most 0.06 further', () => {
+  it('R89b the same, finger returned to the centre (steer back to 0 in 80 ms, finger kept): the drift goes on turning to its side (R83b); only the release exits', () => {
     const m = sharp(true);
     expect(m.drifted).toBe(true);
-    expect(Number.isNaN(m.coast)).toBe(false);
-    expect(m.coast).toBeLessThanOrEqual(0.06);
+    expect(m.stillDrift).toBe(true);
+    expect(m.dirKept).toBe(true);
+    // 1-2 s after the return: mean dx/dt toward the drift side >= the R83b floor criterion 0.15
+    expect(m.vLate).toBeGreaterThanOrEqual(0.15);
+    expect(m.releasedGrip).toBe(true);
   });
 
-  it('R89b steady DRIFT on hard, steer 0.5 outward from the hold steer: one lane outward in at most 1.0 s', () => {
-    const h = hold('B', C.hard, 'free').steer;
-    const r = new Rig(FB, C.hard, 1);
-    r.enterDrift(1, h);
-    for (let i = 0; i < 720; i++) r.step(h, true); // 6 s to the own steady state
-    const x0 = r.car.x;
-    let t1 = NaN;
-    for (let i = 1; i <= 360 && Number.isNaN(t1); i++) {
-      r.step(h - 0.5, true); // outward = against dir (+1 is inward, +x)
-      if (x0 - r.car.x >= LANE) t1 = i * DT;
-    }
-    expect(r.car.state).toBe('DRIFT');
-    expect(t1).toBeLessThanOrEqual(1.0);
-  });
+  it.each([0.5, 2])(
+    'R89b steady DRIFT on hard, steer %f outward from the hold steer for 2 s: stays in DRIFT, outward at most 0.25 (R83b); only the release exits',
+    (d) => {
+      const h = hold('B', C.hard, 'free').steer;
+      const r = new Rig(FB, C.hard, 1);
+      r.enterDrift(1, h);
+      for (let i = 0; i < 720; i++) r.step(h, true); // 6 s to the own steady state
+      const st = Math.max(-1, h - d); // outward = against dir (+1 is inward, +x)
+      let sum = 0;
+      let n = 0;
+      for (let i = 0; i < 240; i++) {
+        r.step(st, true);
+        expect(r.car.state).toBe('DRIFT');
+        expect(r.car.dir).toBe(1);
+        if (i >= 120) {
+          sum += r.lastDx;
+          n++;
+        }
+      }
+      expect(-sum / n).toBeLessThanOrEqual(0.25);
+      r.step(st, false);
+      expect(r.car.state).toBe('GRIP');
+    },
+  );
 });
 
 // R84 revision (variant H, docs/research/drift-band-spike.md): a drift against the turn with the finger

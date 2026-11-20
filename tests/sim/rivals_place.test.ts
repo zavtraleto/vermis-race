@@ -3,6 +3,7 @@ import { baseCar } from '../../src/data/cars';
 import { NO_H17_H18 } from './pinH17H18';
 import { ENTRY_A } from './pinEntryA';
 import { NO_GRIP_LEAD } from './pinGripLead';
+import { NO_T68 } from './pinT68';
 import { createRace, placeRivals, placeTraffic, step } from '../../src/sim/race';
 import type { InputFrame, RaceState, TrafficConfig } from '../../src/sim/types';
 import { BP, LANES, RC, TRACK, mkRace, stepAll } from './rivals_helpers';
@@ -149,7 +150,7 @@ describe('R60-R66 whole race: state stays flat JSON and deterministic', () => {
     return s;
   }
   function advance(s: RaceState, from: number, to: number): void {
-    const params = s.cars.map(() => ({ ...baseCar, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD })); // H17/H18 off, flick entry: this test is about R66
+    const params = s.cars.map(() => ({ ...baseCar, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD, ...NO_T68 })); // H17/H18 off, flick entry: this test is about R66
     for (let t = from; t < to; t++) {
       for (let i = 0; i < N; i++) {
         const f = inputs[i]!;

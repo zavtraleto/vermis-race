@@ -1,72 +1,119 @@
 // R89c agility without drift, on the REAL car data (src/data/cars/base.json pinned to model 1),
 // H17/H18 (gripScrub, driftTurbo) left as in base.json. Style of modelb_calibration.test.ts:
-// speed pinned at vmax before and after every tick, straight road, drift input false (finger inside
-// the stick zone, R81c). Lane = 0.25 half-widths (R89b, R22c: 8 lanes over 2 half-widths).
-import { describe, expect, it } from 'vitest';
+// speed pinned at vmax (or 0.6 vmax) before and after every tick, straight road, drift input false
+// (finger inside the stick zone, R81c). Lane = 0.25 half-widths (R89b, R22c: 8 lanes over 2 half-widths).
+// [T68, 2026-11-20] bounds tightened by the brief: lane at vmax <= 0.19 s (was 0.30), new 0.6 vmax
+// <= 0.31 s, overshoot <= 8% of a lane = 0.02 (was 10%), stop <= 0.15 s unchanged; the same overshoot
+// and stop also when the finger leaves the zone stick (R81c, zoneReleaseMs 0).
+import { beforeAll, describe, expect, it } from 'vitest';
 import { baseCar } from '../../src/data/cars';
+import { inputConfig } from '../../src/data/input';
 import road from '../../src/data/road.json';
+import type { TouchStick } from '../../src/input/touchStick';
 import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
 import type { CarParams, InputFrame } from '../../src/sim/types';
 
 const P: CarParams = { ...baseCar, model: 1, crashMinSpeed: 1e9 }; // lamps off: this test is about R89c
-// One lane in half-widths from the road data: 2 / lanes = 2 / 8 = 0.25; 10% of it = 0.025.
+// One lane in half-widths from the road data: 2 / lanes = 2 / 8 = 0.25; 8% of it = 0.02.
 const LANE = 2 / (road as { lanes: number }).lanes;
+const OVERSHOOT = 0.08 * LANE; // 0.02
 const TRACK = makeStraightTrack(4000);
 
-/** Full steer `side` from rest at vmax until one lane is crossed, then steer 0 for `after` s. */
-function laneChange(side: 1 | -1, after = 1.5) {
+/** Steer source per tick: constant steer, or the zone stick read at the tick's time. */
+type Source = { set(steer: number, t: number): void; get(t: number): number };
+const direct = (): Source => {
+  let s = 0;
+  return { set: (v) => (s = v), get: () => s };
+};
+
+let createZoneStick: ((c: typeof inputConfig.touch) => TouchStick) | null = null;
+beforeAll(async () => {
+  const m = (await import('../../src/input/zoneStick')) as {
+    createZoneStick: (c: typeof inputConfig.touch) => TouchStick;
+  };
+  createZoneStick = m.createZoneStick;
+});
+/** R81c zone stick on a 360x640 area: finger at +-1 R (full steer, inside the drift edge), then up. */
+const zone = (): Source => {
+  const st = createZoneStick!(inputConfig.touch);
+  st.setArea(360, 640);
+  const R = inputConfig.touch.stickRadius * 360;
+  const f: InputFrame = { steer: 0, brake: false, drift: false };
+  st.pointerDown(1, 180, 560, 0);
+  return {
+    set(v, t) {
+      if (v === 0) st.pointerUp(1, t);
+      else st.pointerMove(1, 180 + v * R, 560, t);
+    },
+    get(t) {
+      st.read(t, f);
+      expect(f.drift).toBe(false); // the finger never leaves the zone: GRIP only
+      return f.steer;
+    },
+  };
+};
+
+/** Full steer `side` from rest at `sp` until one lane is crossed, then steer 0 / release for `after` s. */
+function laneChange(side: 1 | -1, sp = 1, src: Source = direct(), after = 1.5) {
   const s = createRace(1, 1);
   const c = s.cars[0]!;
-  const f: InputFrame = { steer: side, brake: false, drift: false };
-  const tick = (): number => {
-    c.speed = P.vmax;
+  const f: InputFrame = { steer: 0, brake: false, drift: false };
+  const tick = (i: number): number => {
+    f.steer = src.get(i * DT * 1000);
+    c.speed = sp * P.vmax;
     const x0 = c.x;
     step(s, [f], TRACK, [P]);
-    c.speed = P.vmax;
+    c.speed = sp * P.vmax;
     return (c.x - x0) / DT;
   };
+  src.set(side, 0);
   let tLane = NaN;
-  for (let i = 1; i <= 240 && Number.isNaN(tLane); i++) {
-    tick();
+  let i = 1;
+  for (; i <= 240 && Number.isNaN(tLane); i++) {
+    tick(i);
     if (c.x * side >= LANE) tLane = i * DT;
   }
-  f.steer = 0;
+  src.set(0, i * DT * 1000);
   const xs: number[] = [];
   const vs: number[] = [];
-  for (let i = 0; i < after / DT; i++) {
-    vs.push(tick() * side);
+  for (let k = 0; k < after / DT; k++, i++) {
+    vs.push(tick(i) * side);
     xs.push(c.x * side);
   }
   return { tLane, xs, vs, state: c.state };
 }
+/** "stops" = |dx/dt| <= 0.02 half-widths/s and stays there; time after the steer returns to 0. */
+function tStop(vs: number[]): number {
+  let last = -1;
+  for (let i = 0; i < vs.length; i++) if (Math.abs(vs[i]!) > 0.02) last = i;
+  return (last + 1) * DT;
+}
 
-describe('R89c agility: full-steer lane change at vmax (no drift)', () => {
-  it.each([1, -1] as const)('side %i: one lane in at most 0.30 s', (side) => {
+describe('R89c agility: full-steer lane change (no drift)', () => {
+  it.each([1, -1] as const)('side %i: one lane at vmax in at most 0.19 s', (side) => {
     const m = laneChange(side);
     expect(m.state).toBe('GRIP');
-    expect(m.tLane).toBeLessThanOrEqual(0.3);
+    expect(m.tLane).toBeLessThanOrEqual(0.19);
+  });
+  it.each([1, -1] as const)('side %i: one lane at 0.6 vmax in at most 0.31 s', (side) => {
+    const m = laneChange(side, 0.6);
+    expect(m.state).toBe('GRIP');
+    expect(m.tLane).toBeLessThanOrEqual(0.31);
   });
   it.each([1, -1] as const)(
-    'side %i: overshoot past the target lane at most 10% of a lane (0.025)',
+    'side %i: overshoot past the target lane at most 8% of a lane (0.02)',
     (side) => {
       const m = laneChange(side);
       expect(Number.isNaN(m.tLane)).toBe(false);
-      // overshoot = farthest x after the steer returns to 0, minus the lane: <= 0.1*0.25 = 0.025
-      expect(Math.max(...m.xs) - LANE).toBeLessThanOrEqual(0.1 * LANE);
+      expect(Math.max(...m.xs) - LANE).toBeLessThanOrEqual(OVERSHOOT);
     },
   );
   it.each([1, -1] as const)(
     'side %i: lateral motion stops within 0.15 s after the steer returns to 0',
     (side) => {
-      const m = laneChange(side);
-      // "stops" = |dx/dt| <= 0.02 half-widths/s (2% of the full-steer 1.0 hw/s of R89b) and stays there
-      const STOP = 0.02;
-      let last = -1;
-      for (let i = 0; i < m.vs.length; i++) if (Math.abs(m.vs[i]!) > STOP) last = i;
-      const tStop = (last + 1) * DT;
-      expect(tStop).toBeLessThanOrEqual(0.15);
+      expect(tStop(laneChange(side).vs)).toBeLessThanOrEqual(0.15);
     },
   );
   it('lane width comes from road.json: 2 / 8 = 0.25 half-widths', () => {
@@ -80,5 +127,16 @@ describe('R89c agility: full-steer lane change at vmax (no drift)', () => {
   });
   it('deterministic: same run twice is identical', () => {
     expect(JSON.stringify(laneChange(1))).toBe(JSON.stringify(laneChange(1)));
+  });
+});
+
+describe('R89c agility: finger released from the zone stick (R81c, zoneReleaseMs from input.json)', () => {
+  it.each([1, -1] as const)('side %i: overshoot at most 0.02 after pointerup', (side) => {
+    const m = laneChange(side, 1, zone());
+    expect(m.state).toBe('GRIP');
+    expect(Math.max(...m.xs) - LANE).toBeLessThanOrEqual(OVERSHOOT);
+  });
+  it.each([1, -1] as const)('side %i: stops within 0.15 s after pointerup', (side) => {
+    expect(tStop(laneChange(side, 1, zone()).vs)).toBeLessThanOrEqual(0.15);
   });
 });

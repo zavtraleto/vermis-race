@@ -197,6 +197,51 @@ describe('R81c touch drift: latched from the first crossing of the edge until re
   });
 });
 
+describe('R81c release of the zone stick (zoneReleaseMs, T68)', () => {
+  type RelCfg = TouchCfg & { zoneReleaseMs: number };
+  const mkWith = (over: Partial<RelCfg>): TouchStick => {
+    const s = createZoneStick({ ...cfg, ...over } as RelCfg);
+    s.setArea(W, H);
+    return s;
+  };
+  it('data: touch.zoneReleaseMs 0; releaseMs of the other schemes stays 100', () => {
+    expect((cfg as RelCfg).zoneReleaseMs).toBe(0);
+    expect(cfg.releaseMs).toBe(100);
+  });
+  it.each([1, -1, 0.6, -0.3])(
+    'zoneReleaseMs 0: the first read after pointerup gives steer 0 and drift false (steer at release %f)',
+    (k) => {
+      for (const drifting of [false, true]) {
+        const s = mk();
+        s.pointerDown(1, X0, Y, 0);
+        if (drifting) s.pointerMove(1, X0 + Math.sign(k) * (EDGE + 1), Y, 5);
+        s.pointerMove(1, X0 + k * R, Y, 10);
+        expect(read(s, 10).steer).toBeCloseTo(k, 9);
+        s.pointerUp(1, 20);
+        const f = read(s, 20); // same ms as the release
+        expect(f.steer === 0).toBe(true); // +0 or -0
+        expect(f.drift).toBe(false);
+        expect(read(s, 36).steer === 0).toBe(true);
+      }
+    },
+  );
+  it('zoneReleaseMs drives the zone stick, not releaseMs: zoneReleaseMs 50, releaseMs 1000 -> full lock is 0.5 after 25 ms, 0 after 50 ms', () => {
+    const s = mkWith({ zoneReleaseMs: 50, releaseMs: 1000 });
+    s.pointerDown(1, X0, Y, 0);
+    s.pointerMove(1, X0 + R, Y, 10);
+    s.pointerUp(1, 100);
+    expect(read(s, 125).steer).toBeCloseTo(0.5, 9); // 1 - 25/50
+    expect(read(s, 150).steer === 0).toBe(true);
+  });
+  it('pointerCancel releases the same way', () => {
+    const s = mk();
+    s.pointerDown(1, X0, Y, 0);
+    s.pointerMove(1, X0 - R, Y, 10);
+    s.pointerCancel(1, 20);
+    expect(read(s, 20).steer === 0).toBe(true);
+  });
+});
+
 describe('R81c player input (touch + keyboard combined, model B, driftEntry 3)', () => {
   const rig = () => {
     const car = { model: 1, driftEntry: 3 };

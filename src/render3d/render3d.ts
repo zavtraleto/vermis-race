@@ -19,6 +19,7 @@ import {
 } from 'three';
 import type { Palette } from '../data/render';
 import { Builder, buildCarGeometry, type Car3dConfig } from '../render/carModel';
+import type { CamLag } from '../render/cameraLag';
 import type { CarWeight } from '../render/carWeight';
 import { approach, type DriftVisual } from '../render/driftVisual';
 import type { RoadMeshConfig } from '../render/roadMesh';
@@ -47,6 +48,7 @@ export interface Render3dDeps {
   screenWidth: number;
   screenHeight: number;
   drift: DriftVisual;
+  camLag: CamLag; // R27b
   weight: CarWeight;
   roll: ScreenRoll;
   bump: BumpFeedback;
@@ -261,7 +263,8 @@ export class Render3d {
     const pt = this.pt;
     this.win.sample(pt, z, 0);
     const carRoadY = pt.y;
-    const camLat = (x + d.drift.cameraX + d.bump.shake) * hw;
+    // R27b: the camera sits on the lagging camPosX, the car on its own x.
+    const camLat = (d.camLag.posX + d.drift.cameraX + d.bump.shake) * hw;
     this.win.sample(pt, camZ, camLat);
     // Hills: pitch toward the car's road height so the car keeps its screen line (R33 strip).
     const slopePitch = cc.slopeFollow * Math.atan((carRoadY - pt.y) / cc.distance);
