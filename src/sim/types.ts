@@ -33,6 +33,8 @@ export interface Car {
   deflectTicks: number; // R81b (C) consecutive ticks of one-sign deflection
   turbo: number; // R86c (H18) drift charge in [0, 1]
   turboTicks: number; // R86c (H18) remaining turbo ticks after a drift exit
+  driftTicks: number; // R86e/R87 ticks of the current drift, 0 in GRIP
+  scrubDebt: number; // R86e scrub debt (speed units) of the first debtTime seconds of a drift
   crashTicks: number; // R48 remaining crash ticks, 0 = driving
   crashSpeed0: number; // R48 speed at the moment of the hit
   crashX0: number; // R48 x at the moment of the hit
@@ -77,6 +79,13 @@ export interface CarParams {
   velGripDrift: number; // R84 DRIFT vel chase rate, 1/s
   driftLead: number; // R85 DRIFT lead of the finger over the body angle, 0 = off
   gripLead: number; // R85b GRIP lead of vx toward the steady vel of the current steer, 0 = off
+  gripDodge: number; // R85c GRIP dodge: extra vx per unit of raw steer on straights, 0 = off
+  dodgeFadeA: number; // R85c |A| at which the dodge has faded to 0
+  driftMinU: number; // R83b floor of the finger share uc in DRIFT, 0 = off
+  driftDive: number; // R84b inward dive above the knee of the gained angle, 0 = off
+  driftKnee: number; // R84b share of the full angle above which the dive starts (< 1)
+  leadRamp: number; // R85d seconds for the drift lead to ramp in from entry, 0 = off
+  debtTime: number; // R86e seconds of drift during which the scrub piles up as debt, 0 = off
   slipDrag: number; // R86 GRIP speed cost of the visible slip
   gripScrub: number; // R86b H17: 1 = on (B), 0 = off (A)
   scrubStart: number; // R86b share of the grip limit gripA above which GRIP loses speed

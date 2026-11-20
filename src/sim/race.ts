@@ -43,6 +43,8 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       deflectTicks: 0,
       turbo: 0,
       turboTicks: 0,
+      driftTicks: 0,
+      scrubDebt: 0,
       crashTicks: 0,
       crashSpeed0: 0,
       crashX0: 0,
@@ -331,6 +333,8 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
     car.boostTicks = 0;
     car.turbo = 0; // R86c: a crash zeroes the charge and the turbo
     car.turboTicks = 0;
+    car.driftTicks = 0; // R86e: a crash zeroes both fields without paying
+    car.scrubDebt = 0;
     car.steerHistCount = 0;
     car.deflectTicks = 0;
     return;
@@ -377,6 +381,8 @@ function enterDrift(car: Car, dir: 1 | -1, rate: number): void {
   car.yaw = car.vel + slip0;
   car.carry = vis - slip0;
   car.yawRate = dir * rate;
+  car.driftTicks = 0; // R86e: a new drift starts with no age and no debt
+  car.scrubDebt = 0;
 }
 
 /**
@@ -400,6 +406,39 @@ export function flickMul(
   }
   const absC = cAhead < 0 ? -cAhead : cAhead;
   return absC >= p.flickCornerMin && cAhead * best > 0 ? p.flickCornerMul : p.flickStraightMul;
+}
+
+/**
+ * R85b + R85c: the GRIP lead (vx only) at this vel, raw steer and curve. R85b: gripLead*(vStar - vel),
+ * vStar = the vel this steer and curve settle at (f and A of R83, g and smax of R84). R85c: dodge on
+ * straights from the raw steer, fading to 0 at |A| >= dodgeFadeA. Also the GRIP level of R85d.
+ */
+function gripLeadOf(
+  vel: number,
+  steer: number,
+  sp: number,
+  A: number,
+  off: boolean,
+  p: CarParams,
+): number {
+  let f = sp / p.yawFullSpeed;
+  if (f > 1) f = 1;
+  let g = p.velGrip;
+  let smax = p.slipGripMax;
+  if (off) {
+    g *= p.offroadVelMul;
+    smax *= p.offroadVelMul;
+  }
+  let sG = A / g;
+  if (sG > smax) sG = smax;
+  if (sG < -smax) sG = -smax;
+  const vStar = (steer * p.yawRateMax * f - A) / p.yawAlign - sG;
+  let lead = p.gripLead * (vStar - vel) * sp * p.latScale;
+  if (p.gripDodge !== 0) {
+    const fade = 1 - (A < 0 ? -A : A) / p.dodgeFadeA;
+    if (fade > 0) lead += p.gripDodge * steer * sp * p.latScale * fade;
+  }
+  return lead;
 }
 
 /**
@@ -505,6 +544,13 @@ function stepModelB(
       car.speed < p.driftExitSpeed * p.vmax ||
       (offroadBlocks && car.offTicks * DT > p.driftOffroadTime))
   ) {
+    // R86e: an early exit (before debtTime) pays the scrub debt in speed; then both fields are 0.
+    if (car.driftTicks * DT < p.debtTime) {
+      const v = car.speed - car.scrubDebt;
+      car.speed = v > 0 ? v : 0;
+    }
+    car.scrubDebt = 0;
+    car.driftTicks = 0;
     car.state = 'GRIP';
     car.dir = 0;
     // R81b C: an exit while still held blocks the deflection count until the hold breaks.
@@ -540,7 +586,9 @@ function stepModelB(
     const dir = car.dir;
     const u = steer * dir;
     // R83 DRIFT: the finger sets the visible angle; critically damped chase of slipT.
-    const uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    // R83b: the finger share has a floor driftMinU (the drift always turns toward its side).
+    let uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    if (uc < p.driftMinU) uc = p.driftMinU;
     const slipT = dir * p.slipFull * uc;
     const w = p.slipResponse;
     slip = car.yaw - car.vel;
@@ -554,8 +602,14 @@ function stepModelB(
     // R84 DRIFT: bounded lateral term from the angle (and counter-steer) minus the road push.
     // push: driftPush toward the drift side or straight (A*dir >= 0), wrongPush against it.
     const push = A * dir >= 0 ? p.driftPush : p.wrongPush;
-    const velT =
+    let velT =
       dir * p.driftLat * ((slip * dir) / p.slipFull + p.driftCounter * (u < 0 ? u : 0)) - push * A;
+    // R84b: inward dive above the knee of the gained angle a (after R83), before the vel chase.
+    if (p.driftDive !== 0) {
+      const a = (slip * dir) / p.slipFull;
+      const k = (a < uc ? a : uc) - p.driftKnee;
+      if (k > 0) velT += (dir * p.driftDive * k) / (1 - p.driftKnee);
+    }
     car.vel += (velT - car.vel) * (1 - Math.exp(-p.velGripDrift * DT));
     car.yaw = car.vel + slip;
   } else {
@@ -589,23 +643,34 @@ function stepModelB(
       if (car.yawRate < A) car.yawRate = A;
     }
     slip = car.yaw - car.vel;
-    // R85b: GRIP lead toward vStar, the vel this steer and curve settle at (f and A of R83, g and
-    // smax of R84). Added to vx only, never fed back into vel or yaw.
-    let sG = A / g;
-    if (sG > smax) sG = smax;
-    if (sG < -smax) sG = -smax;
-    const vStar = (steer * p.yawRateMax * f - A) / p.yawAlign - sG;
-    gripLead = p.gripLead * (vStar - car.vel) * sp * p.latScale;
+    gripLead = gripLeadOf(car.vel, steer, sp, A, off, p);
   }
 
-  // R85: lateral shift; in DRIFT plus the lead dir*driftLead*e, e = the part of the finger the
-  // body angle has not caught yet (0 in steady drift). The lead never feeds back into vel or yaw.
+  // R85: lateral shift; in DRIFT plus the lead dir*driftLead*ramp*e, e = the part of the finger
+  // the body angle has not caught yet (0 in steady drift). The lead never feeds back into vel or yaw.
   let lead = gripLead;
   if (drift) {
     const dir = car.dir;
     const u = steer * dir;
-    const uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    let uc = u < 0 ? 0 : u > 1 ? 1 : u;
+    if (uc < p.driftMinU) uc = p.driftMinU; // R83b
+    // R85d: the lead ramps in over leadRamp seconds from entry (driftTicks before R87 adds 1).
+    let ramp = 1;
+    if (p.leadRamp > 0) {
+      ramp = (car.driftTicks * DT) / p.leadRamp;
+      if (ramp > 1) ramp = 1;
+    }
     lead = dir * p.driftLead * (uc - (slip * dir) / p.slipFull) * sp * p.latScale;
+    if (ramp < 1) {
+      // R85d: the ramped lead, but never below the GRIP lead (R85b + R85c) of this tick toward dir
+      // (and never above the full lead).
+      let g = gripLeadOf(car.vel, steer, sp, A, off, p) * dir;
+      if (g < 0) g = 0;
+      const ld = lead * dir;
+      const keep = ld < g ? ld : g;
+      const r = ramp * ld;
+      lead = dir * (r > keep ? r : keep);
+    }
   }
   // R18: walls zero vel toward the wall, vx follows the clamped vel.
   car.x += (car.vel * sp * p.latScale + lead) * DT;
@@ -638,26 +703,34 @@ function stepModelB(
   }
   const accel = boosted || turbo ? p.accel * accelMul : p.accel;
   let speed = throttle(car.speed, input.brake, cap, accel, p);
+  // R86b (H17): the scrub when the turn needs more than scrubStart of the grip limit gripA (the turn
+  // full steer holds without a drift); A and sp are those of R83.
+  let scrub = 0;
+  if (p.gripScrub === 1) {
+    const gripA = p.yawRateMax / (1 + p.yawAlign / p.velGrip);
+    const need = (A < 0 ? -A : A) / gripA;
+    if (need > p.scrubStart) scrub = p.scrubRate * (need - p.scrubStart) * p.vmax * DT;
+  }
   if (!drift) {
     const vis = car.yaw - car.vel + car.carry; // after R82b, R83, R84 and the R85 wall
     speed -= p.slipDrag * vis * vis * DT;
     if (speed < 0) speed = 0;
-    // R86b (H17): GRIP loses speed when the turn needs more than scrubStart of the grip limit
-    // gripA (the turn full steer holds without a drift); A and sp are those of R83.
-    if (p.gripScrub === 1) {
-      const gripA = p.yawRateMax / (1 + p.yawAlign / p.velGrip);
-      const need = (A < 0 ? -A : A) / gripA;
-      if (need > p.scrubStart) {
-        speed -= p.scrubRate * (need - p.scrubStart) * p.vmax * DT;
-        if (speed < 0) speed = 0;
-      }
+    // R86b: GRIP pays the scrub in speed.
+    if (scrub > 0) {
+      speed -= scrub;
+      if (speed < 0) speed = 0;
     }
+  } else if (car.driftTicks * DT < p.debtTime) {
+    car.scrubDebt += scrub; // R86e: the first debtTime seconds of a drift pile the scrub up as debt
+  } else {
+    car.scrubDebt = 0; // R86e: held long enough, the debt is forgiven
   }
   if (car.x > 1 || car.x < -1) speed *= Math.pow(p.offroadMul, 60 * DT); // R15
   car.speed = speed;
   if (turbo && !turboSet) car.turboTicks--; // R86c: one tick per boosted step, after R86
 
   car.angle = viewAngle(car, p); // R87
+  if (drift) car.driftTicks++; // R87/R86e
   // R86c: in DRIFT the charge grows with min(1, |angle|) after R87, up to 1.
   if (turboOn && drift) {
     const a = car.angle < 0 ? -car.angle : car.angle;
@@ -905,6 +978,8 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.deflectTicks = 0;
     c.turbo = 0;
     c.turboTicks = 0;
+    c.driftTicks = 0;
+    c.scrubDebt = 0;
     c.crashTicks = 0;
     c.crashSpeed0 = 0;
     c.crashX0 = 0;

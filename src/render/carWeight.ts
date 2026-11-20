@@ -17,6 +17,25 @@ export interface CarWeightConfig {
   pitchTau: number; // s, derivative filter and smoothing of the pitch
   slipDeg: number; // R89 model B: degrees on screen per unit of visible slip (yaw - vel + carry)
   velDeg: number; // R89 model B: degrees on screen per unit of vel
+  leadDeg: number; // R89 model B: degrees on screen per unit of lead vx/(sp*latScale) - vel
+}
+
+/**
+ * R89 model B body yaw in degrees: vis*slipDeg + vel*velDeg + leadDeg*lead, vis = yaw - vel + carry,
+ * lead = vx/(sp*latScale) - vel (the part of the lateral speed the R85/R85b/R85c leads add and the
+ * course has not); lead = 0 below minSpeed (sp = speed/vmax). Pure, no allocations.
+ */
+export function bodyYawDeg(
+  yaw: number,
+  vel: number,
+  carry: number,
+  vx: number,
+  sp: number,
+  latScale: number,
+  cfg: { slipDeg: number; velDeg: number; leadDeg: number; minSpeed: number },
+): number {
+  const lead = sp < cfg.minSpeed ? 0 : vx / (sp * latScale) - vel;
+  return (yaw - vel + carry) * cfg.slipDeg + vel * cfg.velDeg + cfg.leadDeg * lead;
 }
 
 const RAD = 180 / Math.PI;
@@ -56,7 +75,7 @@ export class CarWeight {
    * dt = frame (or tick) seconds; prev/curr = the two last sim states of the player; speed = the
    * interpolated speed; driftYaw = the smoothed R24 yaw in degrees (0 in GRIP); yawMaxDeg /
    * driftRollDeg = R24 / R25 numbers; halfWidth / segmentLength = world units of the road.
-   * bodyYaw = R89 model B: vis*slipDeg + vel*velDeg in degrees (interpolated), replacing the R24/R26
+   * bodyYaw = R89 model B: bodyYawDeg of the interpolated fields, replacing the R24/R26
    * yaw path in both states; null in model A.
    */
   update(

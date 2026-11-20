@@ -76,6 +76,8 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.deflectTicks = s.deflectTicks; // R81b C
     d.turbo = s.turbo; // R86c
     d.turboTicks = s.turboTicks;
+    d.driftTicks = s.driftTicks;
+    d.scrubDebt = s.scrubDebt;
     // R48 crash.
     d.crashTicks = s.crashTicks;
     d.crashSpeed0 = s.crashSpeed0;

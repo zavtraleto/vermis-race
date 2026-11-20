@@ -26,14 +26,14 @@ import { createTouchStick } from '../input/touchStick';
 import { createZoneStick } from '../input/zoneStick';
 import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
-import { CarWeight } from '../render/carWeight';
+import { bodyYawDeg, CarWeight } from '../render/carWeight';
+import { stepCamLag, type CamLag } from '../render/cameraLag';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
 import { RivalModels } from '../render/rivalModels';
 import { TailLights } from '../render/tailLights';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
-import { StickOverlay } from '../ui/stickOverlay';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
 import { createProjection, focalPx, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
@@ -387,6 +387,8 @@ if (scenarioCars) {
 // R49: the crash shake is stronger than the bump shake (own numbers in sprites.json "crash").
 const bump = new BumpFeedback(spritesConfig.bump, spritesConfig.crash);
 const tumble = new CrashTumble(spritesConfig.crash);
+// R27b: the lateral camera position (render field); camPosX = x at the start of the race.
+const camLag: CamLag = { posX: race.cars[0]!.x };
 const render3d = use3d
   ? new Render3d(renderer, {
       cfg: render3dConfig,
@@ -398,6 +400,7 @@ const render3d = use3d
       screenWidth: WIDTH,
       screenHeight: HEIGHT,
       drift: driftVisual,
+      camLag,
       weight,
       roll: screenRoll,
       bump,
@@ -511,15 +514,7 @@ window.__game = game;
   renderFrame();
 };
 
-// R81d: the zone stick is visible while the finger is on the screen (UI layer).
-const stickOverlay =
-  uiOn && zoneStick
-    ? new StickOverlay(document.body, canvas, spritesConfig.stick, () => inputConfig.touch.driftEdge)
-    : null;
-
 function renderFrame(): void {
-  // R81d: drawn with the player's current input.drift (touch latch or keyboard).
-  if (stickOverlay && zoneStick) stickOverlay.update(zoneStick, player.last.drift);
   if (render3d) {
     render3d.render();
     const c3 = loop.curr.cars[0]!;
@@ -538,12 +533,14 @@ function renderFrame(): void {
   const c = loop.curr.cars[0]!;
   // R24: in DRIFT the camera moves toward the inside of the corner; the car is drawn off-centre.
   // R45: the contact shake moves the whole camera (road, traffic and the car line together).
+  // R27b: everything is projected from the lagging camPosX; the car is drawn x - camPosX off it.
   const camX = driftVisual.cameraX + bump.shake;
-  project(proj, track, p.z + (c.z - p.z) * a, p.x + (c.x - p.x) * a + camX, view, roadConfig);
+  project(proj, track, p.z + (c.z - p.z) * a, camLag.posX + camX, view, roadConfig);
   road.update(proj);
   sprites.begin();
   const carY = spritesConfig.player.baseY * view.screenHeight;
-  const carDx = -camX * roadHalfWidthPxAt(carY, view, roadConfig);
+  const carDx =
+    (p.x + (c.x - p.x) * a - camLag.posX - camX) * roadHalfWidthPxAt(carY, view, roadConfig);
   // R26 weight (yaw from the real lateral motion, roll, pitch); R27 the car rolls with the picture.
   // R49: while crashTicks > 0 the car tumbles (roll and spin) and hops above the road.
   carView.update(
@@ -614,14 +611,24 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   visualDt = dt;
   driftVisual.update(dt, c, angle);
   screenRoll.update(dt, c, angle);
-  // R89: in model B the body yaw is vis*slipDeg + vel*velDeg with the visible slip
-  // vis = yaw - vel + carry (interpolated, both states).
+  // R27b: camPosX chases the interpolated x; back on x when the crash returns the car (R48).
+  const x = p.x + (c.x - p.x) * alpha;
+  if (p.crashTicks > 0 && c.crashTicks === 0) camLag.posX = x;
+  else camLag.posX = stepCamLag(camLag.posX, x, dt, view.camLagTau, view.camLagMax);
+  // R89: in model B the body yaw is vis*slipDeg + vel*velDeg + leadDeg*lead (interpolated fields,
+  // both states).
   let bodyYaw: number | null = null;
   if (baseCar.model === 1) {
-    const vel = p.vel + (c.vel - p.vel) * alpha;
-    const vis = p.yaw + (c.yaw - p.yaw) * alpha - vel + p.carry + (c.carry - p.carry) * alpha;
-    const w = spritesConfig.weight;
-    bodyYaw = vis * w.slipDeg + vel * w.velDeg;
+    const speed = p.speed + (c.speed - p.speed) * alpha;
+    bodyYaw = bodyYawDeg(
+      p.yaw + (c.yaw - p.yaw) * alpha,
+      p.vel + (c.vel - p.vel) * alpha,
+      p.carry + (c.carry - p.carry) * alpha,
+      p.vx + (c.vx - p.vx) * alpha,
+      speed / baseCar.vmax,
+      baseCar.latScale,
+      spritesConfig.weight,
+    );
   }
   weight.update(
     dt,

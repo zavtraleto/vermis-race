@@ -47,17 +47,17 @@ const release = inp(1, false);
 const hold = inp(1, true);
 
 describe('R86c data (H18)', () => {
-  it('base.json has the start numbers', () => {
+  it('base.json has the start numbers (R86c postponed 2026-11-20: driftTurbo 0, the rest keep the old start)', () => {
     const b = base as unknown as Record<string, number>;
-    expect(b.driftTurbo).toBe(1);
+    expect(b.driftTurbo).toBe(0);
     expect(b.turboChargeTime).toBe(1);
     expect(b.turboTime).toBe(2);
     expect(b.turboCap).toBe(0.13);
     expect(b.turboAccelMul).toBe(1.6);
     expect(b.turboMin).toBe(0.3);
   });
-  it('hypotheses.json has H18_driftTurbo "B"', () => {
-    expect((hypotheses as Record<string, string>).H18_driftTurbo).toBe('B');
+  it('hypotheses.json has H18_driftTurbo "A" (R86c postponed)', () => {
+    expect((hypotheses as Record<string, string>).H18_driftTurbo).toBe('A');
   });
 });
 

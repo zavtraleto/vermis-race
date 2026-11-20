@@ -4,5 +4,7 @@
   "drawDistance": 300,
   "horizon": 0.47,
   "screenWidth": 360,
-  "screenHeight": 640
+  "screenHeight": 640,
+  "camLagTau": 0.08,
+  "camLagMax": 0.12
 }
