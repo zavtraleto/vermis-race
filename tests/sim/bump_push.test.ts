@@ -279,10 +279,10 @@ describe('R64 rival rear-hits traffic like the player (R41)', () => {
 });
 
 describe('R41 data (base.json)', () => {
-  it('bumpSpeedLoss 0.12, bumpSideLoss 0.06, bumpPush 0.1, bumpPushDecay 0.25', () => {
+  it('bumpSpeedLoss 0.05, bumpSideLoss 0.02 (T69, author: even more forgiving; was 0.12 / 0.06), bumpPush 0.1, bumpPushDecay 0.25', () => {
     const b = base as unknown as Record<string, number>;
-    expect(b.bumpSpeedLoss).toBe(0.12);
-    expect(b.bumpSideLoss).toBe(0.06);
+    expect(b.bumpSpeedLoss).toBe(0.05);
+    expect(b.bumpSideLoss).toBe(0.02);
     expect(b.bumpPush).toBe(0.1);
     expect(b.bumpPushDecay).toBe(0.25);
   });
