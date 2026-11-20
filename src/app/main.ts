@@ -36,6 +36,7 @@ import { bodyYawDeg, CarWeight } from '../render/carWeight';
 import { stepCamLag, type CamLag } from '../render/cameraLag';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
+import { WheelSteer } from '../render/wheelSteer';
 import { RivalModels } from '../render/rivalModels';
 import { TailLights } from '../render/tailLights';
 import { TrafficModels } from '../render/trafficModels';
@@ -232,6 +233,8 @@ const roadsideIndex = indexBySegment(roadside, track.segments.length);
 const driftVisual = new DriftVisual(spritesConfig.drift);
 // R25: the player car is a 3D model in its own scene, drawn after the road pass.
 const carView = new CarView(car3dConfig, spritesConfig.player, view, paletteConfig);
+// R25b: front-wheel angle from the player's steer.
+const wheelSteer = new WheelSteer();
 // R26: yaw from the real lateral motion, roll and pitch with weight.
 const weight = new CarWeight(spritesConfig.weight);
 // R45: traffic as 3D bodies, one instanced draw call in the road pass.
@@ -569,6 +572,7 @@ function renderFrame(): void {
     tumble.rollDeg,
     tumble.hop,
     spritesConfig.crash.pivotY,
+    wheelSteer.deg,
   );
   carView.scene.visible = bump.visible; // R45 blink while bumpTicks > 0
   world.drawSmoke(sprites, driftVisual, carView, view.drawDistance);
@@ -660,6 +664,8 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
     bodyYaw,
   );
   bump.update(dt, c.bumpTicks, c.crashTicks);
+  // R25b: the wheels follow the interpolated steer of the car.
+  wheelSteer.update(p.steer + (c.steer - p.steer) * alpha, dt, car3dConfig.player);
   // R49: tumble from crashTicks (interpolated) and the side of the lamp (sign of crashX0).
   tumble.update(
     p.crashTicks,

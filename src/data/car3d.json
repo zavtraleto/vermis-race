@@ -38,6 +38,11 @@
     "x": [-0.66, -0.4, 0.4, 0.66]
   },
   "shadow": { "color": "carShadow", "halfWidth": 1.0, "front": -2.2, "rear": 1.7, "y": 0.01 },
+  "player": {
+    "steerMaxDeg": 24,
+    "steerTau": 0.08,
+    "shadow": { "color": "carShadow", "halfWidth": 0.95, "front": -2.25, "rear": 1.7, "y": 0.01 }
+  },
   "traffic": {
     "width": 1.9,
     "shadow": { "color": "carShadow", "halfWidth": 1.0, "front": -2.3, "rear": 2.3, "y": 0.01 },

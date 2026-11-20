@@ -9,9 +9,29 @@ import {
   Scene,
   Vector3,
 } from 'three';
+import nsx from '../data/models/nsx.json';
 import type { Palette } from '../data/render';
 import type { CameraConfig } from './projection';
+import type { WheelSteerConfig } from './wheelSteer';
 import type { SpritesConfig } from './worldSprites';
+
+/** R25 converted car model (tools/model/glb-to-car.mjs): 9 ints per triangle, one colour each. */
+export interface CarModelPart {
+  positions: number[];
+  colors: number[];
+}
+
+/** R25 car model in game car space (Y up, front -Z, +X right), metres; npm run model:car. */
+export interface CarModelData {
+  unit: number; // metres per integer step of positions
+  palette: string[]; // sRGB '#rrggbb'
+  parts: { body: CarModelPart; wheelFL: CarModelPart; wheelFR: CarModelPart };
+  pivots: { wheelFL: [number, number, number]; wheelFR: [number, number, number] };
+  rearAxleZ: number;
+  rearWheelX: number;
+}
+
+const playerModel = nsx as unknown as CarModelData;
 
 type PaletteKey = keyof Palette;
 
@@ -57,6 +77,8 @@ export interface Car3dConfig {
   lights: { color: string; radius: number; segments: number; y: number; z: number; x: number[] };
   shadow: { color: string; halfWidth: number; front: number; rear: number; y: number };
   traffic: TrafficModelConfig;
+  /** R25/R25b player NSX: steering of the front wheels and the ground shadow under the model. */
+  player: WheelSteerConfig & { shadow: Car3dConfig['shadow'] };
 }
 
 /**
@@ -252,6 +274,60 @@ export function buildCarGeometry(cfg: Car3dConfig, palette: Palette): BufferGeom
 }
 
 /**
+ * R25 player model geometry: one non-indexed geometry with per-vertex colours, laid out as
+ * [front-left wheel][front-right wheel][body][shadow quad]. The model's flat colours are drawn as
+ * they are (no shade factors). `wheels` gets the front-wheel vertices relative to their pivots
+ * (metres, same order as in the geometry), for the R25b steering in CarView.
+ */
+export function buildModelGeometry(
+  model: CarModelData,
+  cfg: Car3dConfig,
+  palette: Palette,
+  wheels: Float32Array,
+): BufferGeometry {
+  const sh = new Builder(cfg);
+  sh.shadow(cfg.player.shadow);
+  const parts = [model.parts.wheelFL, model.parts.wheelFR, model.parts.body];
+  let count = sh.pos.length;
+  for (const p of parts) count += p.positions.length;
+  const pos = new Float32Array(count);
+  const col = new Float32Array(count);
+  const color = new Color();
+  // Palette is sRGB; convert to the linear working space the material expects (as buildCarGeometry).
+  const linear = (hex: string, out: Float32Array, at: number): void => {
+    color.setStyle(hex, SRGBColorSpace);
+    out[at] = color.r;
+    out[at + 1] = color.g;
+    out[at + 2] = color.b;
+  };
+  let o = 0;
+  for (let k = 0; k < parts.length; k++) {
+    const p = parts[k]!;
+    const pivot = k === 0 ? model.pivots.wheelFL : k === 1 ? model.pivots.wheelFR : null;
+    for (let i = 0; i < p.positions.length; i += 3) {
+      for (let c = 0; c < 3; c++) {
+        const m = p.positions[i + c]! * model.unit;
+        if (pivot) wheels[o + i + c] = m;
+        pos[o + i + c] = m + (pivot ? pivot[c]! : 0);
+      }
+      linear(model.palette[p.colors[(i / 9) | 0]!]!, col, o + i);
+    }
+    o += p.positions.length;
+  }
+  for (let i = 0; i < sh.pos.length; i += 3) {
+    pos[o + i] = sh.pos[i]!;
+    pos[o + i + 1] = sh.pos[i + 1]!;
+    pos[o + i + 2] = sh.pos[i + 2]!;
+    linear(paletteHex(palette, sh.keys[i / 3]!), col, o + i);
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(pos, 3));
+  geo.setAttribute('color', new BufferAttribute(col, 3));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/**
  * Pose of the car camera (pure). The camera has its own vertical FOV; it is pitched so the car's
  * ground plane vanishes on the road's horizon line, and placed so the rear-axle ground centre lands
  * at (screen centre, baseY) with the car `width` spanning `widthFrac` of the screen.
@@ -301,6 +377,12 @@ export class CarView {
   rearRY = 0;
   private readonly pose: CarCameraPose = { pitch: 0, height: 0, back: 0, depth: 0, focalPx: 0 };
   private readonly v = new Vector3();
+  private readonly model: CarModelData = playerModel;
+  /** R25b front-wheel vertices relative to their pivots (FL then FR), as laid out in the mesh. */
+  private readonly wheels: Float32Array;
+  private readonly wheelFLFloats: number;
+  private readonly wheelRange = { start: 0, count: 0 };
+  private wheelDeg = 0;
 
   constructor(
     private readonly cfg: Car3dConfig,
@@ -314,8 +396,13 @@ export class CarView {
       cfg.near,
       cfg.far,
     );
+    const model = this.model;
+    this.wheelFLFloats = model.parts.wheelFL.positions.length;
+    this.wheels = new Float32Array(this.wheelFLFloats + model.parts.wheelFR.positions.length);
+    this.wheelRange.count = this.wheels.length;
+    // R25: one mesh (body, front wheels and the shadow quad) = one draw call, as the old model.
     this.mesh = new Mesh(
-      buildCarGeometry(cfg, palette),
+      buildModelGeometry(model, cfg, palette, this.wheels),
       new MeshBasicMaterial({ vertexColors: true }),
     );
     this.mesh.frustumCulled = false;
@@ -324,10 +411,41 @@ export class CarView {
   }
 
   /**
+   * R25b: turn the front wheels about the vertical axis through their pivots by `deg` (> 0 =
+   * wheels to the right, the sense of yawDeg > 0). The mesh vertices are rewritten in place and
+   * only the wheel range of the position buffer is uploaded; nothing is allocated.
+   */
+  private steerWheels(deg: number): void {
+    if (deg === this.wheelDeg) return;
+    this.wheelDeg = deg;
+    const a = -deg * DEG; // as the body yaw: rotation.y = -deg turns -Z (the nose) toward +X
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    const attr = this.mesh.geometry.getAttribute('position') as BufferAttribute;
+    const out = attr.array as Float32Array;
+    const w = this.wheels;
+    const fl = this.model.pivots.wheelFL;
+    const fr = this.model.pivots.wheelFR;
+    for (let i = 0; i < w.length; i += 3) {
+      const p = i < this.wheelFLFloats ? fl : fr;
+      const x = w[i]!;
+      const z = w[i + 2]!;
+      out[i] = p[0] + x * c + z * s;
+      out[i + 1] = p[1] + w[i + 1]!;
+      out[i + 2] = p[2] - x * s + z * c;
+    }
+    // Reuse one range object covering all wheel vertices; one pending entry is enough, so the
+    // array does not grow while the car is hidden and the renderer skips the upload.
+    if (attr.updateRanges.length === 0) attr.updateRanges.push(this.wheelRange);
+    attr.needsUpdate = true;
+  }
+
+  /**
    * yawDeg > 0 turns the nose right; rollDeg > 0 tilts the roof right; dxPx shifts on screen;
    * pitchDeg > 0 = nose down (R26). screenRollDeg (R27) rolls the camera about its view axis so
    * the car turns with the rest of the picture (> 0 = picture counter-clockwise); the rear wheel
    * points stay in unrolled screen space, like every other sprite before the shader roll.
+   * steerDeg (R25b) turns the front wheels relative to the body, > 0 = to the right.
    */
   update(
     yawDeg: number,
@@ -338,7 +456,10 @@ export class CarView {
     tumbleRollDeg = 0,
     liftY = 0,
     pivotY = 0,
+    steerDeg = 0,
   ): void {
+    this.steerWheels(steerDeg);
+    const model = this.model;
     const cfg = this.cfg;
     const view = this.view;
     const pose = carCameraPose(this.pose, view, this.player, cfg);
@@ -372,16 +493,17 @@ export class CarView {
     m.position.set(
       (dxPx * pose.depth) / pose.focalPx - pz * Math.sin(b) + sx * Math.cos(b),
       liftY + pivotY * (1 - Math.cos(r)),
-      -cfg.rearAxleZ + pz - pz * Math.cos(b) - sx * Math.sin(b),
+      -model.rearAxleZ + pz - pz * Math.cos(b) - sx * Math.sin(b),
     );
     // Order YXZ (set in the constructor): yaw about the world vertical, pitch and roll in the body.
     m.rotation.set(-pitchDeg * DEG, b, -rollDeg * DEG + r);
     m.updateMatrixWorld();
+    // R25 smoke points: the model's rear wheel ground contacts.
     const v = this.v;
-    v.set(-cfg.wheels.x, 0, cfg.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
+    v.set(-model.rearWheelX, 0, model.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
     this.rearLX = ((v.x + 1) / 2) * view.screenWidth;
     this.rearLY = ((1 - v.y) / 2) * view.screenHeight;
-    v.set(cfg.wheels.x, 0, cfg.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
+    v.set(model.rearWheelX, 0, model.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
     this.rearRX = ((v.x + 1) / 2) * view.screenWidth;
     this.rearRY = ((1 - v.y) / 2) * view.screenHeight;
     if (screenRollDeg !== 0) {
