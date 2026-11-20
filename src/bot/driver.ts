@@ -364,11 +364,18 @@ function botInputB(
     if (byDeflect && kick < Math.round(p.deflectTime / DT) + 2)
       kick = Math.round(p.deflectTime / DT) + 2;
     const f = bot.flick;
-    if (f <= dip) steer = -bot.flickDir * bp.bDipSteer;
-    else if (f > pre && f <= pre + kick) steer = bot.flickDir;
     const timeout =
       delayTicks(bp, bot.steerQueue.length) + pre + kick + Math.round(p.flickWindow / DT);
-    drift = f >= pre;
+    if (p.driftEntry === 3) {
+      // R81c (driftEntry 3): no flick, no dip; the drift input goes down together with a full steer
+      // toward the corner, so the entry tick sees steer of the corner's sign.
+      if (f <= kick) steer = bot.flickDir;
+      drift = true;
+    } else {
+      if (f <= dip) steer = -bot.flickDir * bp.bDipSteer;
+      else if (f > pre && f <= pre + kick) steer = bot.flickDir;
+      drift = f >= pre;
+    }
     bot.flick = f >= timeout ? 0 : f + 1;
   }
   out.steer = humanize(bot, bp, steer);

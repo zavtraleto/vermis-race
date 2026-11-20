@@ -12,6 +12,8 @@
     "retouchWindowMs": 450,
     "retouchSwipePx": 14,
     "flickDelta": 0.5,
-    "flickWindowMs": 120
+    "flickWindowMs": 120,
+    "stickRadius": 0.16,
+    "driftEdge": 1.35
   }
 }

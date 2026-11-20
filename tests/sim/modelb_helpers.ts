@@ -1,4 +1,7 @@
 import { baseCar } from '../../src/data/cars';
+import { NO_H17_H18 } from './pinH17H18';
+import { ENTRY_A } from './pinEntryA';
+import { NO_GRIP_LEAD } from './pinGripLead';
 import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
@@ -9,6 +12,9 @@ export const PB: CarParams = {
   ...baseCar,
   model: 1,
   crashMinSpeed: 1e9, // R47 lamps off: model B tests are about their own rules (R80-R89b)
+  ...NO_H17_H18, // H17/H18 off: older rules are tested alone
+  ...ENTRY_A, // flick entry (R81): the zone stick (R81c) has its own tests
+  ...NO_GRIP_LEAD, // R85b off: the GRIP lead has its own tests (modelb_griplead.test.ts)
   vmax: 1,
   accel: 0.22,
   brake: 0.6,

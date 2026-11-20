@@ -31,6 +31,8 @@ export interface Car {
   steerHistHead: number; // R81 next write index
   steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
   deflectTicks: number; // R81b (C) consecutive ticks of one-sign deflection
+  turbo: number; // R86c (H18) drift charge in [0, 1]
+  turboTicks: number; // R86c (H18) remaining turbo ticks after a drift exit
   crashTicks: number; // R48 remaining crash ticks, 0 = driving
   crashSpeed0: number; // R48 speed at the moment of the hit
   crashX0: number; // R48 x at the moment of the hit
@@ -74,12 +76,22 @@ export interface CarParams {
   carryDecay: number; // R82b 1/s
   velGripDrift: number; // R84 DRIFT vel chase rate, 1/s
   driftLead: number; // R85 DRIFT lead of the finger over the body angle, 0 = off
+  gripLead: number; // R85b GRIP lead of vx toward the steady vel of the current steer, 0 = off
   slipDrag: number; // R86 GRIP speed cost of the visible slip
+  gripScrub: number; // R86b H17: 1 = on (B), 0 = off (A)
+  scrubStart: number; // R86b share of the grip limit gripA above which GRIP loses speed
+  scrubRate: number; // R86b speed loss per unit of need above scrubStart, vmax per second
+  driftTurbo: number; // R86c H18: 1 = on (B), 0 = off (A)
+  turboChargeTime: number; // R86c seconds of full drift angle to charge 0 -> 1
+  turboTime: number; // R86c seconds of turbo at a full charge
+  turboCap: number; // R86c speed cap while boosted = vmax * (1 + turboCap)
+  turboAccelMul: number; // R86c acceleration multiplier while boosted
+  turboMin: number; // R86c smallest charge that gives a turbo on exit
   flickDelta: number; // R81 steer change that enters a drift (car param, distinct from the H3 E input config)
   flickWindow: number; // R81 seconds
   kickBase: number; // R81 initial slip rate at flickDelta
   kickGain: number; // R81 extra slip rate per unit of steer change above flickDelta
-  driftEntry: number; // R81b H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection
+  driftEntry: number; // R81b/R81c H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection, 3 = D zone stick
   flickLook: number; // R81b segments looked ahead
   flickCornerMin: number; // R81b smallest |curve| that counts as a corner
   flickCornerMul: number; // R81b threshold multiplier toward a corner

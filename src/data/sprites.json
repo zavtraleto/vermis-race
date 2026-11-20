@@ -138,5 +138,14 @@
     "vmaxKmh": 180,
     "segments": 14,
     "boostSegments": 4
+  },
+  "stick": {
+    "ring": "#d8d8d8",
+    "ringDrift": "#ffe14a",
+    "dot": "#e8e8e8",
+    "edge": "#c0283c",
+    "lineWidthPx": 2,
+    "dotRadiusPx": 7,
+    "edgeMarkPx": 10
   }
 }

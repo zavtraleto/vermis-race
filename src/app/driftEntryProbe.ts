@@ -4,12 +4,17 @@ import type { Car, CarParams, Segment } from '../sim/types';
 
 /** R81b (отладка): "the largest |d| of the last second" when no entry was counted. */
 const MISS_WINDOW_S = 1;
-const VARIANTS = ['A', 'B', 'C'];
+const VARIANTS = ['A', 'B', 'C', 'D'];
 
-/** H16 flag -> CarParams.driftEntry (R81b): A 0, B 1, C 2; anything else falls back to A. */
+/** H16 flag -> CarParams.driftEntry (R81b, R81c): A 0, B 1, C 2, D 3; anything else falls back to A. */
 export function driftEntryOf(flag: string): number {
   const i = VARIANTS.indexOf(flag);
   return i < 0 ? 0 : i;
+}
+
+/** H17/H18 flag -> CarParams.gripScrub / driftTurbo (R86b, R86c): B 1, anything else (A) 0. */
+export function onOffOf(flag: string): number {
+  return flag === 'B' ? 1 : 0;
 }
 
 /**
@@ -41,7 +46,11 @@ export class DriftEntryProbe {
     if (seg < 0) seg += n;
     let mag = 0;
     let thr = p.deflectEnter;
-    if (p.driftEntry === 2) {
+    if (p.driftEntry === 3) {
+      // R81c: zone stick, no threshold on steer; magnitude = |steer| on entry.
+      mag = car.steer < 0 ? -car.steer : car.steer;
+      thr = 0;
+    } else if (p.driftEntry === 2) {
       mag = car.steer < 0 ? -car.steer : car.steer;
     } else if (car.driftHeld && car.steerHistCount >= 2) {
       // The tick's steer is the last recorded one; compare with the flickWindow before it (R81).
@@ -85,6 +94,12 @@ export class DriftEntryProbe {
   /** Overlay text: the last entry, or "не засчитан" with the largest magnitude of the last second. */
   text(): string {
     if (this.tryTick < 0) return 'дрифт: —';
+    // R81c: the zone entry has no threshold to miss; only the side of the last entry is shown.
+    if (this.tryVariant === 3) {
+      if (this.entryTick < 0) return 'дрифт D (зона): —';
+      return `дрифт D (зона) ${this.side > 0 ? 'вправо' : 'влево'}
+|руль| ${this.mag.toFixed(2)}`;
+    }
     if (this.entryTick >= this.tryTick) {
       const side = this.side > 0 ? 'вправо' : 'влево';
       return `дрифт ${VARIANTS[this.variant] ?? '?'} ${side}\n${this.variant === 2 ? '|руль|' : '|d|'} ${this.mag.toFixed(2)} ≥ ${this.thr.toFixed(2)}`;

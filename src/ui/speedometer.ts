@@ -19,7 +19,8 @@ export interface SpeedReading {
  */
 export function readSpeed(out: SpeedReading, car: Car, speed: number, vmax: number): SpeedReading {
   out.ratio = vmax > 0 ? speed / vmax : 0;
-  out.boosting = car.boostTicks > 0 || out.ratio > 1;
+  // R86d: the drift turbo shows as the slipstream boost does.
+  out.boosting = car.boostTicks > 0 || car.turboTicks > 0 || out.ratio > 1;
   return out;
 }
 

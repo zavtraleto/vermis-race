@@ -3,11 +3,19 @@
     "car.model": { "min": 0, "max": 1, "step": 1 },
     "car.velGripDrift": { "min": 1, "max": 20, "step": 0.1 },
     "car.driftLead": { "min": 0, "max": 4, "step": 0.05 },
+    "car.gripLead": { "min": 0, "max": 1.5, "step": 0.05 },
     "car.yawRateMax": { "min": 3, "max": 40, "step": 0.5 },
     "car.velGrip": { "min": 5, "max": 40, "step": 0.5 },
     "car.yawResponse": { "min": 5, "max": 120, "step": 1 },
     "car.slipGripMax": { "min": 0.1, "max": 1.5, "step": 0.01 },
     "car.slipDrag": { "min": 0, "max": 0.3, "step": 0.002 },
+    "car.scrubStart": { "min": 0.3, "max": 1.5, "step": 0.05 },
+    "car.scrubRate": { "min": 0, "max": 3, "step": 0.05 },
+    "car.turboChargeTime": { "min": 0.2, "max": 4, "step": 0.1 },
+    "car.turboTime": { "min": 0.2, "max": 5, "step": 0.1 },
+    "car.turboCap": { "min": 0, "max": 0.4, "step": 0.01 },
+    "car.turboAccelMul": { "min": 1, "max": 4, "step": 0.05 },
+    "car.turboMin": { "min": 0, "max": 1, "step": 0.05 },
     "car.kickBase": { "min": 0, "max": 30, "step": 0.5 },
     "car.kickGain": { "min": 0, "max": 40, "step": 0.5 },
     "car.flickDelta": { "min": 0.2, "max": 1.5, "step": 0.05 },
@@ -56,6 +64,8 @@
     "car.driftOffroad": { "min": 0, "max": 1, "step": 1 },
     "input.keyboard.steerRampMs": { "min": 10, "max": 600, "step": 10 },
     "input.touch.stickRadiusFrac": { "min": 0.05, "max": 0.5, "step": 0.01 },
+    "input.touch.stickRadius": { "min": 0.05, "max": 0.5, "step": 0.01 },
+    "input.touch.driftEdge": { "min": 1, "max": 3, "step": 0.05 },
     "input.touch.deadZone": { "min": 0, "max": 0.3, "step": 0.01 },
     "input.touch.responseExp": { "min": 0.5, "max": 3, "step": 0.05 },
     "input.touch.releaseMs": { "min": 10, "max": 500, "step": 10 },
@@ -161,7 +171,9 @@
     "hypotheses.H10_offroad": ["A", "B"],
     "hypotheses.H14_model": ["A", "B"],
     "hypotheses.H15_rubberBand": ["A", "B"],
-    "hypotheses.H16_driftEntry": ["A", "B", "C"],
+    "hypotheses.H16_driftEntry": ["A", "B", "C", "D"],
+    "hypotheses.H17_gripScrub": ["A", "B"],
+    "hypotheses.H18_driftTurbo": ["A", "B"],
     "sprites.drift.smoke": ["on", "off"],
     "sprites.tailLights.enabled": ["on", "off"]
   },
@@ -200,11 +212,83 @@
     },
     "hypotheses.H16_driftEntry": {
       "title": "Вход в дрифт (B)",
-      "hint": "A — рывок, B — порог рывка от дороги, C — удержание отклонения пальца",
+      "hint": "D — стик с зоной (игрок); A — рывок, B — рывок от дороги, C — удержание отклонения",
       "tier": "more",
       "group": "Дрифт",
       "model": "B",
       "rule": "H16"
+    },
+    "hypotheses.H17_gripScrub": {
+      "title": "Цена поворота без дрифта",
+      "hint": "A — выключено, B — крутой поворот без дрифта стоит скорости",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "H17"
+    },
+    "hypotheses.H18_driftTurbo": {
+      "title": "Ускорение после дрифта",
+      "hint": "A — выключено, B — заряд дрифта даёт ускорение на выходе",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "H18"
+    },
+    "car.scrubStart": {
+      "title": "Порог цены поворота",
+      "hint": "доля предела сцепления, выше которой поворот без дрифта тормозит",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86b"
+    },
+    "car.scrubRate": {
+      "title": "Сила цены поворота",
+      "hint": "больше — крутой поворот без дрифта сильнее тормозит",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86b"
+    },
+    "car.turboChargeTime": {
+      "title": "Заряд дрифта, с",
+      "hint": "сколько секунд дрифта на полном угле до полного заряда",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86c"
+    },
+    "car.turboTime": {
+      "title": "Длительность ускорения, с",
+      "hint": "сколько длится ускорение после выхода с полным зарядом",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86c"
+    },
+    "car.turboCap": {
+      "title": "Прибавка потолка ускорения",
+      "hint": "на сколько выше vmax можно ехать во время ускорения",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86c"
+    },
+    "car.turboAccelMul": {
+      "title": "Разгон при ускорении",
+      "hint": "во сколько раз быстрее разгон во время ускорения",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86c"
+    },
+    "car.turboMin": {
+      "title": "Мин. заряд для ускорения",
+      "hint": "короткий дрифт с зарядом ниже порога ускорения не даёт",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R86c"
     },
     "car.wrongPush": {
       "title": "Вынос против дрифта",
@@ -428,6 +512,14 @@
       "group": "Руль и вес",
       "model": "B",
       "rule": "R84"
+    },
+    "car.gripLead": {
+      "title": "Опережение без дрифта",
+      "hint": "без дрифта машина сразу смещается туда, куда придёт при этом руле; 0 — выключено",
+      "tier": "more",
+      "group": "Руль и вес",
+      "model": "B",
+      "rule": "R85b"
     },
     "car.yawResponse": {
       "title": "Отклик кузова на руль",
@@ -1007,6 +1099,20 @@
       "group": "Обочина",
       "model": "A",
       "rule": "R15b"
+    },
+    "input.touch.stickRadius": {
+      "title": "Радиус стика",
+      "hint": "доля ширины экрана; больше — для полного руля палец надо увести дальше",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R81c"
+    },
+    "input.touch.driftEdge": {
+      "title": "Граница дрифта",
+      "hint": "во сколько радиусов стика палец должен уйти, чтобы включить дрифт",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R81c"
     },
     "input.touch.stickRadiusFrac": {
       "title": "Ход пальца",

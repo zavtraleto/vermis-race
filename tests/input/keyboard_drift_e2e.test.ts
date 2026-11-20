@@ -5,6 +5,9 @@ import { createAutoDrift } from '../../src/input/autoDrift';
 import { createKeyboardInput } from '../../src/input/keyboard';
 import { createPlayerInput } from '../../src/input/player';
 import { createTouchStick } from '../../src/input/touchStick';
+import { NO_H17_H18 } from '../sim/pinH17H18';
+import { ENTRY_A } from '../sim/pinEntryA';
+import { NO_GRIP_LEAD } from '../sim/pinGripLead';
 import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
@@ -18,7 +21,16 @@ import type { Car, CarParams, InputFrame } from '../../src/sim/types';
  * Flick needs |d| >= flickDelta 0.5: steer 0 -> +-1 gives |d| = 1.
  */
 const TICK_MS = DT * 1000;
-const params: CarParams = { ...base, model: 1, crashMinSpeed: 1e9, driftAutoExit: 0 };
+// H17/H18 off: this test is about keyboard entry
+const params: CarParams = {
+  ...base,
+  model: 1,
+  crashMinSpeed: 1e9,
+  driftAutoExit: 0,
+  ...NO_H17_H18,
+  ...ENTRY_A, // R81 keyboard flick entry; the R81c keyboard is tested in stick_zone.test.ts
+  ...NO_GRIP_LEAD, // R85b off: this test is about keyboard entry
+};
 type Ev = { t: number; kind: 'down' | 'up'; code: string };
 
 function rig(car = { model: 1 }) {

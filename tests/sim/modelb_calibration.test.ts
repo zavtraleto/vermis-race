@@ -13,12 +13,15 @@ import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 import { baseCarA } from './baseCarA';
 import { GAS, run } from './helpers';
+import { NO_H17_H18 } from './pinH17H18';
+import { ENTRY_A } from './pinEntryA';
 import { PB, Q, STRAIGHT, car, constTrack, inp, mk, slipOf, stepB, stepN } from './modelb_helpers';
 
 const C = curves as { easy: number; medium: number; hard: number };
 const SLIP_DEG = (sprites as { weight: { slipDeg: number } }).weight.slipDeg; // R89 degrees per unit of slip
 /** Real data pinned to model B. */
-const REAL: CarParams = { ...baseCar, model: 1 };
+// H17/H18 off and flick entry (R81) pinned: this test is about R89b
+const REAL: CarParams = { ...baseCar, model: 1, ...NO_H17_H18, ...ENTRY_A };
 const free = (p: CarParams): CarParams => ({
   ...p,
   xLimit: 1e9,
@@ -73,9 +76,7 @@ class Rig {
     const u = s * dir;
     const slip = dir * this.p.slipFull * clamp(u, 0, 1);
     c.vel =
-      dir *
-        this.p.driftLat *
-        ((slip * dir) / this.p.slipFull + Math.min(0, u)) -
+      dir * this.p.driftLat * ((slip * dir) / this.p.slipFull + Math.min(0, u)) -
       this.p.driftPush * A;
     c.yaw = c.vel + slip;
     c.yawRate = 0;
@@ -119,7 +120,12 @@ function hold(name: 'A' | 'B', curve: number, mode: 'free' | 'pinned') {
   const key = `${name}${curve}${mode}`;
   let h = memo.get(key);
   if (!h) {
-    h = driftHold(name === 'A' ? FA : FB, curve, mode === 'free' ? null : 1, mode === 'free' ? 8 : 3);
+    h = driftHold(
+      name === 'A' ? FA : FB,
+      curve,
+      mode === 'free' ? null : 1,
+      mode === 'free' ? 8 : 3,
+    );
     memo.set(key, h);
   }
   return h;
@@ -199,7 +205,11 @@ describe('R89b calibration: GRIP on a straight (lane change, response)', () => {
     let signChanges = 0;
     let last = 0;
     for (let i = rel; i < xs.length; i++) {
-      if (Number.isNaN(settle) && Math.abs(yaws[i]!) < 0.02 * peakYaw && Math.abs(vxs[i]!) < 0.02 * peakVx)
+      if (
+        Number.isNaN(settle) &&
+        Math.abs(yaws[i]!) < 0.02 * peakYaw &&
+        Math.abs(vxs[i]!) < 0.02 * peakVx
+      )
         settle = (i - rel) * DT;
       const sg = Math.sign(vxs[i]!);
       if (sg !== 0 && last !== 0 && sg !== last && Math.abs(vxs[i]!) > 0.02 * peakVx) signChanges++;
@@ -412,7 +422,8 @@ describe('R89b calibration: DRIFT entry (spike T5)', () => {
         const ref = enter(free({ ...REAL, kickBase: 0, kickGain: 0 }), curve, from, hs, true);
         expect(a.drifted).toBe(true);
         let d = 0;
-        for (let i = 0; i < Math.round(0.6 / DT); i++) d = Math.max(d, Math.abs(a.xs[i]! - ref.xs[i]!));
+        for (let i = 0; i < Math.round(0.6 / DT); i++)
+          d = Math.max(d, Math.abs(a.xs[i]! - ref.xs[i]!));
         expect(d).toBeLessThanOrEqual(0.05);
       });
       it(`R89b entry ${fn} flick on ${cn}: angle gets 90% in 0.15-0.45 s, overshoot <= 15%`, () => {
@@ -636,7 +647,17 @@ describe('model B determinism, symmetry, bounds, serialization (R2, R3)', () => 
     for (const n of [300, 1000, 2000]) {
       const r = car(playB(n, 1));
       const l = car(playB(n, -1));
-      for (const k of ['x', 'vx', 'yaw', 'yawRate', 'vel', 'carry', 'steer', 'angle', 'heading'] as const)
+      for (const k of [
+        'x',
+        'vx',
+        'yaw',
+        'yawRate',
+        'vel',
+        'carry',
+        'steer',
+        'angle',
+        'heading',
+      ] as const)
         expect(l[k]).toBeCloseTo(-r[k], 9);
       expect(l.speed).toBeCloseTo(r.speed, 9);
       expect(l.z).toBeCloseTo(r.z, 9);
