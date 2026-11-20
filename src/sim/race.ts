@@ -41,6 +41,8 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       steerHistHead: 0,
       steerHistCount: 0,
       deflectTicks: 0,
+      turbo: 0,
+      turboTicks: 0,
       crashTicks: 0,
       crashSpeed0: 0,
       crashX0: 0,
@@ -327,6 +329,8 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
     car.vx = 0;
     car.draft = 0;
     car.boostTicks = 0;
+    car.turbo = 0; // R86c: a crash zeroes the charge and the turbo
+    car.turboTicks = 0;
     car.steerHistCount = 0;
     car.deflectTicks = 0;
     return;
@@ -430,7 +434,14 @@ function stepModelB(
     !(offroadBlocks && off);
 
   const hist = car.steerHist;
-  if (p.driftEntry === 2) {
+  if (p.driftEntry === 3) {
+    // R81c: zone stick. Entry on a held tick with steer != 0; no flick, no buffer. armTicks > 0 =
+    // the drift ended by speed during this hold (R82): no entry until the hold breaks.
+    if (!input.drift) car.armTicks = 0;
+    if (canEnter && car.armTicks === 0 && steer !== 0) {
+      enterDrift(car, steer > 0 ? 1 : -1, p.kickBase); // R81c: entry effects as R81b C
+    }
+  } else if (p.driftEntry === 2) {
     // R81b C: entry by deflection, no flick. armTicks > 0 (model B, C only) = the drift ended during
     // this hold (R82 without release): no count until the hold breaks.
     if (!input.drift) car.armTicks = 0;
@@ -471,7 +482,7 @@ function stepModelB(
   }
   // R81: the current steer is recorded every held tick, in any state; a flick counts only within
   // one hold, so a tick without input.drift clears the buffer and records nothing.
-  if (input.drift) {
+  if (input.drift && p.driftEntry !== 3) {
     hist[car.steerHistHead] = steer;
     car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
     if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
@@ -482,6 +493,9 @@ function stepModelB(
   // R83-R85: sp is the speed before R86 updates it; A = the road turning under the car (R83).
   const sp = car.speed / p.vmax;
   const A = curve * sp * p.kYaw;
+  // R86c (H18): turbo ticks set on this step's drift exit are not counted down in this step.
+  const turboOn = p.driftTurbo === 1;
+  let turboSet = false;
 
   // R82: exit on release or low speed (H11 A: also too long off road). GRIP starts from its own
   // steady slip sG on this curve; the rest of the visible slip becomes carry. No snap.
@@ -494,13 +508,22 @@ function stepModelB(
     car.state = 'GRIP';
     car.dir = 0;
     // R81b C: an exit while still held blocks the deflection count until the hold breaks.
-    if (p.driftEntry === 2 && input.drift) car.armTicks = 1;
+    // R81c: the same block in variant 3.
+    if ((p.driftEntry === 2 || p.driftEntry === 3) && input.drift) car.armTicks = 1;
     let sG = A / p.velGrip;
     if (sG > p.slipGripMax) sG = p.slipGripMax;
     if (sG < -p.slipGripMax) sG = -p.slipGripMax;
     car.carry = car.yaw - car.vel + car.carry - sG;
     car.yaw = car.vel + sG;
     car.yawRate = A;
+    // R86c: the exit turns a charge of at least turboMin into turbo ticks; the charge is spent.
+    if (turboOn) {
+      if (car.turbo >= p.turboMin) {
+        car.turboTicks = Math.round((p.turboTime * car.turbo) / DT);
+        turboSet = true;
+      }
+      car.turbo = 0;
+    }
   }
   const drift = car.state === 'DRIFT';
 
@@ -512,6 +535,7 @@ function stepModelB(
   if (car.kind === 'player') boosted = slipstream(car, cars, p, drift);
 
   let slip: number;
+  let gripLead = 0;
   if (drift) {
     const dir = car.dir;
     const u = steer * dir;
@@ -565,11 +589,18 @@ function stepModelB(
       if (car.yawRate < A) car.yawRate = A;
     }
     slip = car.yaw - car.vel;
+    // R85b: GRIP lead toward vStar, the vel this steer and curve settle at (f and A of R83, g and
+    // smax of R84). Added to vx only, never fed back into vel or yaw.
+    let sG = A / g;
+    if (sG > smax) sG = smax;
+    if (sG < -smax) sG = -smax;
+    const vStar = (steer * p.yawRateMax * f - A) / p.yawAlign - sG;
+    gripLead = p.gripLead * (vStar - car.vel) * sp * p.latScale;
   }
 
   // R85: lateral shift; in DRIFT plus the lead dir*driftLead*e, e = the part of the finger the
   // body angle has not caught yet (0 in steady drift). The lead never feeds back into vel or yaw.
-  let lead = 0;
+  let lead = gripLead;
   if (drift) {
     const dir = car.dir;
     const u = steer * dir;
@@ -591,23 +622,48 @@ function stepModelB(
 
   // R86: R14 with the cap vmax*capMul (R52), vcap = vmax*pace*band (R62/R63); in DRIFT the cap also falls with the angle (as R22)
   // and the carry costs nothing; in GRIP the visible slip costs speed. Then R15.
-  const capMul = boosted ? p.draftCapMul : 1;
+  // R86c: while turboTicks > 0 the cap is the larger of the draft cap and 1 + turboCap, the accel
+  // multiplier the larger of draftAccelMul and turboAccelMul (never a product).
+  const turbo = turboOn && car.turboTicks > 0;
+  let capMul = boosted ? p.draftCapMul : 1;
+  let accelMul = boosted ? p.draftAccelMul : 1;
+  if (turbo) {
+    if (1 + p.turboCap > capMul) capMul = 1 + p.turboCap;
+    accelMul = boosted && p.draftAccelMul > p.turboAccelMul ? p.draftAccelMul : p.turboAccelMul;
+  }
   let cap = vcap * capMul;
   if (drift) {
     const a = 1 - (p.driftSpeedLoss * (slip < 0 ? -slip : slip)) / p.slipFull;
     if (a < capMul) cap = vcap * a;
   }
-  const accel = boosted ? p.accel * p.draftAccelMul : p.accel;
+  const accel = boosted || turbo ? p.accel * accelMul : p.accel;
   let speed = throttle(car.speed, input.brake, cap, accel, p);
   if (!drift) {
     const vis = car.yaw - car.vel + car.carry; // after R82b, R83, R84 and the R85 wall
     speed -= p.slipDrag * vis * vis * DT;
     if (speed < 0) speed = 0;
+    // R86b (H17): GRIP loses speed when the turn needs more than scrubStart of the grip limit
+    // gripA (the turn full steer holds without a drift); A and sp are those of R83.
+    if (p.gripScrub === 1) {
+      const gripA = p.yawRateMax / (1 + p.yawAlign / p.velGrip);
+      const need = (A < 0 ? -A : A) / gripA;
+      if (need > p.scrubStart) {
+        speed -= p.scrubRate * (need - p.scrubStart) * p.vmax * DT;
+        if (speed < 0) speed = 0;
+      }
+    }
   }
   if (car.x > 1 || car.x < -1) speed *= Math.pow(p.offroadMul, 60 * DT); // R15
   car.speed = speed;
+  if (turbo && !turboSet) car.turboTicks--; // R86c: one tick per boosted step, after R86
 
   car.angle = viewAngle(car, p); // R87
+  // R86c: in DRIFT the charge grows with min(1, |angle|) after R87, up to 1.
+  if (turboOn && drift) {
+    const a = car.angle < 0 ? -car.angle : car.angle;
+    const t = car.turbo + ((a < 1 ? a : 1) * DT) / p.turboChargeTime;
+    car.turbo = t < 1 ? t : 1;
+  }
   return speed;
 }
 
@@ -712,6 +768,8 @@ function bumpTraffic(car: Car, cars: readonly Car[], p: CarParams): void {
     kick(car, side, p);
     car.draft = 0; // R51: a contact zeroes the charge and the boost
     car.boostTicks = 0;
+    car.turbo = 0; // R86c: and the drift charge and turbo
+    car.turboTicks = 0;
     return;
   }
 }
@@ -845,6 +903,8 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.steerHistHead = 0;
     c.steerHistCount = 0;
     c.deflectTicks = 0;
+    c.turbo = 0;
+    c.turboTicks = 0;
     c.crashTicks = 0;
     c.crashSpeed0 = 0;
     c.crashX0 = 0;
@@ -890,6 +950,11 @@ function raceContacts(cars: readonly Car[], params: readonly CarParams[], cfg: R
       const sideA = dx > 0 ? 1 : -1;
       kick(a, sideA, pa);
       kick(b, -sideA, pb);
+      // R86c: a race-car contact zeroes the drift charge and turbo of both cars.
+      a.turbo = 0;
+      a.turboTicks = 0;
+      b.turbo = 0;
+      b.turboTicks = 0;
     }
   }
 }

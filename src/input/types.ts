@@ -30,6 +30,10 @@ export interface TouchStickConfig {
   flickDelta: number;
   /** H3 E: flick time window, ms. */
   flickWindowMs: number;
+  /** R81c zone stick radius as a fraction of the game area width. */
+  stickRadius: number;
+  /** R81c drift border as a multiple of stickRadius. */
+  driftEdge: number;
 }
 
 export interface InputConfig {

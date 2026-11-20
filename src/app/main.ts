@@ -23,6 +23,7 @@ import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
 import { resolveTouchScheme } from '../input/scheme';
 import { createTouchStick } from '../input/touchStick';
+import { createZoneStick } from '../input/zoneStick';
 import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
 import { CarWeight } from '../render/carWeight';
@@ -32,6 +33,7 @@ import { RivalModels } from '../render/rivalModels';
 import { TailLights } from '../render/tailLights';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
+import { StickOverlay } from '../ui/stickOverlay';
 import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
 import { createProjection, focalPx, project } from '../render/projection';
 import { ribbonThresholds } from '../render/ribbonMap';
@@ -50,7 +52,7 @@ import { Leaderboard } from '../ui/leaderboard';
 import { NameLabels } from '../ui/nameLabels';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
-import { DriftEntryProbe, driftEntryOf } from './driftEntryProbe';
+import { DriftEntryProbe, driftEntryOf, onOffOf } from './driftEntryProbe';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { createLoop } from './loop';
@@ -113,10 +115,12 @@ const tunables = installDev(
 // keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
 baseCar.lampEvery = spritesConfig.roadside.lamps.every;
 baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
-// H16 (R81b): the model B drift entry variant follows the hypothesis flag (A/B/C -> 0/1/2), on load
+// H16 (R81b, R81c): the model B drift entry variant follows the hypothesis flag (A/B/C/D -> 0..3), on load
 // and on every panel change (the rival copies below take it with the rest of baseCar).
 const applyDriftEntry = (): void => {
   baseCar.driftEntry = driftEntryOf(hypotheses.H16_driftEntry);
+  baseCar.gripScrub = onOffOf(hypotheses.H17_gripScrub); // H17 (R86b)
+  baseCar.driftTurbo = onOffOf(hypotheses.H18_driftTurbo); // H18 (R86c)
 };
 applyDriftEntry();
 
@@ -260,7 +264,13 @@ const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
 // R81b (отладка): last model B drift-entry readout on the ?hud=1 overlay.
 const entryProbe = hud ? new DriftEntryProbe() : null;
-const entryText = entryProbe ? (): string => entryProbe.text() : undefined;
+// R86d (отладка): the drift charge and the remaining turbo ticks of the player under the entry line.
+const entryText = entryProbe
+  ? (): string => {
+      const c = loop.curr.cars[0]!;
+      return `${entryProbe.text()}\nзаряд ${c.turbo.toFixed(2)} турбо ${c.turboTicks}`;
+    }
+  : undefined;
 // R28 UI layer: on unless ?ui=0; screenshot scenarios show it only when they opt in.
 const uiOn =
   params.ui && (fixedScenario === null || ('ui' in fixedScenario && fixedScenario.ui === true));
@@ -272,7 +282,11 @@ resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
 const now = (): number => performance.now();
 // R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
 const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
-const touchStick = createTouchStick(inputConfig.touch);
+// R81c: in model B with driftEntry 3 (H16 D, the default) the touch input is the zone stick, chosen at
+// load (a panel switch of H14 / H16 changes the touch stick after a reload).
+const zoneStick =
+  baseCar.model === 1 && baseCar.driftEntry === 3 ? createZoneStick(inputConfig.touch) : null;
+const touchStick = zoneStick ?? createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
 // H3 D re-touch drift and H3 E flick drift, live config (dev panel); fed alongside the stick.
 // Mouse (left button) goes through the same pointer path.
@@ -497,7 +511,15 @@ window.__game = game;
   renderFrame();
 };
 
+// R81d: the zone stick is visible while the finger is on the screen (UI layer).
+const stickOverlay =
+  uiOn && zoneStick
+    ? new StickOverlay(document.body, canvas, spritesConfig.stick, () => inputConfig.touch.driftEdge)
+    : null;
+
 function renderFrame(): void {
+  // R81d: drawn with the player's current input.drift (touch latch or keyboard).
+  if (stickOverlay && zoneStick) stickOverlay.update(zoneStick, player.last.drift);
   if (render3d) {
     render3d.render();
     const c3 = loop.curr.cars[0]!;

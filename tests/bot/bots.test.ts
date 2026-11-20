@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { botParams, BOT_NAMES } from '../../src/data/bots';
 import { baseCar } from '../../src/data/cars';
 import { baseCarA } from '../sim/baseCarA';
+import { NO_H17_H18 } from '../sim/pinH17H18';
+import { ENTRY_A } from '../sim/pinEntryA';
+import { NO_GRIP_LEAD } from '../sim/pinGripLead';
 import { curveClasses, loadTestTwisty } from '../../src/data/tracks';
 import { botInput, createBot, holdSpeedLimit } from '../../src/bot/driver';
 import { SEG_PER_UNIT } from '../../src/sim/constants';
@@ -32,7 +35,7 @@ function drive(
   laps: number,
   track: Track,
   maxTicks: number,
-  carParams: CarParams = baseCar,
+  carParams: CarParams = { ...baseCar, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD }, // H17/H18 off, flick entry, R85b off: older rules
 ): Trace {
   const race = createRace(seed, 1);
   const car = race.cars[0]!;

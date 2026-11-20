@@ -65,10 +65,12 @@ function codeBit(code: string): number {
  * `car.model` is read live. Model 1 (B, R81 keyboard entry): a drift key pressed while a steer key
  * is held makes the next read return steer 0 and the read after it the full steer of the held keys;
  * a steer key pressed while drift is held sets the full steer at once. Model 0 / no car: ramp only.
+ * Model 1 with `car.driftEntry` 3 (R81c, read live): steer = held keys at full value at once, no ramp
+ * and no synthesized zero read; drift = a drift key held.
  */
 export function createKeyboardInput(
   cfg: KeyboardConfig,
-  car?: { readonly model: number },
+  car?: { readonly model: number; readonly driftEntry?: number },
 ): KeyboardInput {
   let held = 0;
   let steer = 0;
@@ -102,7 +104,7 @@ export function createKeyboardInput(
       const bit = codeBit(code);
       const wasDrift = (held & DRIFT) !== 0;
       held |= bit;
-      if (car?.model === 1) {
+      if (car?.model === 1 && car.driftEntry !== 3) {
         // A new drift press (not auto-repeat, not a second drift key) with a steer key held.
         if ((bit & DRIFT) !== 0 && !wasDrift && (held & (LEFT | RIGHT)) !== 0) zeroNext = true;
         // A steer key pressed while drift is held: full steer at once.
@@ -125,6 +127,11 @@ export function createKeyboardInput(
     },
     read(tMs: number, out: InputFrame): void {
       advance(tMs);
+      // R81c: zone-stick variant, the arrows give the full steer at once.
+      if (car?.model === 1 && car.driftEntry === 3) {
+        zeroNext = snapNext = false;
+        steer = target();
+      }
       if (snapNext) {
         snapNext = false;
         steer = target();

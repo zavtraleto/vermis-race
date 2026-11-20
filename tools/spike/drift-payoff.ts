@@ -43,7 +43,7 @@ function table(io: Io, head: string[], rows: string[][]): void {
 
 // ------------------------------------------------------------------------------------ run loop
 interface Hook {
-  pre?: (car: Car, p: CarParams) => void;
+  pre?: (car: Car, p: CarParams, frame?: InputFrame) => void;
   post?: (car: Car, prevState: string, curve: number, p: CarParams) => void;
 }
 interface Out {
@@ -100,7 +100,7 @@ function runLaps(
   let sinceExit = Infinity;
   while (car.z < goal && race.tick < maxTicks) {
     botInput(bot, bp, car, track, p, frame);
-    hook?.pre?.(car, p);
+    hook?.pre?.(car, p, frame);
     const prev = car.state;
     const seg = Math.floor(car.z) % n;
     const curve = track.segments[seg]!.curve;
@@ -418,7 +418,6 @@ function part1(io: Io): void {
   io.log('');
 }
 
-
 function timing(io: Io): void {
   io.log(
     'Timing sensitivity: the flick starts `off` s earlier (+) / later (-) than bots.json (bFlickLook 0.35 s + off). T of the window, s; the column "G*" is the fastest clean GRIP.',
@@ -482,7 +481,16 @@ function holdSweep(io: Io): void {
     }
     rows.push([k, String(last), Number.isNaN(firstBad) ? '—' : String(firstBad), f2(lo, 3)]);
   }
-  table(io, ['класс', 'макс. удержание без выезда', 'первое с выездом', 'макс. v на hold 240 (закреплённая)'], rows);
+  table(
+    io,
+    [
+      'класс',
+      'макс. удержание без выезда',
+      'первое с выездом',
+      'макс. v на hold 240 (закреплённая)',
+    ],
+    rows,
+  );
 }
 /** max |x| over a window with the speed pinned by the hook (pre) every tick. */
 function runWindowPinned(
@@ -529,7 +537,13 @@ function lineProbe(io: Io): void {
           if (r.ok && r.T < best.T) best = { T: r.T, m, ix, la };
         }
     const d = runWindow(w, CLEAN, P);
-    rows.push([nm, f2(best.T), `m ${best.m}, insideX ${best.ix}, look ${best.la}`, f2(d.T), dt2(best.T, d.T)]);
+    rows.push([
+      nm,
+      f2(best.T),
+      `m ${best.m}, insideX ${best.ix}, look ${best.la}`,
+      f2(d.T),
+      dt2(best.T, d.T),
+    ]);
   }
   table(io, ['случай', 'лучший чистый GRIP, с', 'при', 'D, с', 'G**−D'], rows);
 }
@@ -736,7 +750,8 @@ function part3(io: Io, tr: LoadedTrack, seeds: number): void {
     ['average-grip', { ...botParams.average, drift: 'never' }],
   ];
   for (const [nm, bp] of players)
-    for (const band of [1, 0] as const) res[`${nm}/${band}`] = rivalsRace(tr, bp, seeds, seconds, band);
+    for (const band of [1, 0] as const)
+      res[`${nm}/${band}`] = rivalsRace(tr, bp, seeds, seconds, band);
   const rows: string[][] = [];
   for (const [nm] of players)
     for (const band of [1, 0] as const) {
@@ -984,6 +999,135 @@ function part4(io: Io, tracks: LoadedTrack[], seeds: number): void {
   }
 }
 
+// ------------------------------------------------------------------------------------ Q5
+// R86b/R86c are in src/sim now: the levers here are the real CarParams switches, no hooks.
+const SNAKE_LOOK = 120; // segments ahead that must be straight (2 s at vmax)
+const SNAKE_STRAIGHT = 0.5; // |curve| below this counts as straight (easy corners are 2)
+
+/**
+ * Snaker: the expert drives, but on straights (no |curve| >= SNAKE_STRAIGHT within SNAKE_LOOK
+ * segments) it flick-drifts left and right to farm the R86c charge: one tick of steer 0 with the
+ * button held, then steer dir*u held for holdS seconds, then a release tick; the next drift goes
+ * to the other side (toward the road centre when |x| > 0.5).
+ */
+function snaker(holdS: number, u: number): (p: CarParams) => Hook {
+  return () => {
+    let t = -1; // ticks into the current snake drift, -1 = expert drives
+    let dir = 1;
+    const hold = Math.round(holdS / DT);
+    return {
+      pre: (car, p, frame) => {
+        if (!frame) return;
+        const segs = snakeTrack!.segments;
+        const n = segs.length;
+        const s0 = Math.floor(car.z);
+        let straight = true;
+        for (let k = 0; k < SNAKE_LOOK; k++) {
+          const c = segs[(s0 + k) % n]!.curve;
+          if (c >= SNAKE_STRAIGHT || c <= -SNAKE_STRAIGHT) {
+            straight = false;
+            break;
+          }
+        }
+        if (t < 0) {
+          if (!straight || car.crashTicks > 0 || car.speed <= p.driftEnterSpeed * p.vmax * 1.2)
+            return;
+          if (car.x > 0.5) dir = -1;
+          else if (car.x < -0.5) dir = 1;
+          t = 0;
+        }
+        if (t === 0) {
+          frame.steer = 0;
+          frame.drift = true;
+          frame.brake = false;
+        } else if (t <= hold && straight) {
+          frame.steer = dir * u;
+          frame.drift = true;
+          frame.brake = false;
+        } else {
+          frame.steer = 0;
+          frame.drift = false;
+          frame.brake = false;
+          t = -1;
+          dir = -dir;
+          return;
+        }
+        t++;
+      },
+    };
+  };
+}
+let snakeTrack: Track | null = null;
+
+function part5(io: Io, tr: LoadedTrack, seeds: number): void {
+  io.log('## Q5. H17 / H18 in src/sim (real CarParams), and a snaker');
+  const levers: Lever[] = [
+    { name: 'H17 A, H18 A (off)', p: { gripScrub: 0, driftTurbo: 0 } },
+    { name: 'H17 B only (scrub)', p: { gripScrub: 1, driftTurbo: 0 } },
+    { name: 'H18 B only (turbo)', p: { gripScrub: 0, driftTurbo: 1 } },
+    { name: 'H17 B + H18 B (game)', p: { gripScrub: 1, driftTurbo: 1 } },
+  ];
+  const ev: Eval[] = [];
+  const rows: string[][] = [];
+  for (const lv of levers) {
+    const e = evalLever(tr, lv, seeds);
+    ev.push(e);
+    rows.push([
+      lv.name,
+      f2(e.lapD, 3),
+      pct(e.driftShare, 0),
+      f2(e.entriesLap, 1),
+      Number.isNaN(e.lapG) ? 'нет чистого' : `${f2(e.lapG, 3)} (m ${e.mG})`,
+      Number.isNaN(e.lapG) ? '—' : pct(e.lapG / e.lapD - 1),
+      `${f2(e.lapGany, 3)} (m ${e.mGany}, аварий ${f2(e.crashGany, 2)}/круг)`,
+    ]);
+  }
+  io.log(
+    `${tr.name}, expert, ${seeds} seeds x 3 laps (flying laps 2-3). gap = T(grip clean)/T(drift) - 1.`,
+  );
+  table(
+    io,
+    [
+      'вариант',
+      'drift-эксперт, с',
+      'доля DRIFT',
+      'дрифтов/круг',
+      'grip чистый, с',
+      'gap',
+      'grip любой',
+    ],
+    rows,
+  );
+  const [off, sc, , both] = ev as [Eval, Eval, Eval, Eval];
+  io.log(`scrub alone, drift expert lap change: ${pct(sc.lapD / off.lapD - 1, 2)}`);
+  io.log(`turbo on top of scrub, drift expert lap change: ${pct(both.lapD / sc.lapD - 1, 2)}`);
+  io.log(`game (both): clean grip vs drift gap ${pct(both.lapG / both.lapD - 1, 2)}`);
+  io.log('');
+
+  // snaker on the game params
+  snakeTrack = tr.track;
+  const p: CarParams = { ...P, gripScrub: 1, driftTurbo: 1 };
+  const sd = Array.from({ length: seeds }, (_, i) => i + 1);
+  const srows: string[][] = [];
+  for (const holdS of [0.4, 0.6, 0.9, 1.3])
+    for (const u of [0.4, 0.7, 1]) {
+      const rs = sd.map((s) => runLaps(tr.track, EXPERT, p, s, 3, snaker(holdS, u)(p)));
+      const fin = rs.every((r) => r.finished);
+      const lap = fin ? mean(rs.map((r) => mean(r.lapTimes.slice(1)))) : NaN;
+      const laps = rs.reduce((s, r) => s + r.lapTimes.length, 0);
+      srows.push([
+        `hold ${holdS} s, steer ${u}`,
+        f2(lap, 3),
+        pct(lap / both.lapD - 1, 2),
+        f2(rs.reduce((s, r) => s + r.entries, 0) / laps, 1),
+        f2(rs.reduce((s, r) => s + r.crashes, 0) / laps, 2),
+      ]);
+    }
+  snakeTrack = null;
+  io.log(`snaker vs drift expert (${f2(both.lapD, 3)} s), game params; + = snaker slower`);
+  table(io, ['snaker', 'круг, с', 'vs expert', 'дрифтов/круг', 'аварий/круг'], srows);
+}
+
 export function main(io: Io): number {
   const part = argValue(io.argv, 'part') ?? 'all';
   const seeds = Number(argValue(io.argv, 'seeds') ?? '4');
@@ -997,5 +1141,6 @@ export function main(io: Io): number {
   if (part === 'all' || part === '2') holdSweep(io);
   if (part === 'all' || part === '3') part3(io, dr, Number(argValue(io.argv, 'rseeds') ?? '8'));
   if (part === 'all' || part === '4') part4(io, [dr, tw], seeds);
+  if (part === 'all' || part === '5') part5(io, dr, seeds);
   return 0;
 }
