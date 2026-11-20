@@ -139,8 +139,8 @@
     "vmaxKmh": 180,
     "segments": 14,
     "boostSegments": 4,
-    "widthEm": 36,
-    "heightEm": 64,
+    "widthEm": 44,
+    "heightEm": 78,
     "marginEm": 1.2
   },
   "leaderboard": {

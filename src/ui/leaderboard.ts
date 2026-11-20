@@ -1,6 +1,6 @@
 import type { Car } from '../sim/types';
 import { fillLeaderboard, placeChange, type LeaderRow } from './leaderboardModel';
-import { hudEm, type HudLayout } from './speedometer';
+import { HudFontFit, hudEm, type HudLayout } from './speedometer';
 
 /** R67 leaderboard numbers (src/data/rivals.json). */
 export interface LeaderboardConfig {
@@ -20,22 +20,23 @@ const STYLE = `
 #board{position:fixed;pointer-events:none;z-index:5;font-family:ui-monospace,"Lucida Console",
 Consolas,monospace;font-weight:900;color:#e8e8e8;line-height:1;-webkit-font-smoothing:none;
 font-smooth:never;display:flex;flex-direction:column;align-items:flex-end;
-background:rgba(28,28,34,0.88);border-right:0.25em solid #8a8a92;padding:0 0 0.5em 0.3em;
+-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-text-zoom:reset;
+background:rgba(28,28,34,0.88);border-right:0.25em solid #8a8a92;padding:0 0 0.3em 0.3em;
 clip-path:polygon(0 0,calc(100% - 0.45em) 0,100% 0.45em,100% 100%,1.1em 100%,0 calc(100% - 1.1em))}
-#board .big{font-size:2.6em;font-variant-numeric:tabular-nums;background:#ffe14a;color:#0c0c12;
+#board .big{font-size:2.2em;font-variant-numeric:tabular-nums;background:#ffe14a;color:#0c0c12;
 padding:0.06em 0.12em 0.04em 0.4em;clip-path:polygon(0 0,100% 0,100% 100%,0.3em 100%,0 calc(100% - 0.3em))}
 #board .big small{font-size:0.5em;margin-left:0.1em;letter-spacing:0.1em}
 #board.up .big{background:#b4ff39}
 #board.down .big{background:#ff4f6a}
-#board .rows{margin-top:0.3em;display:flex;flex-direction:column;gap:0.16em;align-self:stretch}
-#board .row{display:flex;gap:0.5em;align-items:baseline;justify-content:flex-end;
+#board .rows{margin-top:0.3em;display:flex;flex-direction:column;gap:0.16em;width:10.6em}
+#board .row{display:flex;gap:0.35em;align-items:baseline;justify-content:flex-end;
 font-size:0.95em;padding:0.14em 0.35em 0.12em 0.35em}
-#board .row .p{width:1.2em;text-align:right;color:#8a8a92}
-#board .row .n{max-width:9em;overflow:hidden;white-space:nowrap}
+#board .row .p{flex:none;width:1em;text-align:right;color:#8a8a92}
+#board .row .n{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #board .row .n::before{content:'';display:inline-block;width:0.5em;height:0.5em;margin:0 0.4em 0 0.1em;
 background:#5a5a62;transform:skewX(-18deg)}
-#board .row .g{width:4.4em;text-align:right;font-variant-numeric:tabular-nums;color:#b8b8c0}
-#board .row .j{font-family:"Arial Narrow","Roboto Condensed",sans-serif-condensed,Bahnschrift,
+#board .row .g{flex:none;min-width:3.6em;text-align:right;font-variant-numeric:tabular-nums;color:#b8b8c0}
+#board .row .j{flex:none;font-family:"Arial Narrow","Roboto Condensed",sans-serif-condensed,Bahnschrift,
 ui-monospace,monospace;font-stretch:condensed;font-size:0.75em;font-weight:700;color:#39e6ff;
 text-transform:uppercase;letter-spacing:0.15em;display:none}
 #board .row.joined .n::before{background:#39e6ff}
@@ -70,6 +71,7 @@ export class Leaderboard {
   private readonly rows: LeaderRow[] = [];
   private readonly numbers: string[] = [];
   private readonly gaps: string[] = [];
+  private readonly fit: HudFontFit;
   private shownPlace = -1;
   private flash = 0;
   private flashDir = 0;
@@ -137,6 +139,7 @@ export class Leaderboard {
     root.append(big, list);
     parent.appendChild(root);
     this.root = root;
+    this.fit = new HudFontFit(root, () => this.layout());
     this.layout();
     window.addEventListener('resize', () => this.layout());
   }
@@ -147,7 +150,7 @@ export class Leaderboard {
     const s = this.root.style;
     const em = hudEm(r, this.layoutCfg);
     const m = em * this.layoutCfg.marginEm;
-    s.fontSize = `${em}px`;
+    this.fit.apply(em);
     s.right = `${window.innerWidth - r.right + m}px`;
     s.top = `${r.top + m}px`;
   }

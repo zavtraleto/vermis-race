@@ -12,6 +12,65 @@ export function hudEm(r: DOMRect, l: HudLayout): number {
   return Math.min(r.width / l.widthEm, r.height / l.heightEm);
 }
 
+// Text-zoom guard: rendered HUD text further than this fraction from the intended size is
+// treated as browser text zoom and compensated (a measuring tolerance, not a tunable).
+const TEXT_ZOOM_TOLERANCE = 0.05;
+const PROBE_TEXT = '0000';
+// Probe size in root em: large, so hinted whole-pixel glyph advances at small sizes do not make
+// the measured ratio jump between frames.
+const PROBE_EM = 10;
+
+/**
+ * Keeps a HUD root's text at the intended size when the browser scales text on its own (Chrome
+ * for iOS "Zoom Text" sets -webkit-text-size-adjust on body; the CSS guard on the root is the
+ * first line, this is the second). A hidden digit probe inside the root is measured against the
+ * same string measured by a 2D canvas, which text zoom does not touch, and the root font-size is
+ * divided by the ratio. Re-fits when the probe changes size (zoom applied after load). Runs only on
+ * construction, resize and probe resize, never per frame.
+ */
+export class HudFontFit {
+  private readonly probe: HTMLSpanElement;
+  private readonly ctx: CanvasRenderingContext2D | null;
+
+  constructor(
+    private readonly root: HTMLElement,
+    relayout: () => void,
+  ) {
+    const p = document.createElement('span');
+    p.style.cssText = `position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap;line-height:1;font-size:${PROBE_EM}em`;
+    p.textContent = PROBE_TEXT;
+    root.appendChild(p);
+    this.probe = p;
+    this.ctx = document.createElement('canvas').getContext('2d');
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(relayout).observe(p);
+  }
+
+  /**
+   * Sets the root font-size to px CSS px, divided by the text zoom measured at the size set now
+   * when it is off. A change resizes the probe, so the observer re-measures until it settles.
+   */
+  apply(px: number): void {
+    const s = this.root.style;
+    let set = parseFloat(s.fontSize);
+    if (!(set > 0)) {
+      set = px;
+      s.fontSize = `${px}px`;
+    }
+    const ctx = this.ctx;
+    if (ctx === null) {
+      if (set !== px) s.fontSize = `${px}px`;
+      return;
+    }
+    const cs = getComputedStyle(this.root);
+    ctx.font = `${cs.fontWeight} ${set * PROBE_EM}px ${cs.fontFamily}`;
+    const want = ctx.measureText(PROBE_TEXT).width;
+    const got = this.probe.getBoundingClientRect().width;
+    const k = want > 0 && got > 0 ? got / want : 1;
+    const fit = Math.abs(k - 1) > TEXT_ZOOM_TOLERANCE ? px / k : px;
+    if (Math.abs(fit - set) > 0.01) s.fontSize = `${fit}px`;
+  }
+}
+
 /** R28 speedometer (numbers in src/data/sprites.json "speedometer"). */
 export interface SpeedometerConfig extends HudLayout {
   vmaxKmh: number; // km/h shown at speed = vmax
@@ -36,27 +95,27 @@ export function readSpeed(out: SpeedReading, car: Car, speed: number, vmax: numb
   return out;
 }
 
-// HUD look (docs/art-bible.md "HUD"): flat dark chamfered plate, hard edges, skewed bar segments,
-// stencil-like spaced label; accent colour only for boost. No transitions: state changes are steps.
+// HUD look (docs/art-bible.md "HUD"): no plate over the road; digits, label and skewed bar segments
+// keep a hard 1px dark outline (no blur) to read on any road colour; stencil-like spaced label;
+// accent colour only for boost. No transitions: state changes are steps. Text-size-adjust and text
+// zoom are reset on the root (HudFontFit is the fallback).
 const STYLE = `
 #speedo{position:fixed;pointer-events:none;z-index:5;display:flex;flex-direction:column;
 align-items:flex-start;font-family:ui-monospace,"Lucida Console",Consolas,monospace;
 font-weight:900;color:#e8e8e8;line-height:1;-webkit-font-smoothing:none;font-smooth:never;
-background:rgba(12,12,18,0.78);border-left:0.25em solid #8a8a92;padding:0.35em 0.8em 0.4em 0.5em;
-clip-path:polygon(0 0,calc(100% - 1.1em) 0,100% 1.1em,100% 100%,0.45em 100%,0 calc(100% - 0.45em))}
+-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-text-zoom:reset;
+text-shadow:1px 0 0 #0c0c12,-1px 0 0 #0c0c12,0 1px 0 #0c0c12,0 -1px 0 #0c0c12}
 #speedo .top{display:flex;align-items:flex-end}
-#speedo .num{font-size:3.2em;letter-spacing:0.02em;font-variant-numeric:tabular-nums}
+#speedo .num{font-size:2.6em;letter-spacing:0.02em;font-variant-numeric:tabular-nums}
 #speedo .unit{font-family:"Arial Narrow","Roboto Condensed",sans-serif-condensed,Bahnschrift,
-ui-monospace,monospace;font-stretch:condensed;font-size:0.85em;font-weight:700;color:#8a8a92;
-letter-spacing:0.3em;margin:0 0 0.35em 0.45em;padding-top:0.3em;border-top:0.12em solid #8a8a92}
-#speedo .bar{display:flex;gap:0.14em;align-items:flex-end;margin-top:0.3em;padding:0 0.3em 0.18em 0.2em;
-border-bottom:0.12em solid #8a8a92}
-#speedo .seg{width:0.42em;background:#3a3a42;transform:skewX(-18deg)}
+ui-monospace,monospace;font-stretch:condensed;font-size:0.9em;font-weight:700;color:#b8b8c0;
+letter-spacing:0.3em;margin:0 0 0.3em 0.45em}
+#speedo .bar{display:flex;gap:0.14em;align-items:flex-end;margin-top:0.3em;padding-left:0.2em}
+#speedo .seg{width:0.42em;background:#3a3a42;transform:skewX(-18deg);box-shadow:0 0 0 1px #0c0c12}
 #speedo .seg.on{background:#e8e8e8}
 #speedo .seg:not(.boost)+.seg.boost{margin-left:0.32em}
 #speedo .seg.boost{background:#4a1c26}
 #speedo .seg.boost.on{background:#c0283c}
-#speedo.boosting{border-left-color:#ffe14a}
 #speedo.boosting .num{color:#ffe14a}
 #speedo.boosting .seg.boost.on{background:#ffe14a}
 `;
@@ -71,6 +130,7 @@ export class Speedometer {
   private readonly root: HTMLDivElement;
   private readonly num: HTMLSpanElement;
   private readonly segs: HTMLSpanElement[] = [];
+  private readonly fit: HudFontFit;
   private shownKmh = -1;
   private shownLit = -1;
   private shownBoost = false;
@@ -108,6 +168,7 @@ export class Speedometer {
     root.append(top, bar);
     parent.appendChild(root);
     this.root = root;
+    this.fit = new HudFontFit(root, () => this.layout());
     this.layout();
     window.addEventListener('resize', () => this.layout());
   }
@@ -118,7 +179,7 @@ export class Speedometer {
     const s = this.root.style;
     const em = hudEm(r, this.cfg);
     const m = em * this.cfg.marginEm;
-    s.fontSize = `${em}px`;
+    this.fit.apply(em);
     s.left = `${r.left + m}px`;
     s.bottom = `${window.innerHeight - r.bottom + m}px`;
   }
