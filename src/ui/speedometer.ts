@@ -36,18 +36,27 @@ export function readSpeed(out: SpeedReading, car: Car, speed: number, vmax: numb
   return out;
 }
 
+// HUD look (docs/art-bible.md "HUD"): flat dark chamfered plate, hard edges, skewed bar segments,
+// stencil-like spaced label; accent colour only for boost. No transitions: state changes are steps.
 const STYLE = `
 #speedo{position:fixed;pointer-events:none;z-index:5;display:flex;flex-direction:column;
 align-items:flex-start;font-family:ui-monospace,"Lucida Console",Consolas,monospace;
 font-weight:900;color:#e8e8e8;line-height:1;-webkit-font-smoothing:none;font-smooth:never;
-text-shadow:0.08em 0.08em 0 #0c0c12}
+background:rgba(12,12,18,0.78);border-left:0.25em solid #8a8a92;padding:0.35em 0.8em 0.4em 0.5em;
+clip-path:polygon(0 0,calc(100% - 1.1em) 0,100% 1.1em,100% 100%,0.45em 100%,0 calc(100% - 0.45em))}
+#speedo .top{display:flex;align-items:flex-end}
 #speedo .num{font-size:3.2em;letter-spacing:0.02em;font-variant-numeric:tabular-nums}
-#speedo .unit{font-size:0.9em;color:#8a8a92;margin:0.15em 0 0.35em 0.15em;letter-spacing:0.12em}
-#speedo .bar{display:flex;gap:0.18em;align-items:flex-end}
-#speedo .seg{width:0.5em;background:#2a2a31;box-shadow:0.1em 0.1em 0 #0c0c12}
-#speedo .seg.on{background:#d8d8d8}
-#speedo .seg.boost{background:#3a1a22}
+#speedo .unit{font-family:"Arial Narrow","Roboto Condensed",sans-serif-condensed,Bahnschrift,
+ui-monospace,monospace;font-stretch:condensed;font-size:0.85em;font-weight:700;color:#8a8a92;
+letter-spacing:0.3em;margin:0 0 0.35em 0.45em;padding-top:0.3em;border-top:0.12em solid #8a8a92}
+#speedo .bar{display:flex;gap:0.14em;align-items:flex-end;margin-top:0.3em;padding:0 0.3em 0.18em 0.2em;
+border-bottom:0.12em solid #8a8a92}
+#speedo .seg{width:0.42em;background:#3a3a42;transform:skewX(-18deg)}
+#speedo .seg.on{background:#e8e8e8}
+#speedo .seg:not(.boost)+.seg.boost{margin-left:0.32em}
+#speedo .seg.boost{background:#4a1c26}
 #speedo .seg.boost.on{background:#c0283c}
+#speedo.boosting{border-left-color:#ffe14a}
 #speedo.boosting .num{color:#ffe14a}
 #speedo.boosting .seg.boost.on{background:#ffe14a}
 `;
@@ -93,7 +102,10 @@ export class Speedometer {
       bar.appendChild(s);
       this.segs.push(s);
     }
-    root.append(this.num, unit, bar);
+    const top = document.createElement('div');
+    top.className = 'top';
+    top.append(this.num, unit);
+    root.append(top, bar);
     parent.appendChild(root);
     this.root = root;
     this.layout();

@@ -13,25 +13,33 @@ const GAP_CACHE = 3000;
 const PLAYER_NAME = 'ты';
 const JOINED = 'вошёл';
 
+// HUD look (docs/art-bible.md "HUD"): flat dark chamfered plates with a hard edge stripe; the
+// place and the player's row on the warning yellow; the place change is a hard colour step
+// (no transition) for placeFlashTime.
 const STYLE = `
 #board{position:fixed;pointer-events:none;z-index:5;font-family:ui-monospace,"Lucida Console",
 Consolas,monospace;font-weight:900;color:#e8e8e8;line-height:1;-webkit-font-smoothing:none;
-font-smooth:never;text-shadow:0.08em 0.08em 0 #0c0c12;display:flex;flex-direction:column;
-align-items:flex-end}
-#board .big{font-size:2.6em;font-variant-numeric:tabular-nums;transition:color .15s}
-#board .big small{font-size:0.5em;color:#8a8a92;margin-left:0.1em}
-#board.up .big{color:#b4ff39}
-#board.down .big{color:#ff4f6a}
-#board .rows{margin-top:0.35em;display:flex;flex-direction:column;gap:0.18em}
+font-smooth:never;display:flex;flex-direction:column;align-items:flex-end}
+#board .big{font-size:2.6em;font-variant-numeric:tabular-nums;background:#ffe14a;color:#0c0c12;
+padding:0.06em 0.12em 0.04em 0.4em;clip-path:polygon(0 0,100% 0,100% 100%,0.3em 100%,0 calc(100% - 0.3em))}
+#board .big small{font-size:0.5em;margin-left:0.1em;letter-spacing:0.1em}
+#board.up .big{background:#b4ff39}
+#board.down .big{background:#ff4f6a}
+#board .rows{margin-top:0.3em;display:flex;flex-direction:column;gap:0.16em}
 #board .row{display:flex;gap:0.5em;align-items:baseline;justify-content:flex-end;
-font-size:0.95em;padding:0.12em 0.35em;background:rgba(12,12,18,0.55)}
+font-size:0.95em;padding:0.14em 0.35em 0.12em 0.5em;background:rgba(12,12,18,0.78);
+border-left:0.18em solid #5a5a62;clip-path:polygon(0.4em 0,100% 0,100% 100%,0 100%,0 0.4em)}
 #board .row .p{width:1.2em;text-align:right;color:#8a8a92}
 #board .row .n{max-width:9em;overflow:hidden;white-space:nowrap}
 #board .row .g{width:4.4em;text-align:right;font-variant-numeric:tabular-nums;color:#b8b8c0}
-#board .row .j{font-size:0.75em;color:#39e6ff;display:none}
+#board .row .j{font-family:"Arial Narrow","Roboto Condensed",sans-serif-condensed,Bahnschrift,
+ui-monospace,monospace;font-stretch:condensed;font-size:0.75em;font-weight:700;color:#39e6ff;
+text-transform:uppercase;letter-spacing:0.15em;display:none}
+#board .row.joined{border-left-color:#39e6ff}
 #board .row.joined .j{display:inline}
-#board .row.me{background:#d8d8d8;color:#0c0c12;text-shadow:none}
+#board .row.me{background:#ffe14a;color:#0c0c12;border-left-color:#0c0c12}
 #board .row.me .p,#board .row.me .g{color:#0c0c12}
+#board .row.nem{border-left-color:#ff4f6a}
 #board .row.nem .n{color:#ff4f6a}
 #board .row.nem .n::before{content:'» '}
 `;
