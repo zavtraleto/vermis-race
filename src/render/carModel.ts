@@ -12,6 +12,7 @@ import {
 import nsx from '../data/models/nsx.json';
 import type { Palette } from '../data/render';
 import type { CameraConfig } from './projection';
+import type { SlopeConfig } from './roadSlope';
 import type { WheelSteerConfig } from './wheelSteer';
 import type { SpritesConfig } from './worldSprites';
 
@@ -79,6 +80,8 @@ export interface Car3dConfig {
   traffic: TrafficModelConfig;
   /** R25/R25b player NSX: steering of the front wheels and the ground shadow under the model. */
   player: WheelSteerConfig & { shadow: Car3dConfig['shadow'] };
+  /** R30b cars pitched along the road slope (player, rivals, traffic). */
+  slope: SlopeConfig;
 }
 
 /**

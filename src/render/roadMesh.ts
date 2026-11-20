@@ -148,8 +148,10 @@ export class RoadMesh {
       let w0 = proj.w[n]!;
       const w1 = proj.w[n + 1]!;
       const over = this.overscan.overscanPx;
-      if (n === 0 && over > 0) {
+      if (n === 0) {
         // R27: extend strip 0 straight down past the bottom edge (edges extrapolated linearly).
+        // R30b (b): this also fills the bottom rows on a descent, where the camera rides above the
+        // road at the car's line and line 0 lands above the bottom edge.
         const t = (this.screenH + over - y0) / (y0 - y1);
         if (t > 0) {
           x0 += (x0 - x1) * t;

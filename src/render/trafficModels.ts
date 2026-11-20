@@ -10,7 +10,7 @@ import {
   Vector4,
 } from 'three';
 import type { Palette } from '../data/render';
-import type { Car } from '../sim/types';
+import type { Car, Track } from '../sim/types';
 import { Builder, type Car3dConfig } from './carModel';
 import { placeOnRoad, type Placement } from './placeOnRoad';
 import {
@@ -21,6 +21,7 @@ import {
   type RoadConfig,
 } from './projection';
 import { writeHex } from './roadMesh';
+import { slopePitchDeg } from './roadSlope';
 import { ROLL_GLSL, type RollUniform } from './screenRoll';
 import type { TailLights } from './tailLights';
 import type { TrafficDrawConfig } from './worldSprites';
@@ -33,7 +34,8 @@ const DEG = Math.PI / 180;
 // fixed colour (raw sRGB), aBody = 1 where the per-car colour applies.
 // Per instance: iA = (camera-relative x, height of the camera above the car's ground, depth,
 // world units per model unit), iB = (cos yaw, sin yaw, depth base, depth gain), iC = (colour,
-// body variant), iD = (crest clip line in NDC y, depth of the car's rear).
+// body variant), iD = (crest clip line in NDC y, depth of the car's rear, R30b slope pitch in rad,
+// nose up > 0).
 // The vertex is projected with the same pinhole as the road (focal uProj.x, centre uProj.y,
 // horizon uProj.z), so a model on a straight flat road matches the road exactly.
 const VERTEX = /* glsl */ `
@@ -45,7 +47,7 @@ attribute float aBody;
 attribute vec4 iA;
 attribute vec4 iB;
 attribute vec4 iC;
-attribute vec2 iD;
+attribute vec3 iD;
 uniform vec4 uProj;
 uniform vec2 uScreen;
 varying vec3 vColor;
@@ -57,6 +59,11 @@ void main() {
   vec3 p = v < 0.5 ? position : (v < 1.5 ? aPos1 : aPos2);
   float sh = v < 0.5 ? aShade.x : (v < 1.5 ? aShade.y : aShade.z);
   vColor = (aBody > 0.5 ? iC.rgb : aColor) * sh;
+  // R30b: pitch along the road slope in the car's own frame (nose = -z), pivot at the ground point
+  // under the car centre, before the yaw.
+  float cp = cos(iD.z);
+  float sp = sin(iD.z);
+  p = vec3(p.x, p.y * cp - p.z * sp, p.z * cp + p.y * sp);
   float k = iA.w;
   float lx = p.x * iB.x - p.z * iB.y;
   float lz = p.x * iB.y + p.z * iB.x;
@@ -166,12 +173,12 @@ export class TrafficModels {
     this.a = new Float32Array(cap * 4);
     this.b = new Float32Array(cap * 4);
     this.c = new Float32Array(cap * 4);
-    this.d = new Float32Array(cap * 2);
+    this.d = new Float32Array(cap * 3);
     this.attrs = [
       new InstancedBufferAttribute(this.a, 4).setUsage(DynamicDrawUsage),
       new InstancedBufferAttribute(this.b, 4).setUsage(DynamicDrawUsage),
       new InstancedBufferAttribute(this.c, 4).setUsage(DynamicDrawUsage),
-      new InstancedBufferAttribute(this.d, 2).setUsage(DynamicDrawUsage),
+      new InstancedBufferAttribute(this.d, 3).setUsage(DynamicDrawUsage),
     ];
     geo.setAttribute('iA', this.attrs[0]!);
     geo.setAttribute('iB', this.attrs[1]!);
@@ -214,8 +221,10 @@ export class TrafficModels {
     zOffset: number,
     carW: number,
     lights: TailLights,
+    track: Track,
   ): void {
     const dc = this.draw;
+    const slope = this.cfg.slope;
     const cam = this.camera;
     const road = this.road;
     const p = this.placement;
@@ -281,8 +290,11 @@ export class TrafficModels {
       this.c[o + 1] = this.colours[col + 1]!;
       this.c[o + 2] = this.colours[col + 2]!;
       this.c[o + 3] = i % VARIANTS;
-      this.d[n * 2] = clip;
-      this.d[n * 2 + 1] = zr;
+      this.d[n * 3] = clip;
+      this.d[n * 3 + 1] = zr;
+      // R30b: pitch along the road under the car, at the z it is drawn at.
+      const pitch = slopePitchDeg(track, z, slope.slopeHalfSpan, slope.slopePitchGain) * DEG;
+      this.d[n * 3 + 2] = pitch;
       lights.addCar(
         this.a[o]!,
         this.a[o + 1]!,
@@ -294,7 +306,8 @@ export class TrafficModels {
         this.b[o + 2]! - 0.05 * step,
         clip,
         0,
-        0,
+        // R30b: the lights follow the vertical displacement of the rear under the pitch.
+        -this.halfLength * Math.sin(pitch),
         0,
       );
       n++;

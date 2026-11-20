@@ -43,6 +43,7 @@
     "steerTau": 0.08,
     "shadow": { "color": "carShadow", "halfWidth": 0.95, "front": -2.25, "rear": 1.7, "y": 0.01 }
   },
+  "slope": { "slopeHalfSpan": 0.54, "slopePitchGain": 1, "playerPitchGain": 0.28, "eyeClearance": 64 },
   "traffic": {
     "width": 1.9,
     "shadow": { "color": "carShadow", "halfWidth": 1.0, "front": -2.3, "rear": 2.3, "y": 0.01 },
