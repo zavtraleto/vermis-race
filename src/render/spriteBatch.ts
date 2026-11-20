@@ -15,11 +15,14 @@ attribute vec3 iPos;
 attribute vec2 iSize;
 attribute vec3 iTint;
 attribute vec4 iUv;
+attribute float iAlpha;
 varying vec3 vTint;
+varying float vAlpha;
 varying vec2 vUv;
 ${ROLL_GLSL}
 void main() {
   vTint = iTint;
+  vAlpha = iAlpha;
   vUv = iUv.xy + position.xy * iUv.zw;
   vec2 p = vec2(iPos.x + (position.x - 0.5) * iSize.x, iPos.y + position.y * iSize.y);
   gl_Position = vec4(rollNdc(p), iPos.z, 1.0); // R27 roll last
@@ -27,9 +30,10 @@ void main() {
 `;
 const FRAGMENT = /* glsl */ `
 varying vec3 vTint;
+varying float vAlpha;
 varying vec2 vUv;
 void main() {
-  gl_FragColor = vec4(vTint, 1.0);
+  gl_FragColor = vec4(vTint, vAlpha);
 }
 `;
 
@@ -38,6 +42,8 @@ void main() {
  * per-instance position/size (NDC), depth and tint. Fixed capacity; push() between
  * begin() and end() once per frame, no allocations. Depth test/write order sprites
  * against the road and each other, so no sorting is needed.
+ * `overlay` (R24b smoke over the player car): alpha-blended, no depth test or write, drawn over
+ * whatever its scene drew before; per-instance alpha from push().
  */
 export class SpriteBatch {
   readonly mesh: Mesh<InstancedBufferGeometry, ShaderMaterial>;
@@ -45,22 +51,31 @@ export class SpriteBatch {
   private readonly pos: Float32Array;
   private readonly size: Float32Array;
   private readonly tint: Float32Array;
+  private readonly alpha: Float32Array;
   private readonly uv: Float32Array;
   private readonly posAttr: InstancedBufferAttribute;
   private readonly sizeAttr: InstancedBufferAttribute;
   private readonly tintAttr: InstancedBufferAttribute;
+  private readonly alphaAttr: InstancedBufferAttribute;
   private readonly sx: number;
   private readonly sy: number;
   private n = 0;
   private overflow = 0;
 
-  constructor(capacity: number, screenWidth: number, screenHeight: number, roll: RollUniform) {
+  constructor(
+    capacity: number,
+    screenWidth: number,
+    screenHeight: number,
+    roll: RollUniform,
+    overlay = false,
+  ) {
     this.capacity = capacity;
     this.sx = 2 / screenWidth;
     this.sy = 2 / screenHeight;
     this.pos = new Float32Array(capacity * 3);
     this.size = new Float32Array(capacity * 2);
     this.tint = new Float32Array(capacity * 3);
+    this.alpha = new Float32Array(capacity);
     this.uv = new Float32Array(capacity * 4);
     for (let i = 0; i < capacity; i++) {
       this.uv[i * 4 + 2] = 1;
@@ -76,9 +91,11 @@ export class SpriteBatch {
     this.posAttr = new InstancedBufferAttribute(this.pos, 3).setUsage(DynamicDrawUsage);
     this.sizeAttr = new InstancedBufferAttribute(this.size, 2).setUsage(DynamicDrawUsage);
     this.tintAttr = new InstancedBufferAttribute(this.tint, 3).setUsage(DynamicDrawUsage);
+    this.alphaAttr = new InstancedBufferAttribute(this.alpha, 1).setUsage(DynamicDrawUsage);
     geo.setAttribute('iPos', this.posAttr);
     geo.setAttribute('iSize', this.sizeAttr);
     geo.setAttribute('iTint', this.tintAttr);
+    geo.setAttribute('iAlpha', this.alphaAttr);
     geo.setAttribute('iUv', new InstancedBufferAttribute(this.uv, 4));
     geo.instanceCount = 0;
 
@@ -86,8 +103,9 @@ export class SpriteBatch {
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
       uniforms: { uRoll: roll },
-      depthTest: true,
-      depthWrite: true,
+      transparent: overlay,
+      depthTest: !overlay,
+      depthWrite: !overlay,
     });
     this.mesh = new Mesh(geo, mat);
     this.mesh.frustumCulled = false;
@@ -110,7 +128,8 @@ export class SpriteBatch {
 
   /**
    * One flat rectangle. x = centre of the base, y = base (screen px, y down), w/h in px,
-   * depth in NDC, colour = 3 floats of `rgb` starting at `at` (raw sRGB 0..1).
+   * depth in NDC, colour = 3 floats of `rgb` starting at `at` (raw sRGB 0..1), alpha 0..1 (used
+   * only by an overlay batch).
    */
   push(
     x: number,
@@ -120,6 +139,7 @@ export class SpriteBatch {
     depth: number,
     rgb: Float32Array,
     at: number,
+    alpha = 1,
   ): void {
     const i = this.n;
     if (i >= this.capacity) {
@@ -135,6 +155,7 @@ export class SpriteBatch {
     this.tint[p] = rgb[at]!;
     this.tint[p + 1] = rgb[at + 1]!;
     this.tint[p + 2] = rgb[at + 2]!;
+    this.alpha[i] = alpha;
     this.n = i + 1;
   }
 
@@ -144,6 +165,7 @@ export class SpriteBatch {
     upload(this.posAttr, n * 3);
     upload(this.sizeAttr, n * 2);
     upload(this.tintAttr, n * 3);
+    upload(this.alphaAttr, n);
   }
 }
 

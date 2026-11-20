@@ -36,6 +36,7 @@ export interface Palette {
   building: string[];
   buildingWindow: string;
   smoke: string;
+  tyreMark: string; // R24c tyre marks (art bible: shoulder kerb colour)
   rivals: string[]; // R67 rival body colours by nameId (acid accents, art bible)
   traffic: string[]; // R45 traffic body variants (desaturated, not the rival accents)
   mapBacking: string;
