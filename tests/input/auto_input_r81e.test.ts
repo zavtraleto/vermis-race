@@ -28,7 +28,8 @@ const H = 640;
 const X0 = 180;
 const Y = 560; // inside the steering zone (bottom 35%)
 const R = inputConfig.touch.stickRadius * W; // 0.16*360 = 57.6 px
-const EDGE = R * inputConfig.touch.driftEdge; // 77.76 px
+// T73 (R81g): data driftEdge is 0 now; the "old drift border" here is the R81c 1.35 (pinned)
+const EDGE = R * 1.35; // 77.76 px
 
 const frame = (): InputFrame => ({ steer: 0, brake: false, drift: false });
 

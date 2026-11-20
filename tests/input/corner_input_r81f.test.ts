@@ -26,7 +26,8 @@ const H = 640;
 const X0 = 180;
 const Y = 560;
 const R = inputConfig.touch.stickRadius * W;
-const EDGE = R * inputConfig.touch.driftEdge;
+// T73 (R81g): data driftEdge is 0 now; the "old drift border" here is the R81c 1.35 (pinned)
+const EDGE = R * 1.35; // 77.76 px
 const frame = (): InputFrame => ({ steer: 0, brake: false, drift: false });
 
 describe('R81f keyboard (driftEntry 5): drift = Space or Shift held, steer = arrows at full value at once', () => {

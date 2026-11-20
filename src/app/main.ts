@@ -302,7 +302,8 @@ resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
 const now = (): number => performance.now();
 // R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
 const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
-// R81c/R81e/R81f: in model B with driftEntry 3 (H16 D), 4 (H16 E) or 5 (H16 F, the default) the touch
+// R81c/R81g/R81e/R81f: in model B with driftEntry 3 (H16 D, the default: drift = the stick's pull-down
+// latch, R81g), 4 (H16 E) or 5 (H16 F) the touch
 // input is the zone stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a
 // reload). In variants 4 and 5 the player input ignores the stick's drift latch: touch drift = finger
 // down (player.ts).
@@ -435,7 +436,7 @@ const render3d = use3d
   : null;
 // R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
 // the copies follow live dev-panel edits of the player car.
-// R81e/R81f: the rival copies keep driftEntry = rivalDriftEntry (5: the same rule as the player).
+// R81e/R81f: the rival copies keep driftEntry = rivalDriftEntry (3 since T73, R81g: the same rule as the player).
 const carParams: CarParams[] = race.cars.map((c) =>
   c.kind === 'rival' ? { ...baseCar, driftEntry: rivalDriftEntry } : baseCar,
 );

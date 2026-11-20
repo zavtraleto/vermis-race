@@ -22,7 +22,10 @@ import { NO_GRIP_LEAD } from '../sim/pinGripLead';
  * touch point); drift false until |dx| >= stickRadius*driftEdge once, then true until release.
  */
 type TouchCfg = typeof inputConfig.touch & { stickRadius: number; driftEdge: number };
-const cfg = inputConfig.touch as TouchCfg;
+// T73 (R81g): the default zone stick has no sideways border (driftEdge 0) and drifts by a pull down
+// (driftPull). The R81c sideways path stays in code; these tests pin it: driftEdge 1.35, driftPull 0 (off).
+const R81C_PIN = { driftEdge: 1.35, driftPull: 0 };
+const cfg = { ...inputConfig.touch, ...R81C_PIN } as TouchCfg;
 const W = 360;
 const H = 640;
 const X0 = 180;
@@ -58,7 +61,8 @@ const read = (s: TouchStick, t: number): InputFrame => {
 };
 
 describe('R81c touch config (src/data/input.json)', () => {
-  it('stickRadius 0.16 of the screen width, driftEdge 1.35', () => {
+  it('stickRadius 0.16 of the screen width; driftEdge 1.35 pinned here (data: 0 since T73, R81g)', () => {
+    expect(inputConfig.touch.stickRadius).toBe(0.16);
     expect(cfg.stickRadius).toBe(0.16);
     expect(cfg.driftEdge).toBe(1.35);
     expect(R).toBeCloseTo(57.6, 9);
