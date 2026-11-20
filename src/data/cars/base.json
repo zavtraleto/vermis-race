@@ -33,7 +33,7 @@
   "flickWindow": 0.12,
   "kickBase": 2,
   "kickGain": 6,
-  "driftEntry": 5,
+  "driftEntry": 3,
   "flickLook": 40,
   "flickCornerMin": 2,
   "flickCornerMul": 0.6,

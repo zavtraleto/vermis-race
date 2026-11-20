@@ -11,9 +11,10 @@ import type { RaceState } from '../../src/sim/types';
 // H16 table row; numbers from docs/balance.md T71.
 const B = base as unknown as Record<string, number>;
 
-describe('T71 data: H16 = F, driftEntry 5 for player, rivals and bots', () => {
-  it('hypotheses.json H16_driftEntry is "F"', () => {
-    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('F');
+// T73 (R81g): R81f is rejected by the author; the default goes back to variant 3 (H16 D, driftEntry 3).
+describe('T71 data (default moved by T73, R81g): H16 = D, driftEntry 3 for player, rivals and bots', () => {
+  it('hypotheses.json H16_driftEntry is "D" (T73; was "F")', () => {
+    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('D');
   });
   it('driftEntryOf maps F -> 5; E, D, C, B, A stay 4, 3, 2, 1, 0', () => {
     expect(driftEntryOf('F')).toBe(5);
@@ -23,9 +24,9 @@ describe('T71 data: H16 = F, driftEntry 5 for player, rivals and bots', () => {
     expect(driftEntryOf('B')).toBe(1);
     expect(driftEntryOf('A')).toBe(0);
   });
-  it('cars/base.json driftEntry 5; rivals.json rivalDriftEntry 5', () => {
-    expect(B.driftEntry).toBe(5);
-    expect((rivalsJson as Record<string, unknown>).rivalDriftEntry).toBe(5);
+  it('cars/base.json driftEntry 3; rivals.json rivalDriftEntry 3 (T73; were 5)', () => {
+    expect(B.driftEntry).toBe(3);
+    expect((rivalsJson as Record<string, unknown>).rivalDriftEntry).toBe(3);
   });
   it('dev panel: H16 offers F (every hypothesis is a runtime flag)', () => {
     const flags = (tunables as { flags: Record<string, string[]> }).flags;

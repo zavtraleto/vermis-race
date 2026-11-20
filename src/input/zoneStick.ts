@@ -7,7 +7,9 @@ import type { TouchStickConfig } from './types';
  * - pointerDown: same steering-zone rule as scheme A (y >= height * (1 - steerZoneFrac)); the
  *   touch-down point is the centre and never moves.
  * - steer = clamp(dx / R, -1, 1), R = stickRadius * width, dx = x - touch-down x; linear.
- * - drift is false until |dx| >= R * driftEdge on any move of this touch, then true until release.
+ * - drift is false until, on any move of this touch, dy >= R * driftPull (R81g, dy = y - touch-down y,
+ *   screen y grows downward; driftPull 0 = off) or |dx| >= R * driftEdge (R81c sideways border,
+ *   driftEdge 0 = off); then true until release, even when the finger goes back up. dy never steers.
  * - Release (up / cancel): drift false at once; steer returns to 0 at 1/zoneReleaseMs per ms
  *   (R81c, T68: zoneReleaseMs 0 = steer 0 on the first read; releaseMs of other schemes untouched).
  * - brake is always false.
@@ -17,6 +19,7 @@ export function createZoneStick(cfg: TouchStickConfig): TouchStick {
   let height = 0;
   let active: number | null = null;
   let anchorX = 0;
+  let anchorY = 0;
   let steer = 0;
   let drift = false;
   let releasing = false;
@@ -45,19 +48,22 @@ export function createZoneStick(cfg: TouchStickConfig): TouchStick {
       if (y < height - height * cfg.steerZoneFrac) return false;
       active = id;
       anchorX = x;
+      anchorY = y;
       steer = 0;
       drift = false;
       releasing = false;
       return true;
     },
-    pointerMove(id: number, x: number): void {
+    pointerMove(id: number, x: number, y: number): void {
       if (id !== active) return;
       const r = cfg.stickRadius * width;
       const dx = x - anchorX;
       const raw = r > 0 ? dx / r : 0;
       steer = raw > 1 ? 1 : raw < -1 ? -1 : raw;
       // R81c: the first crossing of the drift border latches the drift until release.
-      if (r > 0 && (dx < 0 ? -dx : dx) >= r * cfg.driftEdge) drift = true;
+      if (r > 0 && cfg.driftEdge > 0 && (dx < 0 ? -dx : dx) >= r * cfg.driftEdge) drift = true;
+      // R81g: the first pull down by R * driftPull latches the drift until release.
+      if (r > 0 && cfg.driftPull > 0 && y - anchorY >= r * cfg.driftPull) drift = true;
     },
     pointerUp(id: number, tMs: number): void {
       release(id, tMs);

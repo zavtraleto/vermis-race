@@ -86,9 +86,9 @@ const phys = (c: Car) => ({
   scrubDebt: c.scrubDebt,
 });
 
-describe('R81e data: rejected by the author (T71), variant 4 stays in code; H16 = F, base.json and rivals 5 (R81f)', () => {
-  it('hypotheses.json H16_driftEntry is "F" (T71; was "E")', () => {
-    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('F');
+describe('R81e data: rejected by the author (T71), variant 4 stays in code; T73 (R81g): H16 = D, base.json and rivals 3', () => {
+  it('hypotheses.json H16_driftEntry is "D" (T73, R81g; was "F" in T71, "E" in T70)', () => {
+    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('D');
   });
   it('driftEntryOf maps E -> 4; D stays 3, A/B/C stay 0/1/2', () => {
     expect(driftEntryOf('E')).toBe(4);
@@ -97,16 +97,16 @@ describe('R81e data: rejected by the author (T71), variant 4 stays in code; H16 
     expect(driftEntryOf('B')).toBe(1);
     expect(driftEntryOf('C')).toBe(2);
   });
-  it('cars/base.json: driftEntry 5 (T71; was 3), autoSteer 0.7, autoHold 0.1, autoLook 0.25, autoNeed 1.0 kept', () => {
+  it('cars/base.json: driftEntry 3 (T73, R81g; was 5 in T71), autoSteer 0.7, autoHold 0.1, autoLook 0.25, autoNeed 1.0 kept', () => {
     const b = baseCar as CarParams & Partial<typeof AUTO>;
-    expect(b.driftEntry).toBe(5);
+    expect(b.driftEntry).toBe(3);
     expect(b.autoSteer).toBe(0.7);
     expect(b.autoHold).toBe(0.1);
     expect(b.autoLook).toBe(0.25);
     expect(b.autoNeed).toBe(1.0);
   });
-  it('rivals.json: rivalDriftEntry 5 (T71; was 3)', () => {
-    expect((rivalsJson as Record<string, unknown>).rivalDriftEntry).toBe(5);
+  it('rivals.json: rivalDriftEntry 3 (T73, R81g; was 5 in T71)', () => {
+    expect((rivalsJson as Record<string, unknown>).rivalDriftEntry).toBe(3);
   });
   it('dev panel: H16 offers E (every hypothesis is a runtime flag)', () => {
     const flags = (tunables as { flags: Record<string, string[]> }).flags;

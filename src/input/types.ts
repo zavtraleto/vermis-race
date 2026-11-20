@@ -32,8 +32,10 @@ export interface TouchStickConfig {
   flickWindowMs: number;
   /** R81c zone stick radius as a fraction of the game area width. */
   stickRadius: number;
-  /** R81c drift border as a multiple of stickRadius. */
+  /** R81c sideways drift border as a multiple of stickRadius (0 = no sideways border). */
   driftEdge: number;
+  /** R81g pull-down drift: finger moved down by this multiple of stickRadius latches the drift (0 = off). */
+  driftPull: number;
   /** R81c zone stick: ms for the released steer to return to 0 (0 = at once). */
   zoneReleaseMs: number;
 }
