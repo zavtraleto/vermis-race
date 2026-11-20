@@ -7,6 +7,7 @@ import type { RivalDrawConfig } from './rivalModels';
 import type { TailLightsConfig } from './tailLights';
 import type { DriftVisual, DriftVisualConfig } from './driftVisual';
 import { placeOnRoad, type Placement } from './placeOnRoad';
+import { forwardDist, markRect, type TyreMarks, type TyreMarksConfig } from './tyreMarks';
 import type { CameraConfig, Projection } from './projection';
 import { writeHex } from './roadMesh';
 import {
@@ -70,6 +71,8 @@ export interface SpritesConfig {
   };
   roadside: RoadsideDrawConfig;
   drift: DriftVisualConfig;
+  smokeOver: SmokeOverConfig;
+  tyreMarks: TyreMarksConfig;
   traffic: TrafficDrawConfig;
   bump: BumpFeedbackConfig;
   crash: CrashTumbleConfig;
@@ -79,6 +82,12 @@ export interface SpritesConfig {
   speedometer: SpeedometerConfig;
   leaderboard: HudLayout; // R67 leaderboard size and corner offset
   tailLights: TailLightsConfig;
+}
+
+/** R24b smoke drawn over the player car (alpha-blended overlay pass after the car). */
+export interface SmokeOverConfig {
+  opacity: number; // alpha of a puff from its birth until fadeFrom
+  fadeFrom: number; // age01 where the alpha starts falling to 0 at the end of life
 }
 
 /** R45 traffic cars (3D bodies in trafficModels.ts; the bodies themselves live in car3d.json). */
@@ -116,7 +125,10 @@ const BB_FRAME = 15;
 const BB_STRIPE = 18;
 const WINDOW = 21;
 const POST_CAP = 24;
-const BB_PANEL = 27; // palette.billboard[], then palette.building[]
+const TYRE_MARK = 27;
+const ASPHALT = 30;
+const FADED = 33; // scratch slot: tyre mark colour faded toward the asphalt, rewritten per push
+const BB_PANEL = 36; // palette.billboard[], then palette.building[]
 
 /** Placeholder sprites of layers 2-4: roadside objects, drift smoke, stress filler. */
 export class WorldSprites {
@@ -142,6 +154,8 @@ export class WorldSprites {
     writeHex(this.rgb, POST, palette.post);
     writeHex(this.rgb, POST_CAP, palette.postCap);
     writeHex(this.rgb, SMOKE, palette.smoke);
+    writeHex(this.rgb, TYRE_MARK, palette.tyreMark);
+    writeHex(this.rgb, ASPHALT, palette.asphalt[0]!);
     writeHex(this.rgb, LAMP_POLE, palette.lampPole);
     writeHex(this.rgb, LAMP_HEAD, palette.lampHead);
     writeHex(this.rgb, BB_LEG, palette.billboardLeg);
@@ -157,13 +171,15 @@ export class WorldSprites {
   }
 
   /**
-   * R24 smoke puffs from the rear wheels of the 3D car (R25: contact points projected by CarView,
-   * pool x = ±smokeWheelX maps onto the left / right wheel): they move down the screen (back),
-   * rise, drift outward of the drift, grow, then shrink to 0 at the end of life. Drawn in the road
-   * pass, in front of the road; the car pass draws over them.
+   * R24 / R24b smoke puffs from the rear wheels of the 3D car (R25: contact points projected by
+   * CarView, pool x = ±smokeWheelX maps onto the left / right wheel): born small at the tyre contact
+   * point, they move down the screen (back), rise, drift outward of the drift and grow; the alpha
+   * holds smokeOver.opacity, then falls to 0 from smokeOver.fadeFrom (size shrinks from smokeShrink).
+   * R24b: `batch` is the overlay batch drawn after the car, so the puffs cover the car's lower rear.
    */
-  drawSmoke(batch: SpriteBatch, drift: DriftVisual, car: CarView, drawDistance: number): void {
+  drawSmoke(batch: SpriteBatch, drift: DriftVisual, car: CarView): void {
     const d = this.cfg.drift;
+    const o = this.cfg.smokeOver;
     const pool = drift.smoke;
     const carW = this.cfg.player.width * this.screenW;
     const carH = this.cfg.player.height * this.screenH;
@@ -171,18 +187,104 @@ export class WorldSprites {
     const midY = (car.rearLY + car.rearRY) * 0.5;
     const halfX = (car.rearRX - car.rearLX) * 0.5;
     const halfY = (car.rearRY - car.rearLY) * 0.5;
-    const depth = -1 + (2 / drawDistance) * 0.03;
     const shrink = d.smokeShrink;
+    const fadeFrom = o.fadeFrom;
     for (let i = 0; i < pool.count; i++) {
       const a = pool.age01(i);
       const k = pool.x(i) / d.smokeWheelX;
       const fade = a > shrink ? (1 - a) / (1 - shrink) : 1;
+      const alpha = o.opacity * (a > fadeFrom ? (1 - a) / (1 - fadeFrom) : 1);
       const size = d.smokeSize * carW * (1 + d.smokeGrow * a) * fade;
       const x = midX + k * halfX - drift.smokeDir * d.smokeSpread * a * carW;
       const y =
         midY + k * halfY + (pool.y(i) + (d.smokeBack - d.smokeRise) * a) * carH + size * 0.5;
-      batch.push(x, y, size, size, depth, this.rgb, SMOKE);
+      batch.push(x, y, size, size, -1, this.rgb, SMOKE, alpha);
     }
+  }
+
+  /**
+   * R24c tyre marks: each stored sample joined to the next older one of the same mark by a dark
+   * strip on the road (markRect: same projection as roadside objects, so the marks follow curves
+   * and hills and recede with the road); the newest piece runs to the live wheel points while a
+   * mark is being laid. Colour fades into the asphalt from fadeFrom x length behind the wheels;
+   * nothing is drawn past length.
+   */
+  drawTyreMarks(batch: SpriteBatch, proj: Projection, marks: TyreMarks): void {
+    const c = this.cfg.tyreMarks;
+    const ring = marks.ring;
+    if (c.marks !== 'on' || ring.count === 0) return;
+    const len = proj.length;
+    const l = marks.left;
+    const r = marks.right;
+    const refZ = (l.z + r.z) * 0.5;
+    let i = ring.at(0);
+    let dI = forwardDist((ring.zL[i]! + ring.zR[i]!) * 0.5, refZ, len);
+    if (marks.open) {
+      this.piece(batch, proj, l.z, l.x, ring.zL[i]!, ring.xL[i]!, 0, dI);
+      this.piece(batch, proj, r.z, r.x, ring.zR[i]!, ring.xR[i]!, 0, dI);
+    }
+    for (let k = 0; k + 1 < ring.count; k++) {
+      i = ring.at(k);
+      if (dI > c.length) break;
+      const j = ring.at(k + 1);
+      const dJ = forwardDist((ring.zL[j]! + ring.zR[j]!) * 0.5, refZ, len);
+      if (ring.link[i] === 1) {
+        this.piece(batch, proj, ring.zL[i]!, ring.xL[i]!, ring.zL[j]!, ring.xL[j]!, dI, dJ);
+        this.piece(batch, proj, ring.zR[i]!, ring.xR[i]!, ring.zR[j]!, ring.xR[j]!, dI, dJ);
+      }
+      dI = dJ;
+    }
+  }
+
+  // One mark piece between road points 0 and 1 (d = segments behind the wheels at each end), cut
+  // into sub-pieces about stepPx tall (at most maxSub) so the mark follows the projection.
+  private piece(
+    batch: SpriteBatch,
+    proj: Projection,
+    z0: number,
+    x0: number,
+    z1: number,
+    x1: number,
+    d0: number,
+    d1: number,
+  ): void {
+    const c = this.cfg.tyreMarks;
+    const len = proj.length;
+    let dz = forwardDist(z0, z1, len);
+    if (dz > len * 0.5) dz -= len;
+    const p = this.placement;
+    const maxSub = Math.max(1, Math.floor(c.maxSub));
+    let m = markRect(p, proj, z0, x0, z1, x1, c.width) ? Math.ceil(p.h / c.stepPx) : maxSub;
+    if (m < 1) m = 1;
+    if (m > maxSub) m = maxSub;
+    for (let s = 0; s < m; s++) {
+      const u0 = s / m;
+      const u1 = (s + 1) / m;
+      if (
+        !markRect(
+          p,
+          proj,
+          z0 + dz * u0,
+          x0 + (x1 - x0) * u0,
+          z0 + dz * u1,
+          x0 + (x1 - x0) * u1,
+          c.width,
+        )
+      )
+        continue;
+      const d = d0 + (d1 - d0) * (u0 + u1) * 0.5;
+      this.mark(batch, (d / c.length - c.fadeFrom) / (1 - c.fadeFrom));
+    }
+  }
+
+  // Pushes this.placement as a tyre mark piece, faded f (0..1, clamped) toward the asphalt colour.
+  private mark(batch: SpriteBatch, f: number): void {
+    const t = f < 0 ? 0 : f > 1 ? 1 : f;
+    const rgb = this.rgb;
+    for (let ch = 0; ch < 3; ch++)
+      rgb[FADED + ch] = rgb[TYRE_MARK + ch]! + (rgb[ASPHALT + ch]! - rgb[TYRE_MARK + ch]!) * t;
+    const p = this.placement;
+    batch.push(p.x, p.y, p.w < 1 ? 1 : p.w, p.h < 1 ? 1 : p.h, p.depth, rgb, FADED);
   }
 
   /**
