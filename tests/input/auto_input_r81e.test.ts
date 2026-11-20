@@ -9,6 +9,7 @@ import { createZoneStick } from '../../src/input/zoneStick';
 import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import type { CarParams, InputFrame, Track } from '../../src/sim/types';
+import { T70_NUMBERS } from '../sim/pinT70';
 
 /**
  * R81e "Ввод" (driftEntry 4, H16 = E). input.drift in variant 4 means only "control held":
@@ -207,7 +208,15 @@ describe('R81e keyboard end to end with the sim (variant 4, real base car)', () 
   // Real base numbers with R81e start values, lamps off; constant hard corner (curve 7) at vmax:
   // needAhead = 7*1*kYaw/gripA = 1.49 >= 1, so an arrow into the corner held 12 ticks enters on the 13th.
   const AUTO = { autoSteer: 0.7, autoHold: 0.1, autoLook: 0.25, autoNeed: 1.0 };
-  const params: CarParams = { ...baseCar, ...AUTO, model: 1, driftEntry: 4, crashMinSpeed: 1e9 };
+  // T71: variant 4 keeps the T70 numbers it was written with
+  const params: CarParams = {
+    ...baseCar,
+    ...T70_NUMBERS,
+    ...AUTO,
+    model: 1,
+    driftEntry: 4,
+    crashMinSpeed: 1e9,
+  };
   const HARD: Track = { segments: Array.from({ length: 4000 }, () => ({ curve: 7 })) };
   it('ArrowRight held: GRIP for 12 ticks, DRIFT on the 13th with dir +1; arrow released: GRIP on that tick', () => {
     const car = { ...V4 };

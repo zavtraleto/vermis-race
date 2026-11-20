@@ -388,6 +388,31 @@ function enterDrift(car: Car, dir: 1 | -1, rate: number): void {
   car.scrubDebt = 0;
 }
 
+/** R81f: cornerSide = sign(curve) on a corner segment (|curve| >= cornerCurve), else 0. */
+function cornerSideOf(curve: number, p: CarParams): -1 | 0 | 1 {
+  if (curve >= p.cornerCurve) return 1;
+  if (curve <= -p.cornerCurve) return -1;
+  return 0;
+}
+
+/**
+ * R83 finger share uc in DRIFT for u = steer*dir. R83b: clamp(u, 0, 1) with the floor driftMinU.
+ * R83c (variant 5): h = min(1, driftPush*max(0, A*dir)/driftLat), uc = clamp(h + cornerSpan*u,
+ * cornerMinU, 1) with u clamped to [-1, 1].
+ */
+function shareOf(u: number, dir: number, A: number, p: CarParams): number {
+  if (p.driftEntry === 5) {
+    const ad = A * dir;
+    let h = (p.driftPush * (ad > 0 ? ad : 0)) / p.driftLat;
+    if (h > 1) h = 1;
+    const uu = u < -1 ? -1 : u > 1 ? 1 : u;
+    const uc = h + p.cornerSpan * uu;
+    return uc < p.cornerMinU ? p.cornerMinU : uc > 1 ? 1 : uc;
+  }
+  const uc = u < 0 ? 0 : u > 1 ? 1 : u;
+  return uc < p.driftMinU ? p.driftMinU : uc;
+}
+
 /**
  * R81b B: threshold multiplier for a flick of sign(best). cAhead = the curve of largest modulus on
  * segments seg..seg+flickLook (lap wrap); toward a corner of at least flickCornerMin: flickCornerMul,
@@ -476,7 +501,32 @@ function stepModelB(
     !(offroadBlocks && off);
 
   const hist = car.steerHist;
-  if (p.driftEntry === 4) {
+  // R81f: the corner ended under a held drift (exit with the R82 effects, nothing paid).
+  let cornerEnd = false;
+  if (p.driftEntry === 5) {
+    // R81f: drift in every corner. Segment, speed and state are those of the start of the step;
+    // armTicks and autoTicks are not used (always 0).
+    car.armTicks = 0;
+    car.autoTicks = 0;
+    const side = cornerSideOf(curve, p);
+    if (car.state === 'GRIP') {
+      if (canEnter && side !== 0) enterDrift(car, side, p.kickBase); // R81f: entry as R81b C
+    } else if (side !== car.dir) {
+      // R81f hold: off a same-side corner segment the first corner segment within cornerGap
+      // ahead (lap wrap) must be of side dir; none, the other side or side = -dir ends the corner.
+      let first = 0;
+      if (side === 0) {
+        const n = segments.length;
+        let j = seg;
+        for (let i = 1; i <= p.cornerGap; i++) {
+          j = j + 1 >= n ? 0 : j + 1;
+          first = cornerSideOf(segments[j]!.curve, p);
+          if (first !== 0) break;
+        }
+      }
+      if (first !== car.dir) cornerEnd = true;
+    }
+  } else if (p.driftEntry === 4) {
     // R81e: auto drift. armTicks > 0 = the drift ended by speed during this hold (R82): no count
     // until the hold breaks. speed, z (seg) and state are those of the start of the step.
     if (!input.drift) car.armTicks = 0;
@@ -563,8 +613,8 @@ function stepModelB(
   }
   // R81: the current steer is recorded every held tick, in any state; a flick counts only within
   // one hold, so a tick without input.drift clears the buffer and records nothing.
-  // R81c/R81e: variants 3 and 4 do not use the buffer.
-  if (input.drift && p.driftEntry !== 3 && p.driftEntry !== 4) {
+  // R81c/R81e/R81f: variants 3, 4 and 5 do not use the buffer.
+  if (input.drift && p.driftEntry !== 3 && p.driftEntry !== 4 && p.driftEntry !== 5) {
     hist[car.steerHistHead] = steer;
     car.steerHistHead = car.steerHistHead + 1 >= STEER_HIST ? 0 : car.steerHistHead + 1;
     if (car.steerHistCount < STEER_HIST) car.steerHistCount++;
@@ -581,14 +631,15 @@ function stepModelB(
 
   // R82: exit on release or low speed (H11 A: also too long off road). GRIP starts from its own
   // steady slip sG on this curve; the rest of the visible slip becomes carry. No snap.
-  if (
-    car.state === 'DRIFT' &&
-    (!input.drift ||
-      car.speed < p.driftExitSpeed * p.vmax ||
-      (offroadBlocks && car.offTicks * DT > p.driftOffroadTime))
-  ) {
-    // R86e: an early exit (before debtTime) pays the scrub debt in speed; then both fields are 0.
-    if (car.driftTicks * DT < p.debtTime) {
+  const r82 =
+    !input.drift ||
+    car.speed < p.driftExitSpeed * p.vmax ||
+    (offroadBlocks && car.offTicks * DT > p.driftOffroadTime);
+  // R81f: the corner end and R82 in one tick give one exit.
+  if (car.state === 'DRIFT' && (r82 || cornerEnd)) {
+    // R86e: an early R82 exit (before debtTime) pays the scrub debt in speed; the end of a corner
+    // (R81f) pays nothing; then both fields are 0.
+    if (r82 && car.driftTicks * DT < p.debtTime) {
       const v = car.speed - car.scrubDebt;
       car.speed = v > 0 ? v : 0;
     }
@@ -632,8 +683,8 @@ function stepModelB(
     const u = steer * dir;
     // R83 DRIFT: the finger sets the visible angle; critically damped chase of slipT.
     // R83b: the finger share has a floor driftMinU (the drift always turns toward its side).
-    let uc = u < 0 ? 0 : u > 1 ? 1 : u;
-    if (uc < p.driftMinU) uc = p.driftMinU;
+    // R83c (variant 5): the share is set by the corner around the hold share h.
+    const uc = shareOf(u, dir, A, p);
     const slipT = dir * p.slipFull * uc;
     const w = p.slipResponse;
     slip = car.yaw - car.vel;
@@ -696,9 +747,9 @@ function stepModelB(
   let lead = gripLead;
   if (drift) {
     const dir = car.dir;
-    const u = steer * dir;
-    let uc = u < 0 ? 0 : u > 1 ? 1 : u;
-    if (uc < p.driftMinU) uc = p.driftMinU; // R83b
+    const uc = shareOf(steer * dir, dir, A, p); // R83b / R83c
+    // R83c: in variant 5 the R85d GRIP level is taken with the steer dir*uc.
+    const gSteer = p.driftEntry === 5 ? dir * uc : steer;
     // R85d: the lead ramps in over leadRamp seconds from entry (driftTicks before R87 adds 1).
     let ramp = 1;
     if (p.leadRamp > 0) {
@@ -709,7 +760,7 @@ function stepModelB(
     if (ramp < 1) {
       // R85d: the ramped lead, but never below the GRIP lead (R85b + R85c) of this tick toward dir
       // (and never above the full lead).
-      let g = gripLeadOf(car.vel, steer, sp, A, off, p) * dir;
+      let g = gripLeadOf(car.vel, gSteer, sp, A, off, p) * dir;
       if (g < 0) g = 0;
       const ld = lead * dir;
       const keep = ld < g ? ld : g;
@@ -742,7 +793,9 @@ function stepModelB(
     accelMul = boosted && p.draftAccelMul > p.turboAccelMul ? p.draftAccelMul : p.turboAccelMul;
   }
   let cap = vcap * capMul;
-  if (drift) {
+  // R86f: with driftSpeedLoss 0 the DRIFT cap is vcap*capMul (the old angle cap would cut the flow
+  // cap to 1); a positive driftSpeedLoss keeps the old R86 angle cap.
+  if (drift && p.driftSpeedLoss !== 0) {
     const a = 1 - (p.driftSpeedLoss * (slip < 0 ? -slip : slip)) / p.slipFull;
     if (a < capMul) cap = vcap * a;
   }
@@ -757,8 +810,9 @@ function stepModelB(
     if (need > p.scrubStart) scrub = p.scrubRate * (need - p.scrubStart) * p.vmax * DT;
   }
   if (!drift) {
-    const vis = car.yaw - car.vel + car.carry; // after R82b, R83, R84 and the R85 wall
-    speed -= p.slipDrag * vis * vis * DT;
+    // R86f: the own GRIP slip after R82b, R83, R84 and the R85 wall; the carry costs nothing.
+    const own = car.yaw - car.vel;
+    speed -= p.slipDrag * own * own * DT;
     if (speed < 0) speed = 0;
     // R86b: GRIP pays the scrub in speed.
     if (scrub > 0) {

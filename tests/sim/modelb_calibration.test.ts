@@ -15,6 +15,7 @@ import { baseCarA } from './baseCarA';
 import { GAS, run } from './helpers';
 import { NO_H17_H18 } from './pinH17H18';
 import { ENTRY_A } from './pinEntryA';
+import { T70_NUMBERS } from './pinT70';
 import { PB, Q, STRAIGHT, car, constTrack, inp, mk, slipOf, stepB, stepN } from './modelb_helpers';
 
 const C = curves as { easy: number; medium: number; hard: number };
@@ -26,7 +27,15 @@ const W = (
 const SLIP_DEG = W.slipDeg; // R89 degrees per unit of slip
 /** Real data pinned to model B. */
 // H17/H18 off and flick entry (R81) pinned: this test is about R89b
-const REAL: CarParams = { ...baseCar, model: 1, ...NO_H17_H18, ...ENTRY_A };
+// T71: the R89b DRIFT windows were calibrated with the drift angle cap (driftSpeedLoss 0.08, before
+// R86f); that path is pinned here, the GRIP numbers (gripDodge) follow base.json.
+const REAL: CarParams = {
+  ...baseCar,
+  model: 1,
+  ...NO_H17_H18,
+  ...ENTRY_A,
+  driftSpeedLoss: T70_NUMBERS.driftSpeedLoss,
+};
 const free = (p: CarParams): CarParams => ({
   ...p,
   xLimit: 1e9,
@@ -182,14 +191,15 @@ function gripOut(p: CarParams, curve: number, steer: number): number[] {
 }
 
 describe('R89b calibration: GRIP on a straight (lane change, response)', () => {
-  it('R89b full steer on a straight: course vel 1.0-1.1, lateral speed vx (with R85b lead and R85c dodge) 1.45-1.55 at vmax', () => {
-    // spike T8: vel = Y/al = 15.75/15 = 1.05 (A: 1.05); T68: vx = vel + gripDodge*1 = 1.05 + 0.45 = 1.50
+  it('R89b full steer on a straight: course vel 1.0-1.1, lateral speed vx (with R85b lead and R85c dodge) 1.10-1.20 at vmax (T71)', () => {
+    // spike T8: vel = Y/al = 15.75/15 = 1.05 (A: 1.05); T71 (R89c): vx = vel + gripDodge*1 = 1.05 + 0.1 = 1.15
+    // (was T68: 1.45-1.55 with gripDodge 0.45)
     const r = new Rig(FB, 0, 1);
     for (let i = 0; i < 240; i++) r.step(1, false, 1);
     expect(r.car.vel).toBeGreaterThanOrEqual(1.0);
     expect(r.car.vel).toBeLessThanOrEqual(1.1);
-    expect(r.lastDx).toBeGreaterThanOrEqual(1.45);
-    expect(r.lastDx).toBeLessThanOrEqual(1.55);
+    expect(r.lastDx).toBeGreaterThanOrEqual(1.1);
+    expect(r.lastDx).toBeLessThanOrEqual(1.2);
   });
   // straight, vmax, steer 0.5 for 0.4 s, then 0
   function pulse() {
@@ -205,10 +215,10 @@ describe('R89b calibration: GRIP on a straight (lane change, response)', () => {
     }
     return { s, xs, yaws, vxs };
   }
-  it('R89b a 0.5 pulse for 0.4 s shifts the car by 0.15-0.3 half-widths (spike: 0.210)', () => {
+  it('R89b a 0.5 pulse for 0.4 s shifts the car by 0.20-0.26 half-widths (T71, R89c; spike 0.230; was 0.15-0.3)', () => {
     const { s } = pulse();
-    expect(car(s).x).toBeGreaterThanOrEqual(0.15);
-    expect(car(s).x).toBeLessThanOrEqual(0.3);
+    expect(car(s).x).toBeGreaterThanOrEqual(0.2);
+    expect(car(s).x).toBeLessThanOrEqual(0.26);
   });
   it('R89b the pulse settles without oscillation (no sign change of vx, overshoot < 10%)', () => {
     const { s, xs, yaws, vxs } = pulse();

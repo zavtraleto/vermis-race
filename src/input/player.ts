@@ -60,6 +60,7 @@ export function createPlayerInput(
           // keep touchFrame.drift
         }
         // R81 (model B): drift input = finger on the screen or mouse button held; the sim finds the flick.
+        // R81e/R81f (variants 4 and 5): the same finger-down drift on the zone stick.
         else if (drift.car?.model === 1) touchFrame.drift = touch.activeId !== null;
         // H3 C: the pull-down gesture is ignored, touch drift follows the stick deflection.
         else if (entry === 'C') touchFrame.drift = drift.autoDrift.update(touchFrame.steer);

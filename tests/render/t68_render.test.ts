@@ -43,11 +43,21 @@ import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
 import type { CarParams, InputFrame } from '../../src/sim/types';
+import { T70_NUMBERS } from '../sim/pinT70';
 
 const W = (sprites as unknown as { weight: Record<string, number> }).weight;
 const CAM = camera as unknown as Record<string, number>;
 const CFG = { slipDeg: 17, velDeg: 5, leadDeg: 8, minSpeed: 0.1 };
-const P: CarParams = { ...baseCar, model: 1, crashMinSpeed: 1e9, driftTurbo: 0 } as CarParams;
+// T71: the R89 (>= 15 deg at 60 ms) and R27b (>= 50 px in 0.25 s) criteria were named with the T68
+// dodge gripDodge 0.45; the brief did not restate them for gripDodge 0.1 (with 0.1: 12.6 deg, 44.4 px).
+// Pinned to the T68 dodge until the director/author restates them; the formulas are what is tested.
+const P: CarParams = {
+  ...baseCar,
+  model: 1,
+  crashMinSpeed: 1e9,
+  driftTurbo: 0,
+  gripDodge: T70_NUMBERS.gripDodge,
+} as CarParams;
 const TRACK = makeStraightTrack(4000);
 
 describe('R89 body yaw with the lead term (bodyYawDeg)', () => {

@@ -171,7 +171,7 @@
     "hypotheses.H10_offroad": ["A", "B"],
     "hypotheses.H14_model": ["A", "B"],
     "hypotheses.H15_rubberBand": ["A", "B"],
-    "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E"],
+    "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E", "F"],
     "hypotheses.H17_gripScrub": ["A", "B"],
     "hypotheses.H18_driftTurbo": ["A", "B"],
     "sprites.drift.smoke": ["on", "off"],
@@ -212,7 +212,7 @@
     },
     "hypotheses.H16_driftEntry": {
       "title": "Вход в дрифт (B)",
-      "hint": "E — автодрифт (игрок); D — стик с зоной; A, B — рывок; C — удержание отклонения",
+      "hint": "F — дрифт в каждом повороте (палец, пробел); E — авто; D — зона; A, B — рывок; C — руль",
       "tier": "more",
       "group": "Дрифт",
       "model": "B",

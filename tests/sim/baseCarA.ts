@@ -9,4 +9,6 @@ export const baseCarA: CarParams = {
   // R47 lamps off: tests using this car are about their own rules, not about lamp crashes.
   crashMinSpeed: 1e9,
   ...NO_H17_H18, // H17/H18 off: these tests are about older rules
+  // R22 (model A) speed cap: T71 (R86f) set base.json driftSpeedLoss 0 for model B only; model A keeps 0.08.
+  driftSpeedLoss: 0.08,
 };

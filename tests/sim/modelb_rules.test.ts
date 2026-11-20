@@ -832,19 +832,28 @@ describe('R86 speed', () => {
       last = car(s).speed;
     }
   });
-  it('R86 GRIP: speed -= slipDrag*vis^2*DT with vis = yaw - vel + carry (after R82b, R83, R84)', () => {
-    // GRIP, steer 0, yaw 0.3, vel 0.1, carry 0.4: R14: 0.8 + 0.22 DT; then minus 0.058*vis^2*DT
+  // T71 (R86f): the GRIP slip cost uses the own GRIP slip only, speed -= slipDrag*(yaw - vel)^2*DT;
+  // the carry left over from a drift costs no speed (was vis^2 = (yaw - vel + carry)^2).
+  it('R86f GRIP: speed -= slipDrag*(yaw - vel)^2*DT, carry not counted (after R82b, R83, R84)', () => {
+    // GRIP, steer 0, yaw 0.3, vel 0.1, carry 0.4: R14: 0.8 + 0.22 DT; then minus 0.058*(yaw - vel)^2*DT
     const s = mk({ speed: 0.8, yaw: 0.3, vel: 0.1, carry: 0.4 });
     stepB(s, inp(0), PB);
-    const vis = slipOf(car(s)) + car(s).carry;
+    const own = slipOf(car(s));
     expect(car(s).carry).toBeCloseTo(0.4 * Math.exp(-8 * DT), 12);
-    expect(car(s).speed).toBeCloseTo(0.8 + 0.22 * DT - 0.058 * vis * vis * DT, 12);
+    expect(car(s).speed).toBeCloseTo(0.8 + 0.22 * DT - 0.058 * own * own * DT, 12);
   });
-  it('R86 GRIP: carry alone (yaw = vel) costs speed', () => {
+  it('R86f GRIP: carry alone (yaw = vel) costs no speed: 0.8 + 0.22*DT exactly', () => {
     const s = mk({ speed: 0.8, carry: 0.5 });
     stepB(s, inp(0), PB);
-    const c = 0.5 * Math.exp(-8 * DT);
-    expect(car(s).speed).toBeCloseTo(0.8 + 0.22 * DT - 0.058 * c * c * DT, 12);
+    expect(slipOf(car(s))).toBe(0); // precondition: yaw = vel stays 0 at steer 0 on a straight
+    expect(car(s).speed).toBeCloseTo(0.8 + 0.22 * DT, 12);
+  });
+  it('R86f GRIP: the same own slip costs the same with carry 0 and carry 0.8', () => {
+    const a = mk({ speed: 0.8, yaw: 0.3, vel: 0.1 });
+    const b = mk({ speed: 0.8, yaw: 0.3, vel: 0.1, carry: 0.8 });
+    stepB(a, inp(0), PB);
+    stepB(b, inp(0), PB);
+    expect(car(b).speed).toBeCloseTo(car(a).speed, 12);
   });
   it('R86 R15 applies after the drag (GRIP, off road, x = 1.2)', () => {
     const s = mk({ speed: 0.8, yaw: 0.3, vel: 0.1, x: 1.2 });
