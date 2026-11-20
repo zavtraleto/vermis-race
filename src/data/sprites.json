@@ -138,6 +138,14 @@
   "speedometer": {
     "vmaxKmh": 180,
     "segments": 14,
-    "boostSegments": 4
+    "boostSegments": 4,
+    "widthEm": 36,
+    "heightEm": 64,
+    "marginEm": 1.2
+  },
+  "leaderboard": {
+    "widthEm": 38,
+    "heightEm": 64,
+    "marginEm": 1.2
   }
 }

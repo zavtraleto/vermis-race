@@ -1,7 +1,19 @@
 import type { Car } from '../sim/types';
 
+/** Size and corner offset of a HUD block over the canvas (src/data/sprites.json). */
+export interface HudLayout {
+  widthEm: number; // canvas width in em: em = min(canvas width / widthEm, canvas height / heightEm)
+  heightEm: number; // canvas height in em (caps em when the canvas is wider than a tall phone)
+  marginEm: number; // offset from the canvas corner, em
+}
+
+/** HUD em in CSS px for the canvas rectangle: width governs on a portrait phone. */
+export function hudEm(r: DOMRect, l: HudLayout): number {
+  return Math.min(r.width / l.widthEm, r.height / l.heightEm);
+}
+
 /** R28 speedometer (numbers in src/data/sprites.json "speedometer"). */
-export interface SpeedometerConfig {
+export interface SpeedometerConfig extends HudLayout {
   vmaxKmh: number; // km/h shown at speed = vmax
   segments: number; // bar segments from 0 to vmax
   boostSegments: number; // extra segments past vmax (boost zone)
@@ -92,10 +104,11 @@ export class Speedometer {
   layout(): void {
     const r = this.canvas.getBoundingClientRect();
     const s = this.root.style;
-    const em = r.height / 48;
+    const em = hudEm(r, this.cfg);
+    const m = em * this.cfg.marginEm;
     s.fontSize = `${em}px`;
-    s.left = `${r.left + em * 1.2}px`;
-    s.bottom = `${window.innerHeight - r.bottom + em * 1.2}px`;
+    s.left = `${r.left + m}px`;
+    s.bottom = `${window.innerHeight - r.bottom + m}px`;
   }
 
   update(reading: SpeedReading): void {

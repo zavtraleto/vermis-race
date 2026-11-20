@@ -1,5 +1,6 @@
 import type { Car } from '../sim/types';
 import { fillLeaderboard, placeChange, type LeaderRow } from './leaderboardModel';
+import { hudEm, type HudLayout } from './speedometer';
 
 /** R67 leaderboard numbers (src/data/rivals.json). */
 export interface LeaderboardConfig {
@@ -73,6 +74,8 @@ export class Leaderboard {
     private readonly names: readonly string[],
     private readonly raceCount: number,
     private readonly metersPerSegment: number,
+    /** Size and corner offset (sprites.json "leaderboard"). */
+    private readonly layoutCfg: HudLayout,
   ) {
     const style = document.createElement('style');
     style.textContent = STYLE;
@@ -136,10 +139,11 @@ export class Leaderboard {
   layout(): void {
     const r = this.canvas.getBoundingClientRect();
     const s = this.root.style;
-    const em = r.height / 56;
+    const em = hudEm(r, this.layoutCfg);
+    const m = em * this.layoutCfg.marginEm;
     s.fontSize = `${em}px`;
-    s.right = `${window.innerWidth - r.right + em * 1.2}px`;
-    s.top = `${r.top + em * 1.2}px`;
+    s.right = `${window.innerWidth - r.right + m}px`;
+    s.top = `${r.top + m}px`;
   }
 
   /** dt = frame seconds; cars = newest sim state (cars[0] is the player). */
