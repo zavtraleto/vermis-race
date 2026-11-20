@@ -203,6 +203,49 @@ describe('R24c markRect: screen rectangle of a mark piece in the roadside-object
     expect(markRect(out, p, p.base - 0.5, 0, p.base + 1, 0, W)).toBe(false);
     expect(out).toEqual({ x: 123, y: 0, w: 0, h: 0, depth: 0 });
   });
+  it('shear = screen x of the upper (far) end minus the lower (near) end, either order', () => {
+    const p = run(curvyLong(), 40.2, 0.1);
+    const z0 = p.base + 3.25;
+    const z1 = p.base + 3.5;
+    const a = blank();
+    const b = blank();
+    placeOnRoad(a, p, z0, -0.5, W, 0);
+    placeOnRoad(b, p, z1, 0.5, W, 0);
+    const lower = a.y > b.y ? a : b;
+    const upper = a.y > b.y ? b : a;
+    const f = { ...blank(), shear: 0 };
+    const g = { ...blank(), shear: 0 };
+    expect(markRect(f, p, z0, -0.5, z1, 0.5, W)).toBe(true);
+    expect(markRect(g, p, z1, 0.5, z0, -0.5, W)).toBe(true);
+    near(f.shear, upper.x - lower.x, 1e-3, 'shear');
+    near(g.shear, f.shear, 1e-6, 'order');
+    expect(Math.abs(f.shear)).toBeGreaterThan(1); // a slanted piece really slants
+  });
+  it('consecutive pieces of a slanted mark join: top edge of one = base of the next (no staircase)', () => {
+    const p = run(curvyLong(), 40.2, 0.1);
+    const x0 = -0.6;
+    const x1 = 0.4;
+    const z0 = p.base + 1.5; // to z0 + 2
+    const m = 8;
+    let prevTopX = Number.NaN;
+    let prevTopY = Number.NaN;
+    for (let s = 0; s < m; s++) {
+      const u0 = s / m;
+      const u1 = (s + 1) / m;
+      const o = { ...blank(), shear: 0 };
+      expect(
+        markRect(o, p, z0 + 2 * u0, x0 + (x1 - x0) * u0, z0 + 2 * u1, x0 + (x1 - x0) * u1, W),
+      ).toBe(true);
+      const baseX = o.x - o.shear * 0.5;
+      const topX = o.x + o.shear * 0.5;
+      if (s > 0) {
+        near(baseX, prevTopX, 1e-3, `piece ${s} base x`);
+        near(o.y, prevTopY, 1e-3, `piece ${s} base y`);
+      }
+      prevTopX = topX;
+      prevTopY = o.y - o.h;
+    }
+  });
   it('an end behind a crest returns false', () => {
     const p = run(makeStraightTrack(400), 5.4, 0);
     p.clipped[4] = 1;
@@ -276,6 +319,7 @@ describe('R24c TyreMarks.track: sampling in DRIFT on the asphalt', () => {
     maxGap: 4,
     stepPx: 3,
     maxSub: 24,
+    slant: 1, // render only; track() does not read it
   };
   // Live wheel points at track z (both wheels at the same z), offsets xl / xr.
   function at(m: TyreMarks, z: number, xl = -0.2, xr = 0.2): void {

@@ -12,6 +12,7 @@ export interface TyreMarksConfig {
   maxGap: number; // segments; a longer jump between samples (crash return, respawn) breaks the mark
   stepPx: number; // a piece between two samples is drawn as sub-pieces about this tall on screen
   maxSub: number; // at most this many sub-pieces per piece
+  slant: number; // share of a piece's screen slant applied as shear (1 = continuous line, 0 = upright steps)
 }
 
 /** A point on the road surface: track z (segments, wrapped) and offset (road half-widths, + = right). */
@@ -61,15 +62,21 @@ function lineOf(proj: Projection, z: number): number {
   return r;
 }
 
+/** markRect output: a Placement plus the slant of the piece. */
+export interface MarkPlacement extends Placement {
+  shear?: number; // written by markRect: screen x of the upper (far) end minus the lower (near) end, px
+}
+
 /**
- * Screen rectangle of one mark piece between road points (z0, x0) and (z1, x1), `worldW` wide, in
- * the SpriteBatch convention (x = centre of the base, y = base = the nearer end, px). Depth is the
- * nearer end's, as placeOnRoad gives it: in front of the road strips the piece lies on, behind
- * anything standing nearer. False (out untouched) when either end is outside the drawn range or
- * behind a crest. No allocations.
+ * Screen quad of one mark piece between road points (z0, x0) and (z1, x1), `worldW` wide, in
+ * the SpriteBatch convention (x = centre of the piece's x span, y = base = the nearer end, px);
+ * `shear` slants it so the lower edge is centred on the nearer end and the upper edge on the
+ * farther end (consecutive pieces join without steps). Depth is the nearer end's, as placeOnRoad
+ * gives it: in front of the road strips the piece lies on, behind anything standing nearer. False
+ * (out untouched) when either end is outside the drawn range or behind a crest. No allocations.
  */
 export function markRect(
-  out: Placement,
+  out: MarkPlacement,
   proj: Projection,
   z0: number,
   x0: number,
@@ -95,6 +102,7 @@ export function markRect(
   out.y = sy0 > sy1 ? sy0 : sy1;
   out.w = worldW * s;
   out.h = Math.abs(sy0 - sy1);
+  out.shear = sy0 > sy1 ? sx1 - sx0 : sx0 - sx1;
   const step = 2 / (proj.count - 1);
   out.depth = -1 + step * (ni + 0.05 + 0.2 * (near - ni));
   return true;

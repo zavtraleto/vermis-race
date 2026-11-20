@@ -16,6 +16,7 @@ attribute vec2 iSize;
 attribute vec3 iTint;
 attribute vec4 iUv;
 attribute float iAlpha;
+attribute float iShear;
 varying vec3 vTint;
 varying float vAlpha;
 varying vec2 vUv;
@@ -24,7 +25,12 @@ void main() {
   vTint = iTint;
   vAlpha = iAlpha;
   vUv = iUv.xy + position.xy * iUv.zw;
-  vec2 p = vec2(iPos.x + (position.x - 0.5) * iSize.x, iPos.y + position.y * iSize.y);
+  // iShear: x offset of the top edge relative to the base (R24c tyre marks; 0 = upright); the quad
+  // slants about its mid-height, so iPos.x stays the centre of its x span.
+  vec2 p = vec2(
+    iPos.x + (position.x - 0.5) * iSize.x + (position.y - 0.5) * iShear,
+    iPos.y + position.y * iSize.y
+  );
   gl_Position = vec4(rollNdc(p), iPos.z, 1.0); // R27 roll last
 }
 `;
@@ -52,11 +58,13 @@ export class SpriteBatch {
   private readonly size: Float32Array;
   private readonly tint: Float32Array;
   private readonly alpha: Float32Array;
+  private readonly shear: Float32Array;
   private readonly uv: Float32Array;
   private readonly posAttr: InstancedBufferAttribute;
   private readonly sizeAttr: InstancedBufferAttribute;
   private readonly tintAttr: InstancedBufferAttribute;
   private readonly alphaAttr: InstancedBufferAttribute;
+  private readonly shearAttr: InstancedBufferAttribute;
   private readonly sx: number;
   private readonly sy: number;
   private n = 0;
@@ -76,6 +84,7 @@ export class SpriteBatch {
     this.size = new Float32Array(capacity * 2);
     this.tint = new Float32Array(capacity * 3);
     this.alpha = new Float32Array(capacity);
+    this.shear = new Float32Array(capacity);
     this.uv = new Float32Array(capacity * 4);
     for (let i = 0; i < capacity; i++) {
       this.uv[i * 4 + 2] = 1;
@@ -92,10 +101,12 @@ export class SpriteBatch {
     this.sizeAttr = new InstancedBufferAttribute(this.size, 2).setUsage(DynamicDrawUsage);
     this.tintAttr = new InstancedBufferAttribute(this.tint, 3).setUsage(DynamicDrawUsage);
     this.alphaAttr = new InstancedBufferAttribute(this.alpha, 1).setUsage(DynamicDrawUsage);
+    this.shearAttr = new InstancedBufferAttribute(this.shear, 1).setUsage(DynamicDrawUsage);
     geo.setAttribute('iPos', this.posAttr);
     geo.setAttribute('iSize', this.sizeAttr);
     geo.setAttribute('iTint', this.tintAttr);
     geo.setAttribute('iAlpha', this.alphaAttr);
+    geo.setAttribute('iShear', this.shearAttr);
     geo.setAttribute('iUv', new InstancedBufferAttribute(this.uv, 4));
     geo.instanceCount = 0;
 
@@ -129,7 +140,8 @@ export class SpriteBatch {
   /**
    * One flat rectangle. x = centre of the base, y = base (screen px, y down), w/h in px,
    * depth in NDC, colour = 3 floats of `rgb` starting at `at` (raw sRGB 0..1), alpha 0..1 (used
-   * only by an overlay batch).
+   * only by an overlay batch), shear = x offset of the top edge relative to the base, px (the quad
+   * slants about its mid-height; 0 = upright rectangle).
    */
   push(
     x: number,
@@ -140,6 +152,7 @@ export class SpriteBatch {
     rgb: Float32Array,
     at: number,
     alpha = 1,
+    shear = 0,
   ): void {
     const i = this.n;
     if (i >= this.capacity) {
@@ -156,6 +169,7 @@ export class SpriteBatch {
     this.tint[p + 1] = rgb[at + 1]!;
     this.tint[p + 2] = rgb[at + 2]!;
     this.alpha[i] = alpha;
+    this.shear[i] = shear * this.sx;
     this.n = i + 1;
   }
 
@@ -166,6 +180,7 @@ export class SpriteBatch {
     upload(this.sizeAttr, n * 2);
     upload(this.tintAttr, n * 3);
     upload(this.alphaAttr, n);
+    upload(this.shearAttr, n);
   }
 }
 

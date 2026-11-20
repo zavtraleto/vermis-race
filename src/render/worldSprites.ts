@@ -6,8 +6,14 @@ import type { CrashTumbleConfig } from './crashTumble';
 import type { RivalDrawConfig } from './rivalModels';
 import type { TailLightsConfig } from './tailLights';
 import type { DriftVisual, DriftVisualConfig } from './driftVisual';
-import { placeOnRoad, type Placement } from './placeOnRoad';
-import { forwardDist, markRect, type TyreMarks, type TyreMarksConfig } from './tyreMarks';
+import { placeOnRoad } from './placeOnRoad';
+import {
+  forwardDist,
+  markRect,
+  type MarkPlacement,
+  type TyreMarks,
+  type TyreMarksConfig,
+} from './tyreMarks';
 import type { CameraConfig, Projection } from './projection';
 import { writeHex } from './roadMesh';
 import {
@@ -133,7 +139,7 @@ const BB_PANEL = 36; // palette.billboard[], then palette.building[]
 /** Placeholder sprites of layers 2-4: roadside objects, drift smoke, stress filler. */
 export class WorldSprites {
   private readonly rgb: Float32Array;
-  private readonly placement: Placement = { x: 0, y: 0, w: 0, h: 0, depth: 0 };
+  private readonly placement: Required<MarkPlacement> = { x: 0, y: 0, w: 0, h: 0, depth: 0, shear: 0 };
   private readonly screenW: number;
   private readonly screenH: number;
   private readonly panels: number;
@@ -284,7 +290,10 @@ export class WorldSprites {
     for (let ch = 0; ch < 3; ch++)
       rgb[FADED + ch] = rgb[TYRE_MARK + ch]! + (rgb[ASPHALT + ch]! - rgb[TYRE_MARK + ch]!) * t;
     const p = this.placement;
-    batch.push(p.x, p.y, p.w < 1 ? 1 : p.w, p.h < 1 ? 1 : p.h, p.depth, rgb, FADED);
+    const h = p.h < 1 ? 1 : p.h;
+    // R24c: slanted along the piece so a slanted mark reads as one line, not a staircase.
+    const shear = p.shear * this.cfg.tyreMarks.slant;
+    batch.push(p.x, p.y, p.w < 1 ? 1 : p.w, h, p.depth, rgb, FADED, 1, shear);
   }
 
   /**
