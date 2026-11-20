@@ -57,7 +57,7 @@
   "mistakeSteerMax": 0.6,
   "mistakeBandMul": 0.6,
   "rivalNameDistance": 40,
-  "leaderboardRows": 5,
+  "leaderboardRows": 2,
   "placeFlashTime": 0.8,
   "rivalDriftEntry": 3
 }
