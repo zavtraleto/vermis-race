@@ -5,6 +5,9 @@
 // [T68, 2026-11-20] bounds tightened by the brief: lane at vmax <= 0.19 s (was 0.30), new 0.6 vmax
 // <= 0.31 s, overshoot <= 8% of a lane = 0.02 (was 10%), stop <= 0.15 s unchanged; the same overshoot
 // and stop also when the finger leaves the zone stick (R81c, zoneReleaseMs 0).
+// [T71, 2026-11-20] bounds rewritten by the brief (author: "a bit smoother and slower on straights",
+// gripDodge 0.1): lane at vmax 0.22-0.26 s (was <= 0.19; spike 0.233), at 0.6 vmax 0.34-0.42 s (was
+// <= 0.31; spike 0.375); overshoot <= 0.02 and stop <= 0.15 s unchanged (also at 0.6 vmax: spike 0.117).
 import { beforeAll, describe, expect, it } from 'vitest';
 import { baseCar } from '../../src/data/cars';
 import { inputConfig } from '../../src/data/input';
@@ -92,16 +95,24 @@ function tStop(vs: number[]): number {
 }
 
 describe('R89c agility: full-steer lane change (no drift)', () => {
-  it.each([1, -1] as const)('side %i: one lane at vmax in at most 0.19 s', (side) => {
+  it.each([1, -1] as const)('side %i: one lane at vmax in 0.22-0.26 s (T71)', (side) => {
     const m = laneChange(side);
     expect(m.state).toBe('GRIP');
-    expect(m.tLane).toBeLessThanOrEqual(0.19);
+    expect(m.tLane).toBeGreaterThanOrEqual(0.22);
+    expect(m.tLane).toBeLessThanOrEqual(0.26);
   });
-  it.each([1, -1] as const)('side %i: one lane at 0.6 vmax in at most 0.31 s', (side) => {
+  it.each([1, -1] as const)('side %i: one lane at 0.6 vmax in 0.34-0.42 s (T71)', (side) => {
     const m = laneChange(side, 0.6);
     expect(m.state).toBe('GRIP');
-    expect(m.tLane).toBeLessThanOrEqual(0.31);
+    expect(m.tLane).toBeGreaterThanOrEqual(0.34);
+    expect(m.tLane).toBeLessThanOrEqual(0.42);
   });
+  it.each([1, -1] as const)(
+    'side %i: at 0.6 vmax the lateral motion also stops within 0.15 s (T71, spike 0.117)',
+    (side) => {
+      expect(tStop(laneChange(side, 0.6).vs)).toBeLessThanOrEqual(0.15);
+    },
+  );
   it.each([1, -1] as const)(
     'side %i: overshoot past the target lane at most 8% of a lane (0.02)',
     (side) => {

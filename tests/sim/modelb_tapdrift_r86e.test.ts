@@ -25,8 +25,17 @@ import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';
 import type { CarParams, InputFrame, Track } from '../../src/sim/types';
+import { ENTRY_D, T70_NUMBERS } from './pinT70';
 
-const P: CarParams = { ...baseCar, model: 1, driftTurbo: 0 } as CarParams;
+// T71: R86e is withdrawn (debtTime 0) but its code path stays; the criterion is kept on the T70 state
+// it was measured on (variant 3 zone entry, debtTime 0.5, driftSpeedLoss 0.08, gripDodge 0.45).
+const P: CarParams = {
+  ...baseCar,
+  model: 1,
+  driftTurbo: 0,
+  ...ENTRY_D,
+  ...T70_NUMBERS,
+} as CarParams;
 const CLEAN: BotParams = { ...botParams.expert, noiseAmp: 0, reactionDelay: 0 };
 const MARGINS = [0.8, 1.0, 1.2, 1.45, 1.8, 2.4, 3.5];
 const LEAD = 240;

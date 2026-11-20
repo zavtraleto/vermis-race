@@ -121,7 +121,7 @@ const tunables = installDev(
 // keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
 baseCar.lampEvery = spritesConfig.roadside.lamps.every;
 baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
-// H16 (R81b, R81c, R81e): the model B drift entry variant follows the hypothesis flag (A..E -> 0..4), on
+// H16 (R81b, R81c, R81e, R81f): the model B drift entry variant follows the hypothesis flag (A..F -> 0..5), on
 // load and on every panel change (the rival copies below take the rest of baseCar, but R81e: their
 // driftEntry is rivalDriftEntry).
 const applyDriftEntry = (): void => {
@@ -289,11 +289,13 @@ resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
 const now = (): number => performance.now();
 // R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
 const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
-// R81c/R81e: in model B with driftEntry 3 (H16 D) or 4 (H16 E, the default) the touch input is the zone
-// stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a reload). In
-// variant 4 the player input ignores the stick's drift latch: touch drift = finger down (player.ts).
+// R81c/R81e/R81f: in model B with driftEntry 3 (H16 D), 4 (H16 E) or 5 (H16 F, the default) the touch
+// input is the zone stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a
+// reload). In variants 4 and 5 the player input ignores the stick's drift latch: touch drift = finger
+// down (player.ts).
 const zoneStick =
-  baseCar.model === 1 && (baseCar.driftEntry === 3 || baseCar.driftEntry === 4)
+  baseCar.model === 1 &&
+  (baseCar.driftEntry === 3 || baseCar.driftEntry === 4 || baseCar.driftEntry === 5)
     ? createZoneStick(inputConfig.touch)
     : null;
 const touchStick = zoneStick ?? createTouchStick(inputConfig.touch);
@@ -420,7 +422,7 @@ const render3d = use3d
   : null;
 // R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
 // the copies follow live dev-panel edits of the player car.
-// R81e: the rival copies keep driftEntry = rivalDriftEntry (bots do not know variant 4).
+// R81e/R81f: the rival copies keep driftEntry = rivalDriftEntry (5: the same rule as the player).
 const carParams: CarParams[] = race.cars.map((c) =>
   c.kind === 'rival' ? { ...baseCar, driftEntry: rivalDriftEntry } : baseCar,
 );

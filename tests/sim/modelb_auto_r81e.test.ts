@@ -9,6 +9,7 @@ import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 import { Q, car, constTrack, inp, mk, slipOf, stepB, stepN } from './modelb_helpers';
 import { BP, RC, mkRace, stepAll } from './rivals_helpers';
+import { T70_NUMBERS } from './pinT70';
 
 // Spec: docs/brief.md R81e (auto drift, driftEntry 4, H16 = E) with R82 exit, R81b C entry effects,
 // R48 crash and R63b replacement resets. Rule tests use Q (model B, accel 0, slipDrag 0, H17/H18 off,
@@ -85,9 +86,9 @@ const phys = (c: Car) => ({
   scrubDebt: c.scrubDebt,
 });
 
-describe('R81e data: player default H16 = E (driftEntry 4); base.json stays 3 for bots, gate, tests', () => {
-  it('hypotheses.json H16_driftEntry is "E"', () => {
-    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('E');
+describe('R81e data: rejected by the author (T71), variant 4 stays in code; H16 = F, base.json and rivals 5 (R81f)', () => {
+  it('hypotheses.json H16_driftEntry is "F" (T71; was "E")', () => {
+    expect((hypotheses as Record<string, string>).H16_driftEntry).toBe('F');
   });
   it('driftEntryOf maps E -> 4; D stays 3, A/B/C stay 0/1/2', () => {
     expect(driftEntryOf('E')).toBe(4);
@@ -96,16 +97,16 @@ describe('R81e data: player default H16 = E (driftEntry 4); base.json stays 3 fo
     expect(driftEntryOf('B')).toBe(1);
     expect(driftEntryOf('C')).toBe(2);
   });
-  it('cars/base.json: driftEntry 3, autoSteer 0.7, autoHold 0.1, autoLook 0.25, autoNeed 1.0', () => {
+  it('cars/base.json: driftEntry 5 (T71; was 3), autoSteer 0.7, autoHold 0.1, autoLook 0.25, autoNeed 1.0 kept', () => {
     const b = baseCar as CarParams & Partial<typeof AUTO>;
-    expect(b.driftEntry).toBe(3);
+    expect(b.driftEntry).toBe(5);
     expect(b.autoSteer).toBe(0.7);
     expect(b.autoHold).toBe(0.1);
     expect(b.autoLook).toBe(0.25);
     expect(b.autoNeed).toBe(1.0);
   });
-  it('rivals.json: rivalDriftEntry 3', () => {
-    expect((rivalsJson as Record<string, unknown>).rivalDriftEntry).toBe(3);
+  it('rivals.json: rivalDriftEntry 5 (T71; was 3)', () => {
+    expect((rivalsJson as Record<string, unknown>).rivalDriftEntry).toBe(5);
   });
   it('dev panel: H16 offers E (every hypothesis is a runtime flag)', () => {
     const flags = (tunables as { flags: Record<string, string[]> }).flags;
@@ -522,7 +523,14 @@ describe('R81e tick order: R80 -> R81e (start-of-step speed, z, state) -> R82', 
 });
 
 describe('R81e properties', () => {
-  const RP: CarParams = { ...baseCar, ...AUTO, driftTurbo: 0, driftEntry: 4, crashMinSpeed: 1e9 };
+  const RP: CarParams = {
+    ...baseCar,
+    ...T70_NUMBERS, // T71: variant 4 keeps the numbers it was written with
+    ...AUTO,
+    driftTurbo: 0,
+    driftEntry: 4,
+    crashMinSpeed: 1e9,
+  };
   const parts = (sg: number): ReadonlyArray<readonly [number, number, number]> => [
     [200, 300, 7 * sg],
     [700, 200, -8.3 * sg],

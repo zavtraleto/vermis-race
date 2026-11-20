@@ -4,9 +4,12 @@ import type { Car, CarParams, Segment } from '../sim/types';
 
 /** R81b (отладка): "the largest |d| of the last second" when no entry was counted. */
 const MISS_WINDOW_S = 1;
-const VARIANTS = ['A', 'B', 'C', 'D', 'E'];
+const VARIANTS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-/** H16 flag -> CarParams.driftEntry (R81b, R81c, R81e): A 0, B 1, C 2, D 3, E 4; anything else falls back to A. */
+/**
+ * H16 flag -> CarParams.driftEntry (R81b, R81c, R81e, R81f): A 0, B 1, C 2, D 3, E 4, F 5; anything
+ * else falls back to A.
+ */
 export function driftEntryOf(flag: string): number {
   const i = VARIANTS.indexOf(flag);
   return i < 0 ? 0 : i;
@@ -39,6 +42,7 @@ export class DriftEntryProbe {
   private tryVariant = 0;
   private autoTicks = 0;
   private need = 0;
+  private curve = 0;
 
   /** Call once per sim tick with the player car after that tick and the params it ran with. */
   observe(car: Car, p: CarParams, segments: readonly Segment[]): void {
@@ -48,7 +52,12 @@ export class DriftEntryProbe {
     if (seg < 0) seg += n;
     let mag = 0;
     let thr = p.deflectEnter;
-    if (p.driftEntry === 4) {
+    if (p.driftEntry === 5) {
+      // R81f: no threshold; the curve under the car at the start of the tick against cornerCurve.
+      this.curve = segments[seg]!.curve;
+      mag = this.curve < 0 ? -this.curve : this.curve;
+      thr = p.cornerCurve;
+    } else if (p.driftEntry === 4) {
       // R81e: the count and needAhead (from the segment of the start of the tick and the speed
       // after it, a debug approximation of the sim's start-of-step value); threshold = autoNeed.
       const sp = car.speed / p.vmax;
@@ -113,6 +122,12 @@ export class DriftEntryProbe {
   /** Overlay text: the last entry, or "не засчитан" with the largest magnitude of the last second. */
   text(): string {
     if (this.tryTick < 0) return 'дрифт: —';
+    // R81f: drift in every corner; the last entry side and the live curve / cornerCurve.
+    if (this.tryVariant === 5) {
+      const last = this.entryTick < 0 ? '—' : this.side > 0 ? 'вправо' : 'влево';
+      return `дрифт F (поворот) ${last}
+кривизна ${this.curve.toFixed(2)} / ${this.lastThr.toFixed(2)}`;
+    }
     // R81e: auto drift; the last entry side and the live count / needAhead.
     if (this.tryVariant === 4) {
       const last = this.entryTick < 0 ? '—' : this.side > 0 ? 'вправо' : 'влево';
