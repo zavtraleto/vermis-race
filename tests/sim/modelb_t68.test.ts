@@ -37,11 +37,12 @@ describe('T68 data (cars/base.json, hypotheses.json)', () => {
     expect(B.gripDodge).toBe(0.45);
     expect(B.dodgeFadeA).toBe(4);
   });
-  it('R83b: driftMinU 0.4', () => expect(B.driftMinU).toBe(0.4));
-  it('R84b: driftDive 1.5, driftKnee 0.9 (strictly below 1)', () => {
-    expect(B.driftDive).toBe(1.5);
-    expect(B.driftKnee).toBe(0.9);
-    expect(B.driftKnee).toBeLessThan(1);
+  it('R83b: driftMinU 0.5 (T69, author: keep the floor, slightly stronger; was 0.4)', () =>
+    expect(B.driftMinU).toBe(0.5));
+  it('R84b withdrawn by the author (T69): driftDive 0 = dive off (was 1.5)', () => {
+    expect(B.driftDive).toBe(0);
+    // the code path may stay (default off); its knee, if still in the data, stays a valid fraction
+    if (B.driftKnee !== undefined) expect(B.driftKnee).toBeLessThan(1);
   });
   it('R85d: leadRamp 0.4 s', () => expect(B.leadRamp).toBe(0.4));
   it('R86e: debtTime 0.5 s', () => expect(B.debtTime).toBe(0.5));
@@ -164,7 +165,9 @@ describe('R83b drift steer floor (uc = max(driftMinU, clamp(u, 0, 1)))', () => {
 });
 
 // ------------------------------------------------------------------------------------------------
-describe('R84b inward dive above the knee of the gained angle', () => {
+describe('R84b inward dive (withdrawn T69; off by default; mechanism kept under an explicit override)', () => {
+  // R84b is withdrawn by the author (driftDive 0 in the data). The code path may stay: these unit tests
+  // switch it on explicitly (driftDive 1.5, driftKnee 0.9) and pin the formula as it was written.
   // velT += dir*driftDive*max(0, min(a, uc) - driftKnee)/(1 - driftKnee), a = slip*dir/slipFull after R83,
   // before vel += (velT - vel)*(1 - exp(-velGripDrift*DT)). Straight (A = 0), driftCounter 0, velGripDrift 8.
   const P = H(Q, {
@@ -479,7 +482,7 @@ describe('R86e scrub debt (drift is a commitment)', () => {
 });
 
 // ------------------------------------------------------------------------------------------------
-// Criteria of R83b and R84b on the real data. "Steady drift toward dir = +1, 3 s at the steer, speed free"
+// Criteria of R83b on the real data (T69 numbers, driftMinU 0.5, driftDive 0); R84b withdrawn. "Steady drift toward dir = +1, 3 s at the steer, speed free"
 // from vmax: the drift state is put directly (as modelb_calibration.test.ts enterDrift), then 3 s of the
 // held steer; numbers are the mean dx/dt (+ = toward the drift side / inward on a right curve) over the last 1 s.
 function driftRun(p: CarParams, curve: number, s: number, secs = 3, track?: Track) {
@@ -526,18 +529,20 @@ function holdSteer(p: CarParams, curve: number): number {
 }
 
 describe('R83b criterion (real data, steady drift dir +1, 3 s, free speed from vmax)', () => {
-  it.each([-1, -0.5, 0])('straight, steer %f: vx*dir >= 0.15 and body angle R89 >= 15 deg', (s) => {
+  // T69 bounds (driftMinU 0.5): measured with base.json + driftMinU 0.5 + driftDive 0 through `step`:
+  // straight 0.221 / 23.6 deg, medium outward 0.017, hard outward 0.149, full -> -1 shift +0.376.
+  it.each([-1, -0.5, 0])('straight, steer %f: vx*dir >= 0.20 and body angle R89 >= 20 deg', (s) => {
     const r = driftRun(FREE, 0, s);
     expect(r.car.state).toBe('DRIFT');
     expect(r.car.dir).toBe(1);
-    expect(r.vx).toBeGreaterThanOrEqual(0.15);
-    expect(bodyDeg(r.car, FREE)).toBeGreaterThanOrEqual(15);
+    expect(r.vx).toBeGreaterThanOrEqual(0.2);
+    expect(bodyDeg(r.car, FREE)).toBeGreaterThanOrEqual(20);
   });
-  it.each([-1, -0.5, 0])('medium, steer %f: outward at most 0.10', (s) => {
-    expect(-driftRun(FREE, C.medium, s).vx).toBeLessThanOrEqual(0.1);
+  it.each([-1, -0.5, 0])('medium, steer %f: outward at most 0.05', (s) => {
+    expect(-driftRun(FREE, C.medium, s).vx).toBeLessThanOrEqual(0.05);
   });
-  it.each([-1, -0.5, 0])('hard, steer %f: outward at most 0.25', (s) => {
-    expect(-driftRun(FREE, C.hard, s).vx).toBeLessThanOrEqual(0.25);
+  it.each([-1, -0.5, 0])('hard, steer %f: outward at most 0.20', (s) => {
+    expect(-driftRun(FREE, C.hard, s).vx).toBeLessThanOrEqual(0.2);
   });
   it('hold steers on medium and hard change by at most 0.01 against driftMinU 0', () => {
     for (const cv of [C.medium, C.hard]) {
@@ -546,36 +551,33 @@ describe('R83b criterion (real data, steady drift dir +1, 3 s, free speed from v
       expect(Math.abs(a - b)).toBeLessThanOrEqual(0.01);
     }
   });
-  it('straight: full steer, then steer -1 for 2 s moves the car toward the drift side by at least +0.2', () => {
+  it('straight: full steer, then steer -1 for 2 s moves the car toward the drift side by at least +0.3', () => {
     const r = driftRun(FREE, 0, 1);
     const x0 = r.car.x;
     const f: InputFrame = { steer: -1, brake: false, drift: true };
     for (let i = 0; i < 240; i++) step(r.race, [f], STRAIGHT, [FREE]);
     expect(r.car.state).toBe('DRIFT');
-    expect(r.car.x - x0).toBeGreaterThanOrEqual(0.2);
+    expect(r.car.x - x0).toBeGreaterThanOrEqual(0.3);
   });
-  it('the floor uses the data: driftMinU of the real car is 0.4', () => {
-    expect(num(REAL, 'driftMinU')).toBe(0.4);
+  it('the floor uses the data: driftMinU of the real car is 0.5', () => {
+    expect(num(REAL, 'driftMinU')).toBe(0.5);
   });
 });
 
-describe('R84b criterion (real data, steady drift dir +1, full steer inward, 3 s, free speed)', () => {
-  it('straight: vx*dir 1.4-1.9', () => {
-    const v = driftRun(FREE, 0, 1).vx;
-    expect(v).toBeGreaterThanOrEqual(1.4);
-    expect(v).toBeLessThanOrEqual(1.9);
+describe('R84b withdrawn (T69): the real car has no dive', () => {
+  // With driftDive 0 in the data the real car must behave exactly as with an explicit driftDive 0,
+  // whatever the knee; full steer inward is bounded again by the pre-T68 R89b numbers
+  // (modelb_calibration.test.ts).
+  it.each([
+    ['straight', 0],
+    ['medium', C.medium],
+    ['hard', C.hard],
+  ] as [string, number][])('%s, full steer: identical to an explicit driftDive 0', (_n, cv) => {
+    const a = driftRun(FREE, cv, 1);
+    const b = driftRun(H(FREE, { driftDive: 0 }), cv, 1);
+    expect(JSON.stringify(a.race)).toBe(JSON.stringify(b.race));
   });
-  it('medium: inward at least 1.3', () => {
-    expect(driftRun(FREE, C.medium, 1).vx).toBeGreaterThanOrEqual(1.3);
-  });
-  it('hard: inward at least 1.2', () => {
-    expect(driftRun(FREE, C.hard, 1).vx).toBeGreaterThanOrEqual(1.2);
-  });
-  it('hold steers on medium and hard change by at most 0.01 against driftDive 0', () => {
-    for (const cv of [C.medium, C.hard]) {
-      const a = holdSteer(FREE, cv);
-      const b = holdSteer(H(FREE, { driftDive: 0 }), cv);
-      expect(Math.abs(a - b)).toBeLessThanOrEqual(0.01);
-    }
+  it('straight, full steer: toward the drift side at most 0.6 (no dive; T68 dive gave 1.80)', () => {
+    expect(driftRun(FREE, 0, 1).vx).toBeLessThanOrEqual(0.6);
   });
 });
