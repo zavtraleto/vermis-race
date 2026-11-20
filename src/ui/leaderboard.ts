@@ -10,12 +10,11 @@ export interface LeaderboardConfig {
 
 // Gap labels are prebuilt for |gap| <= GAP_CACHE metres, so the frame path never formats text.
 const GAP_CACHE = 3000;
-const PLAYER_NAME = 'ты';
 const JOINED = 'вошёл';
 
 // HUD look (docs/art-bible.md "HUD"): one flat dark plate built like the speedometer's (cut
-// corners mirrored for the top-right corner, hard grey edge on the screen side); the place and the
-// player's row on the warning yellow; rival marks are solid skewed squares before the name; the
+// corners mirrored for the top-right corner, hard grey edge on the screen side); the place on the
+// warning yellow; rival marks are solid skewed squares before the name; the
 // place change is a hard colour step (no transition) for placeFlashTime.
 const STYLE = `
 #board{position:fixed;pointer-events:none;z-index:5;font-family:ui-monospace,"Lucida Console",
@@ -41,9 +40,6 @@ ui-monospace,monospace;font-stretch:condensed;font-size:0.75em;font-weight:700;c
 text-transform:uppercase;letter-spacing:0.15em;display:none}
 #board .row.joined .n::before{background:#39e6ff}
 #board .row.joined .j{display:inline}
-#board .row.me{background:#ffe14a;color:#0c0c12}
-#board .row.me .p,#board .row.me .g{color:#0c0c12}
-#board .row.me .n::before{background:#0c0c12}
 #board .row.nem .n{color:#ff4f6a}
 #board .row.nem .n::before{background:#ff4f6a}
 `;
@@ -56,15 +52,14 @@ interface RowView {
   shownPlace: number;
   shownName: number;
   shownGap: number;
-  shownMe: boolean;
   shownNem: boolean;
   shownJoined: boolean;
 }
 
 /**
  * R67 io-style leaderboard in the top-right corner of the 9:16 game area: big "place / total" and
- * up to leaderboardRows rows around the player (place, name, signed gap in metres; player row
- * highlighted, nemesis tinted, "вошёл" while joined). The big place flashes on a place change.
+ * leaderboardRows rows of the rivals nearest by place, no player row (place, name, signed gap in
+ * metres; nemesis tinted, "вошёл" while joined). The big place flashes on a place change.
  * DOM over the canvas, pointer-transparent; text and classes change only when the value does,
  * all strings prebuilt (no allocations per frame).
  */
@@ -104,7 +99,7 @@ export class Leaderboard {
     big.append(this.bigPlace, tot);
     const list = document.createElement('div');
     list.className = 'rows';
-    const max = Math.max(1, Math.min(Math.floor(cfg.leaderboardRows), raceCount));
+    const max = Math.max(1, Math.min(Math.floor(cfg.leaderboardRows), raceCount - 1));
     for (let i = 0; i < max; i++) {
       this.rows.push({
         place: 0,
@@ -135,7 +130,6 @@ export class Leaderboard {
         shownPlace: -1,
         shownName: -2,
         shownGap: NaN,
-        shownMe: false,
         shownNem: false,
         shownJoined: false,
       });
@@ -203,20 +197,15 @@ export class Leaderboard {
         v.shownPlace = row.place;
         v.place.textContent = this.num(row.place);
       }
-      const nameId = row.isPlayer ? -1 : row.nameId;
-      if (v.shownName !== nameId) {
-        v.shownName = nameId;
-        v.name.textContent = nameId < 0 ? PLAYER_NAME : (this.names[nameId] ?? '?');
+      if (v.shownName !== row.nameId) {
+        v.shownName = row.nameId;
+        v.name.textContent = this.names[row.nameId] ?? '?';
       }
       if (v.shownGap !== row.gapM) {
         v.shownGap = row.gapM;
         const g = row.gapM;
         v.gap.textContent =
           g >= -GAP_CACHE && g <= GAP_CACHE ? this.gaps[g + GAP_CACHE]! : gapText(g);
-      }
-      if (v.shownMe !== row.isPlayer) {
-        v.shownMe = row.isPlayer;
-        v.root.classList.toggle('me', row.isPlayer);
       }
       if (v.shownNem !== row.nemesis) {
         v.shownNem = row.nemesis;
@@ -234,7 +223,7 @@ export class Leaderboard {
   }
 }
 
-/** Signed gap label: "+12 м", "−7 м", "0" for the player. */
+/** Signed gap label: "+12 м", "−7 м", "0" side by side. */
 function gapText(g: number): string {
   if (g === 0) return '0';
   return `${g > 0 ? '+' : '−'}${Math.abs(g)} м`;

@@ -59,7 +59,7 @@
     "mistakes.mistakeSteerMax": {"title": "Сила ошибки: до", "hint": "верхняя граница добавки к рулю при ошибке", "tier": "more", "group": "Соперники", "rule": "R63c"},
     "mistakes.mistakeBandMul": {"title": "Ошибки под лентой", "hint": "множитель интервала ошибок, пока лента сильно подгоняет", "tier": "more", "group": "Соперники", "rule": "R63c"},
     "rivalUi.rivalNameDistance": {"title": "Имена видны до, сегм.", "hint": "дальше этого имя над соперником не показывается", "tier": "more", "group": "Соперники", "rule": "R67"},
-    "rivalUi.leaderboardRows": {"title": "Строк в таблице", "hint": "сколько строк вокруг игрока; после перезагрузки", "tier": "more", "group": "Соперники", "rule": "R67", "reload": true},
+    "rivalUi.leaderboardRows": {"title": "Строк в таблице", "hint": "сколько ближайших по месту соперников (строки игрока нет); после перезагрузки", "tier": "more", "group": "Соперники", "rule": "R67", "reload": true},
     "rivalUi.placeFlashTime": {"title": "Подсветка смены места, с", "hint": "сколько секунд крупное место подсвечено после обгона", "tier": "more", "group": "Соперники", "rule": "R67"}
   }
 }
