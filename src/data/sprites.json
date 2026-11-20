@@ -89,7 +89,8 @@
     "fadeFrom": 0.25,
     "maxGap": 4,
     "stepPx": 3,
-    "maxSub": 24
+    "maxSub": 24,
+    "slant": 1
   },
   "traffic": {
     "capacity": 24,
