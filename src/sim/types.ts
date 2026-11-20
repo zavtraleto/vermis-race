@@ -31,6 +31,7 @@ export interface Car {
   steerHistHead: number; // R81 next write index
   steerHistCount: number; // R81 number of recorded ticks, up to STEER_HIST
   deflectTicks: number; // R81b (C) consecutive ticks of one-sign deflection
+  autoTicks: number; // R81e (variant 4) consecutive counted ticks toward an auto drift entry
   turbo: number; // R86c (H18) drift charge in [0, 1]
   turboTicks: number; // R86c (H18) remaining turbo ticks after a drift exit
   driftTicks: number; // R86e/R87 ticks of the current drift, 0 in GRIP
@@ -100,13 +101,17 @@ export interface CarParams {
   flickWindow: number; // R81 seconds
   kickBase: number; // R81 initial slip rate at flickDelta
   kickGain: number; // R81 extra slip rate per unit of steer change above flickDelta
-  driftEntry: number; // R81b/R81c H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection, 3 = D zone stick
+  driftEntry: number; // R81b/R81c H16: 0 = A flick, 1 = B road-dependent flick, 2 = C deflection, 3 = D zone stick, 4 = E auto drift (R81e)
   flickLook: number; // R81b segments looked ahead
   flickCornerMin: number; // R81b smallest |curve| that counts as a corner
   flickCornerMul: number; // R81b threshold multiplier toward a corner
   flickStraightMul: number; // R81b threshold multiplier on a straight / against a corner
   deflectEnter: number; // R81b |steer| that counts as a deflection
   deflectTime: number; // R81b seconds of deflection to enter
+  autoSteer: number; // R81e steer toward the corner that counts
+  autoHold: number; // R81e seconds of counted ticks to enter
+  autoLook: number; // R81e seconds of road looked ahead
+  autoNeed: number; // R81e needAhead that counts
   vmax: number;
   accel: number;
   brake: number;
