@@ -23,6 +23,7 @@
     "car.offroadVelMul": { "min": 0.3, "max": 1, "step": 0.05 },
     "car.driftLat": { "min": 0.1, "max": 1.5, "step": 0.01 },
     "car.driftPush": { "min": 0, "max": 0.1, "step": 0.001 },
+    "car.driftRail": { "min": 0, "max": 1, "step": 0.05 },
     "car.wrongPush": { "min": 0, "max": 0.3, "step": 0.005 },
     "car.driftCounter": { "min": 0, "max": 1, "step": 0.05 },
     "car.flickLook": { "min": 0, "max": 120, "step": 5 },
@@ -98,6 +99,7 @@
     "camera.camRollDeg": { "min": -6, "max": 6, "step": 0.1 },
     "camera.camGripMul": { "min": 0, "max": 1, "step": 0.05 },
     "camera.camDriftTau": { "min": 0, "max": 1, "step": 0.01 },
+    "camera.camReturnTau": { "min": 0, "max": 1.5, "step": 0.01 },
     "sprites.tyreMarks.frontMarkSlip": { "min": 0, "max": 1.5, "step": 0.05 },
     "sprites.player.baseY": { "min": 0.6, "max": 0.98, "step": 0.005 },
     "sprites.player.width": { "min": 0.1, "max": 0.5, "step": 0.005 },
@@ -183,6 +185,8 @@
     "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E", "F"],
     "hypotheses.H17_gripScrub": ["A", "B"],
     "hypotheses.H18_driftTurbo": ["A", "B"],
+    "hypotheses.H20_releaseHold": ["A", "B"],
+    "hypotheses.H21_driftRail": ["A", "B"],
     "hypotheses.H19_touchDrift": ["A", "B", "C"],
     "sprites.drift.smoke": ["on", "off"],
     "sprites.tailLights.enabled": ["on", "off"]
@@ -195,6 +199,13 @@
       "group": "Дрифт",
       "model": "B",
       "rule": "R84"
+    },
+    "camera.camReturnTau": {
+      "title": "Возврат камеры, с",
+      "hint": "больше — после остановки машины камера медленнее возвращается к ней; 0 — сразу",
+      "tier": "more",
+      "group": "Камера",
+      "rule": "R27d"
     },
     "car.driftLead": {
       "title": "Опережение в дрифте",
@@ -220,6 +231,14 @@
       "model": "B",
       "rule": "R84"
     },
+    "car.driftRail": {
+      "title": "Рельсы дрифта",
+      "hint": "больше — дорога меньше выносит дрифт, палец ведёт по дуге; 0 — выключено",
+      "tier": "core",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "R84c"
+    },
     "hypotheses.H16_driftEntry": {
       "title": "Вход в дрифт (B)",
       "hint": "F — дрифт в каждом повороте (палец, пробел); E — авто; D — зона; A, B — рывок; C — руль",
@@ -243,6 +262,22 @@
       "group": "Дрифт",
       "model": "B",
       "rule": "H18"
+    },
+    "hypotheses.H20_releaseHold": {
+      "title": "Отпускание в повороте",
+      "hint": "A — снос наружу сразу; B — машина едет по своей линии и сползает наружу плавно",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "H20"
+    },
+    "hypotheses.H21_driftRail": {
+      "title": "Рельсы дрифта (H21)",
+      "hint": "A — выключено; B — сила из ползунка «Рельсы дрифта»",
+      "tier": "more",
+      "group": "Дрифт",
+      "model": "B",
+      "rule": "H21"
     },
     "car.scrubStart": {
       "title": "Порог цены поворота",
@@ -375,7 +410,7 @@
     "car.flickDelta": {
       "title": "Порог рывка",
       "hint": "больше — для входа в дрифт руль надо дёрнуть сильнее",
-      "tier": "core",
+      "tier": "more",
       "group": "Дрифт",
       "model": "B",
       "rule": "R81"

@@ -14,5 +14,7 @@
   "H16_driftEntry": "D",
   "H17_gripScrub": "B",
   "H18_driftTurbo": "A",
-  "H19_touchDrift": "A"
+  "H19_touchDrift": "A",
+  "H20_releaseHold": "B",
+  "H21_driftRail": "B"
 }

@@ -33,7 +33,7 @@ import { createZoneStick } from '../input/zoneStick';
 import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
 import { bodyYawDeg, CarWeight } from '../render/carWeight';
-import { stepCamLag, type CamLag } from '../render/cameraLag';
+import { stepCamOffset, type CamLag } from '../render/cameraLag';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
 import { WheelSteer } from '../render/wheelSteer';
@@ -132,10 +132,23 @@ baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
 // H16 (R81b, R81c, R81e, R81f): the model B drift entry variant follows the hypothesis flag (A..F -> 0..5), on
 // load and on every panel change (the rival copies below take the rest of baseCar, but R81e: their
 // driftEntry is rivalDriftEntry).
+let railValue = baseCar.driftRail;
+let railOff = false;
 const applyDriftEntry = (): void => {
   baseCar.driftEntry = driftEntryOf(hypotheses.H16_driftEntry);
   baseCar.gripScrub = onOffOf(hypotheses.H17_gripScrub); // H17 (R86b)
   baseCar.driftTurbo = onOffOf(hypotheses.H18_driftTurbo); // H18 (R86c)
+  baseCar.releaseHold = onOffOf(hypotheses.H20_releaseHold); // H20 (R85f)
+  // H21 (R84c): A = rails 0, B = the driftRail slider value (kept while A is on).
+  if (hypotheses.H21_driftRail === 'B') {
+    if (railOff) baseCar.driftRail = railValue;
+    railOff = false;
+    railValue = baseCar.driftRail;
+  } else {
+    if (!railOff) railValue = baseCar.driftRail;
+    railOff = true;
+    baseCar.driftRail = 0;
+  }
 };
 applyDriftEntry();
 // R81h/R95: the touch drift mode (H19) is remembered in localStorage and wins over the default and
@@ -449,6 +462,8 @@ const bump = new BumpFeedback(spritesConfig.bump, spritesConfig.crash);
 const tumble = new CrashTumble(spritesConfig.crash);
 // R27b: the lateral camera position (render field); camPosX = x at the start of the race.
 const camLag: CamLag = { posX: race.cars[0]!.x };
+// R27d: the offset x - camPosX (render field); 0 at the start and after a crash.
+let camOffset = 0;
 // R27c: camera shift into the turn and horizon roll (render fields), added on top of R27b.
 const camDrift: CamDrift = { shiftX: 0, rollDeg: 0 };
 // R25c: wheel angles about their axles, rad (render fields).
@@ -746,10 +761,20 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   const c = loop.curr.cars[0]!;
   visualDt = dt;
   driftVisual.update(dt, c, angle);
-  // R27b: camPosX chases the interpolated x; back on x when the crash returns the car (R48).
+  // R27b/R27d: the offset x - camPosX chases clamp(vx*camLagTau) (interpolated fields), back slowly
+  // with camReturnTau; 0 when the crash returns the car (R48).
   const x = p.x + (c.x - p.x) * alpha;
-  if (p.crashTicks > 0 && c.crashTicks === 0) camLag.posX = x;
-  else camLag.posX = stepCamLag(camLag.posX, x, dt, view.camLagTau, view.camLagMax);
+  if (p.crashTicks > 0 && c.crashTicks === 0) camOffset = 0;
+  else
+    camOffset = stepCamOffset(
+      camOffset,
+      p.vx + (c.vx - p.vx) * alpha,
+      dt,
+      view.camLagTau,
+      view.camReturnTau,
+      view.camLagMax,
+    );
+  camLag.posX = x - camOffset;
   const speed = p.speed + (c.speed - p.speed) * alpha;
   // R89: in model B the body yaw is vis*slipDeg + vel*velDeg + leadDeg*lead (interpolated fields,
   // both states).
@@ -832,6 +857,7 @@ function restartRace(): void {
   driftVisual.yaw = 0;
   driftVisual.cameraX = 0;
   camLag.posX = race.cars[0]!.x;
+  camOffset = 0; // R27d
   camDrift.shiftX = 0;
   camDrift.rollDeg = 0;
 }
