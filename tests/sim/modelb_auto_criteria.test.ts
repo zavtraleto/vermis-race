@@ -5,6 +5,7 @@ import { DT, SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, Segment, Track } from '../../src/sim/types';
 import { T70_NUMBERS } from './pinT70';
+import { NO_T77 } from './pinT77';
 
 // Spec: docs/brief.md R81e "Критерии" (a)-(f), measured by tools/spike/auto-drift.ts with the real
 // step on variant 3 plus a wrapper; here the same runs go through the real step on variant 4.
@@ -16,7 +17,15 @@ import { T70_NUMBERS } from './pinT70';
 
 const AUTO = { autoSteer: 0.7, autoHold: 0.1, autoLook: 0.25, autoNeed: 1.0 };
 // T71: R81e is rejected but variant 4 stays in code; its criteria keep the T70 numbers they were measured with.
-const P4: CarParams = { ...baseCar, ...T70_NUMBERS, driftTurbo: 0, ...AUTO, driftEntry: 4 };
+// T77: H20 (R85f) and H21 (R84c) off: variant 4 was measured without them (rails act in variants 0-4).
+const P4: CarParams = {
+  ...baseCar,
+  ...T70_NUMBERS,
+  driftTurbo: 0,
+  ...AUTO,
+  driftEntry: 4,
+  ...NO_T77,
+};
 const free = (p: CarParams): CarParams => ({
   ...p,
   xLimit: 1e9,
@@ -337,12 +346,13 @@ describe('R81e criterion (d): drop and re-touch', () => {
       expect(r.car.state).toBe('DRIFT');
     });
   }
-  it('release straightens: outward 0.30 / 0.39 / 0.43 half-widths in 0.3 s (medium / hard / sharp), held drift about 0.01', () => {
-    const want: Record<string, [number, number]> = {
-      medium: [0.301, 0.603],
-      hard: [0.389, 0.75], // re-measured T71 after R86f (was 0.379 / 0.73)
-      sharp: [0.431, 0.802], // re-measured T71 after R86f (was 0.417 / 0.773)
-    };
+  // T77 (brief R81e (d) note 2026-11-21: variant 4 rejected; the release throw is no longer a target,
+  // R85e, R85f): R85e has no switch and removes the first-tick throw of the R85b lead, so the measured
+  // 0.30 / 0.39 / 0.43 (0.60 / 0.75 / 0.80) no longer hold; the brief gives no new variant 4 numbers.
+  // Kept: the held drift stays (about 0.01) and the release (H20 off) still lets the road carry the car
+  // outward, growing from 0.3 to 0.6 s. Old numbers: medium 0.301 / 0.603, hard 0.389 / 0.75, sharp
+  // 0.431 / 0.802.
+  it('release straightens (H20 off): the car is carried outward, more at 0.6 s than at 0.3 s; held drift about 0.01', () => {
     for (const cls of ['medium', 'hard', 'sharp']) {
       const tr = cornerTrack(C[cls]!, 0, 8000);
       const dx: number[][] = [];
@@ -364,9 +374,8 @@ describe('R81e criterion (d): drop and re-touch', () => {
         dx.push(row);
       }
       expect(Math.abs(dx[0]![0]!)).toBeLessThanOrEqual(0.02); // held drift
-      expect(-dx[1]![0]!).toBeCloseTo(want[cls]![0], 1);
-      expect(Math.abs(-dx[1]![0]! - want[cls]![0])).toBeLessThanOrEqual(0.02);
-      expect(Math.abs(-dx[1]![1]! - want[cls]![1])).toBeLessThanOrEqual(0.02);
+      expect(-dx[1]![0]!).toBeGreaterThan(0.1);
+      expect(-dx[1]![1]!).toBeGreaterThan(-dx[1]![0]!);
     }
   });
 });
@@ -469,7 +478,7 @@ describe('R81e criterion (f): R86e holds under variant 4', () => {
     ['hard', 120],
     ['sharp', 120],
   ] as const) {
-    it(`${cls} ${len}: every chain "touch -> 0.1 s -> drift 0.1-0.45 s -> release 0.05-0.1 s" is slower than pure GRIP; the held drift is faster`, () => {
+    it(`${cls} ${len}: every chain "touch -> 0.1 s -> drift 0.1-0.45 s -> release 0.05-0.1 s" is not faster than pure GRIP by more than 0.5%; the held drift is faster`, () => {
       const g = chainRun('grip', cls, len, 0, 0);
       const h = chainRun('held', cls, len, 0, 0);
       expect(h).toBeLessThan(g);
@@ -479,7 +488,10 @@ describe('R81e criterion (f): R86e holds under variant 4', () => {
         [0.3, 0.1],
         [0.45, 0.05],
       ] as const) {
-        expect(chainRun('chain', cls, len, d, rl)).toBeGreaterThan(g);
+        // [T77: after R85e the tap-drift cost is gone; closed by the next rule, drift outside a corner
+        // brakes, author's decision 2026-11-21] Meaning: the chain gives no gain - not faster than
+        // GRIP by more than 0.5% of the corner time (measured sharp 120 0.1/0.05: 2.633 vs 2.642, -0.32%).
+        expect(chainRun('chain', cls, len, d, rl)).toBeGreaterThanOrEqual(g * (1 - 0.005));
       }
     });
   }

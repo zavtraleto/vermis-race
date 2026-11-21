@@ -46,6 +46,8 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       turboTicks: 0,
       driftTicks: 0,
       scrubDebt: 0,
+      relSide: 0,
+      relV: 0,
       crashTicks: 0,
       crashSpeed0: 0,
       crashX0: 0,
@@ -336,6 +338,8 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
     car.turboTicks = 0;
     car.driftTicks = 0; // R86e: a crash zeroes both fields without paying
     car.scrubDebt = 0;
+    car.relSide = 0; // R85f: a crash ends the release memory
+    car.relV = 0;
     car.steerHistCount = 0;
     car.deflectTicks = 0;
     car.autoTicks = 0; // R81e: a crash zeroes the count
@@ -636,7 +640,9 @@ function stepModelB(
     car.speed < p.driftExitSpeed * p.vmax ||
     (offroadBlocks && car.offTicks * DT > p.driftOffroadTime);
   // R81f: the corner end and R82 in one tick give one exit.
+  let exited = false; // R85f: a drift exit in this tick may start the release memory
   if (car.state === 'DRIFT' && (r82 || cornerEnd)) {
+    exited = true;
     // R86e: an early R82 exit (before debtTime) pays the scrub debt in speed; the end of a corner
     // (R81f) pays nothing; then both fields are 0.
     if (r82 && car.driftTicks * DT < p.debtTime) {
@@ -672,6 +678,40 @@ function stepModelB(
   // R82b: the carry decays every tick in any state.
   car.carry *= Math.exp(-p.carryDecay * DT);
 
+  // R85f (H20): release memory. vInf = the steady R13 slide of GRIP at steer 0 on this curve.
+  // Start: GRIP after R82, finger up, raw steer 0, vInf != 0, and a steer on the previous tick or a
+  // drift exit in this one. End: steer, finger, sign(vInf) != relSide, or |relV| >= |vInf|.
+  let sGr = A / p.velGrip;
+  if (sGr > p.slipGripMax) sGr = p.slipGripMax;
+  if (sGr < -p.slipGripMax) sGr = -p.slipGripMax;
+  if (car.relSide !== 0 || p.releaseHold === 1) {
+    const vInf = -A / p.yawAlign - sGr;
+    const side = vInf > 0 ? 1 : vInf < 0 ? -1 : 0;
+    if (car.relSide !== 0) {
+      const absV = car.relV < 0 ? -car.relV : car.relV;
+      if (
+        p.releaseHold !== 1 ||
+        steer !== 0 ||
+        input.drift ||
+        side !== car.relSide ||
+        absV >= (vInf < 0 ? -vInf : vInf)
+      ) {
+        car.relSide = 0;
+        car.relV = 0;
+      }
+    } else if (
+      car.state === 'GRIP' &&
+      !input.drift &&
+      steer === 0 &&
+      side !== 0 &&
+      (prevSteer !== 0 || exited)
+    ) {
+      car.relSide = side;
+      car.relV = car.vel * vInf > 0 ? car.vel : 0;
+    }
+  }
+  const mem = car.relSide !== 0;
+
   // R50-R52: slipstream of the player (shared with model A).
   let boosted = false;
   if (car.kind === 'player') boosted = slipstream(car, cars, p, drift);
@@ -706,15 +746,21 @@ function stepModelB(
       const k = (a < uc ? a : uc) - p.driftKnee;
       if (k > 0) velT += (dir * p.driftDive * k) / (1 - p.driftKnee);
     }
+    // R84c (H21): rails. The road push toward dir is cut by driftRail above what the R83b floor
+    // angle carries inward (variants 0-4; variant 5 holds the line by R83c).
+    if (p.driftRail !== 0 && p.driftEntry !== 5) {
+      const over = p.driftPush * A * dir - p.driftLat * p.driftMinU;
+      if (over > 0) velT += p.driftRail * dir * over;
+    }
     car.vel += (velT - car.vel) * (1 - Math.exp(-p.velGripDrift * DT));
     car.yaw = car.vel + slip;
   } else {
     // R83 GRIP: body yaw rate chases the steer, aligns with the motion.
     let f = sp / p.yawFullSpeed;
     if (f > 1) f = 1;
-    car.yawRate +=
-      (steer * p.yawRateMax * f - p.yawAlign * car.yaw - car.yawRate) *
-      (1 - Math.exp(-p.yawResponse * DT));
+    // R85f: in the memory the steer term is Y = A + yawAlign*(vT + sG), vT = relV (not clipped).
+    const Y = mem ? A + p.yawAlign * (car.relV + sGr) : steer * p.yawRateMax * f;
+    car.yawRate += (Y - p.yawAlign * car.yaw - car.yawRate) * (1 - Math.exp(-p.yawResponse * DT));
     car.yaw += (car.yawRate - A) * DT;
     // R84 GRIP: motion follows the body with a saturated force; off road g and smax are scaled
     // by offroadVelMul (model B's own, R15b untouched).
@@ -739,7 +785,21 @@ function stepModelB(
       if (car.yawRate < A) car.yawRate = A;
     }
     slip = car.yaw - car.vel;
-    gripLead = gripLeadOf(car.vel, steer, sp, A, off, p);
+    // R85f: in the memory R85b has vStar = vT and R85c is 0 (raw steer 0).
+    gripLead = mem
+      ? p.gripLead * (car.relV - car.vel) * sp * p.latScale
+      : gripLeadOf(car.vel, steer, sp, A, off, p);
+    // R85e: a lead not toward the finger (in the memory: toward sign(Y)) may only cancel the
+    // course motion: vx stays between 0 and vel*sp*latScale.
+    const toward = mem ? Y : steer;
+    if (!(gripLead * toward > 0)) {
+      const base = car.vel * sp * p.latScale;
+      if (base >= 0) {
+        if (gripLead > 0) gripLead = 0;
+        else if (gripLead < -base) gripLead = -base;
+      } else if (gripLead < 0) gripLead = 0;
+      else if (gripLead > -base) gripLead = -base;
+    }
   }
 
   // R85: lateral shift; in DRIFT plus the lead dir*driftLead*ramp*e, e = the part of the finger
@@ -780,6 +840,8 @@ function stepModelB(
   // R84: in DRIFT yaw = vel + slip also holds after the wall (the slip keeps its side, R83).
   if (drift) car.yaw = car.vel + slip;
   car.vx = car.vel * sp * p.latScale + lead;
+  // R85f: the memory target slides outward at releaseSlide.
+  if (mem) car.relV += car.relSide * p.releaseSlide * DT;
 
   // R86: R14 with the cap vmax*capMul (R52), vcap = vmax*pace*band (R62/R63); in DRIFT the cap also falls with the angle (as R22)
   // and the carry costs nothing; in GRIP the visible slip costs speed. Then R15.
@@ -1080,6 +1142,8 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.turboTicks = 0;
     c.driftTicks = 0;
     c.scrubDebt = 0;
+    c.relSide = 0; // R85f
+    c.relV = 0;
     c.crashTicks = 0;
     c.crashSpeed0 = 0;
     c.crashX0 = 0;

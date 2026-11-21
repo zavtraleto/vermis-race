@@ -14,6 +14,7 @@ import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim
 import { baseCarA } from './baseCarA';
 import { GAS, run } from './helpers';
 import { NO_H17_H18 } from './pinH17H18';
+import { NO_T77 } from './pinT77';
 import { ENTRY_A } from './pinEntryA';
 import { T70_NUMBERS } from './pinT70';
 import { PB, Q, STRAIGHT, car, constTrack, inp, mk, slipOf, stepB, stepN } from './modelb_helpers';
@@ -35,6 +36,9 @@ const REAL: CarParams = {
   ...NO_H17_H18,
   ...ENTRY_A,
   driftSpeedLoss: T70_NUMBERS.driftSpeedLoss,
+  // T77: H20 (R85f) and H21 (R84c) off: the R89b windows were calibrated before them (brief R84c:
+  // the rails change the R89b DRIFT windows in corners).
+  ...NO_T77,
 };
 const free = (p: CarParams): CarParams => ({
   ...p,

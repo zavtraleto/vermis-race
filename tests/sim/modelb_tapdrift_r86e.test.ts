@@ -1,7 +1,8 @@
 // R86e / R85d anti-cheese criterion (docs/brief.md R86e, named in advance): the expert bot without
 // noise; corner windows of tools/spike/drift-feel.ts --part 4 (240 straight + figure + 300 straight,
-// start at vmax). Tap-drift 0.15 s every 0.6 s (and 0.10/0.4, 0.25/1.0) is slower than pure GRIP in
-// every window; the held-drift lap (expert) on drift-run and test-twisty changes by at most 0.5%.
+// start at vmax). Tap-drift 0.15 s every 0.6 s (and 0.10/0.4, 0.25/1.0) is not faster than pure GRIP by
+// more than 0.5% in any window (T77, was: strictly slower); the held-drift lap (expert) on drift-run
+// and test-twisty changes by at most 0.5%.
 // Real car data (base.json, model B), driftTurbo 0 (R86c postponed). Driver and windows follow the spike:
 // GRIP = bot drift 'never', best clean time over the GRIP margins; tap = the same bot plus a drift input
 // for tapS every periodS while |bot steer| >= 0.5 (steer then full, keyboard-like); clean = finished,
@@ -150,9 +151,9 @@ function bestGrip(track: Track, p: CarParams, tap: Tap | null, total: number) {
   return best;
 }
 
-describe('R86e criterion: tap-drift is slower than pure GRIP in every spike window (expert, no noise)', () => {
+describe('R86e criterion: tap-drift is not faster than pure GRIP (by > 0.5%) in any spike window (expert, no noise)', () => {
   for (const [name, fig] of WINDOWS) {
-    it(`${name}: taps 0.15/0.6, 0.10/0.4, 0.25/1.0 are all slower than GRIP`, () => {
+    it(`${name}: taps 0.15/0.6, 0.10/0.4, 0.25/1.0 are none faster than GRIP by more than 0.5%`, () => {
       const w = windowTrack(fig);
       const g = bestGrip(w.track, P, null, w.total);
       expect(g).not.toBeNull();
@@ -161,7 +162,10 @@ describe('R86e criterion: tap-drift is slower than pure GRIP in every spike wind
         // no clean tap run at all also means the tap does not pay
         if (b) {
           expect(b.entries).toBeGreaterThan(0); // the taps really entered a drift
-          expect(b.T).toBeGreaterThan(g!.T);
+          // [T77: after R85e the tap-drift cost is gone; closed by the next rule, drift outside a corner
+          // brakes, author's decision 2026-11-21] Meaning: tap-drift gives no gain - not faster than
+          // GRIP by more than 0.5% of the window time (measured chicane 0.10/0.4: 12.708 = 12.708 s).
+          expect(b.T).toBeGreaterThanOrEqual(g!.T * (1 - 0.005));
         }
       }
     }, 120_000);

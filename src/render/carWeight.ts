@@ -23,7 +23,8 @@ export interface CarWeightConfig {
 /**
  * R89 model B body yaw in degrees: vis*slipDeg + vel*velDeg + leadDeg*lead, vis = yaw - vel + carry,
  * lead = vx/(sp*latScale) - vel (the part of the lateral speed the R85/R85b/R85c leads add and the
- * course has not); lead = 0 below minSpeed (sp = speed/vmax). Pure, no allocations.
+ * course has not); lead = 0 below minSpeed (sp = speed/vmax) and, R89d, unless lead*vx > 0.
+ * Pure, no allocations.
  */
 export function bodyYawDeg(
   yaw: number,
@@ -34,7 +35,8 @@ export function bodyYawDeg(
   latScale: number,
   cfg: { slipDeg: number; velDeg: number; leadDeg: number; minSpeed: number },
 ): number {
-  const lead = sp < cfg.minSpeed ? 0 : vx / (sp * latScale) - vel;
+  let lead = sp < cfg.minSpeed ? 0 : vx / (sp * latScale) - vel;
+  if (!(lead * vx > 0)) lead = 0; // R89d: only a lead toward the motion turns the nose
   return (yaw - vel + carry) * cfg.slipDeg + vel * cfg.velDeg + cfg.leadDeg * lead;
 }
 

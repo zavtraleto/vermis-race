@@ -36,6 +36,8 @@ export interface Car {
   turboTicks: number; // R86c (H18) remaining turbo ticks after a drift exit
   driftTicks: number; // R86e/R87 ticks of the current drift, 0 in GRIP
   scrubDebt: number; // R86e scrub debt (speed units) of the first debtTime seconds of a drift
+  relSide: number; // R85f release memory side sign(vInf), 0 = no memory
+  relV: number; // R85f target lateral course vT of the release memory, half-widths/s at vmax
   crashTicks: number; // R48 remaining crash ticks, 0 = driving
   crashSpeed0: number; // R48 speed at the moment of the hit
   crashX0: number; // R48 x at the moment of the hit
@@ -83,6 +85,9 @@ export interface CarParams {
   gripDodge: number; // R85c GRIP dodge: extra vx per unit of raw steer on straights, 0 = off
   dodgeFadeA: number; // R85c |A| at which the dodge has faded to 0
   driftMinU: number; // R83b floor of the finger share uc in DRIFT, 0 = off
+  driftRail: number; // R84c H21 drift rails in [0, 1]: share of the corner push above the R83b floor removed, 0 = off
+  releaseHold: number; // R85f H20: 1 = release memory on (B), 0 = off (A)
+  releaseSlide: number; // R85f growth of the release memory target, half-widths/s^2
   driftDive: number; // R84b inward dive above the knee of the gained angle, 0 = off
   driftKnee: number; // R84b share of the full angle above which the dive starts (< 1)
   leadRamp: number; // R85d seconds for the drift lead to ramp in from entry, 0 = off

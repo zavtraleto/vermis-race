@@ -17,6 +17,7 @@ import { createRace, step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 import { Q, STRAIGHT, car, constTrack, inp, mk, stepB, stepN } from './modelb_helpers';
 import { ENTRY_D } from './pinT70';
+import { NO_T77 } from './pinT77';
 
 const C = curves as { easy: number; medium: number; hard: number; sharp: number };
 const B = base as unknown as Record<string, number>;
@@ -30,7 +31,14 @@ const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > 
 
 /** Real data, model B, lamps off, driftTurbo 0 (R86c postponed), walls and off-road loss removed. */
 // T71: T68 criteria (R83b, R85d on a straight) are variant 3 drifts: driftEntry 3 pinned (brief R81f).
-const REAL: CarParams = H(baseCar, { model: 1, crashMinSpeed: 1e9, driftTurbo: 0, ...ENTRY_D });
+// T77: H20 / H21 off: brief R84c, the R83b hold steers 0.537 / 0.817 "do not change" only at driftRail 0.
+const REAL: CarParams = H(baseCar, {
+  model: 1,
+  crashMinSpeed: 1e9,
+  driftTurbo: 0,
+  ...ENTRY_D,
+  ...NO_T77,
+});
 const FREE: CarParams = H(REAL, { xLimit: 1e9, offroadMul: 1, offroadSteerMul: 1 });
 
 // ------------------------------------------------------------------------------------------------
