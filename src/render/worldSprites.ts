@@ -87,6 +87,7 @@ export interface SpritesConfig {
   driftCamera: ScreenRollConfig;
   speedometer: SpeedometerConfig;
   leaderboard: HudLayout; // R67 leaderboard size and corner offset
+  menu: HudLayout; // R95 start screen / pause size and the pause button corner offset
   tailLights: TailLightsConfig;
 }
 

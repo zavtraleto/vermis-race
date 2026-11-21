@@ -61,10 +61,13 @@ import { Leaderboard } from '../ui/leaderboard';
 import { NameLabels } from '../ui/nameLabels';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
+import { GameMenu } from '../ui/menu';
 import { DriftEntryProbe, driftEntryOf, onOffOf } from './driftEntryProbe';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
-import { createLoop } from './loop';
+import { copyRaceState, createLoop } from './loop';
+import { createGameFlow, menuEnabled } from './gameFlow';
+import { isTouchDrift, loadTouchDrift, saveTouchDrift, type TouchDrift } from './touchDriftPref';
 import { installDev } from '../dev/install';
 import type { TunableSpec } from '../dev/tunables';
 import render3dJson from '../data/render3d.json';
@@ -133,6 +136,21 @@ const applyDriftEntry = (): void => {
   baseCar.driftTurbo = onOffOf(hypotheses.H18_driftTurbo); // H18 (R86c)
 };
 applyDriftEntry();
+// R81h/R95: the touch drift mode (H19) is remembered in localStorage and wins over the default and
+// the tuning diff; the zone stick reads inputConfig.touch.touchDrift at every touch-down.
+const storage = ((): Storage | null => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+})();
+const touchDriftOf = (): TouchDrift =>
+  isTouchDrift(hypotheses.H19_touchDrift) ? hypotheses.H19_touchDrift : 'A';
+const storedDrift = loadTouchDrift(storage, touchDriftOf());
+if (storedDrift !== hypotheses.H19_touchDrift)
+  tunables.set('hypotheses.H19_touchDrift', storedDrift);
+inputConfig.touch.touchDrift = touchDriftOf();
 
 const canvas = document.getElementById('game');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('canvas #game missing');
@@ -456,6 +474,13 @@ const carParams: CarParams[] = race.cars.map((c) =>
 );
 tunables.onChange(() => {
   applyDriftEntry();
+  // R95: the dev panel and the pause show and store one H19 value.
+  const td = touchDriftOf();
+  if (td !== inputConfig.touch.touchDrift) {
+    inputConfig.touch.touchDrift = td;
+    saveTouchDrift(storage, td);
+    menu?.setMode(td);
+  }
   for (const p of carParams) {
     if (p !== baseCar) {
       Object.assign(p, baseCar);
@@ -463,7 +488,7 @@ tunables.onChange(() => {
     }
   }
 });
-const rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;
+let rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;
 const readPlayerRaw = createReadInput(player);
 // R81b (отладка): the probe sees the player car after each tick (loop.curr before the next one).
 const readPlayer = entryProbe
@@ -478,7 +503,8 @@ const readInput = rivalDrivers
       // H15 read live: A = rubber band on (R63), B = off; R63c reads the live bandBoost.
       rivalsCfg.rubberBand = hypotheses.H15_rubberBand === 'B' ? 0 : 1;
       mistakeConfig.bandBoost = rivalsCfg.bandBoost;
-      fillRivalInputs(rivalDrivers, loop.curr, track, carParams, mistakeConfig, out);
+      if (rivalDrivers)
+        fillRivalInputs(rivalDrivers, loop.curr, track, carParams, mistakeConfig, out);
     }
   : readPlayer;
 // R67: rivals drawn with the player's model (one instanced draw call in the road pass), names
@@ -745,16 +771,104 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   render3d?.update(loop.prev.cars, loop.curr.cars, alpha, dt);
 }
 
+// R95: start screen and pause (outside the sim); automation (?menu=0, any scenario) runs without them.
+// The e2e pages driven by stepTicks (?frames= / ?ticks=, no rAF loop) count as automation too.
+const menuOn =
+  menuEnabled(window.location.search) && params.frames === null && params.ticks === null;
+const flow = createGameFlow({ menu: menuOn });
+// Releases the active touch and held keys (pause entry, start): steer 0, drift false.
+function releaseInput(): void {
+  const t = now();
+  const id = touchStick.activeId;
+  if (id !== null) {
+    touchStick.pointerCancel(id, t);
+    retouch.up(t);
+    flick.up(t);
+  }
+  keyboard.releaseAll(t);
+}
+// R95 "Заново": the race starts again from the state built at load (same seed); render-only state
+// that would carry over (tyre marks, smoke, drift look, camera lag) is cleared.
+function restartRace(): void {
+  copyRaceState(race, loop.curr);
+  copyRaceState(race, loop.prev);
+  if (rivalsOn) rivalDrivers = createRivalDrivers(race, params.seed);
+  tyreMarks.ring.clear();
+  tyreMarks.open = false;
+  driftVisual.smoke.clear();
+  driftVisual.yaw = 0;
+  driftVisual.cameraX = 0;
+  camLag.posX = race.cars[0]!.x;
+}
+const menu = menuOn
+  ? new GameMenu(
+      document.body,
+      canvas,
+      spritesConfig.menu,
+      {
+        start: () => {
+          flow.start();
+          releaseInput();
+          menu?.show(flow.phase);
+        },
+        pause: () => {
+          flow.pause();
+          releaseInput();
+          menu?.show(flow.phase);
+        },
+        resume: () => {
+          flow.resume();
+          menu?.show(flow.phase);
+        },
+        restart: () => {
+          if (flow.restart()) restartRace();
+          releaseInput();
+          menu?.show(flow.phase);
+        },
+        mode: (m) => {
+          tunables.set('hypotheses.H19_touchDrift', m);
+        },
+      },
+      touchDriftOf(),
+    )
+  : null;
+if (menu) {
+  menu.show(flow.phase);
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const phase = flow.phase;
+    if (phase === 'menu' && (e.code === 'Enter' || e.code === 'Space')) {
+      e.preventDefault();
+      flow.start();
+      releaseInput();
+    } else if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (phase === 'run') {
+        flow.pause();
+        releaseInput();
+      } else if (phase === 'pause') flow.resume();
+      else return;
+      e.preventDefault();
+    } else return;
+    menu.show(flow.phase);
+  });
+}
+
 let lastTime = -1;
 function frame(time: number): void {
   const frameSeconds = lastTime < 0 ? 0 : (time - lastTime) / 1000;
   lastTime = time;
   if (frameSeconds > 0) frameStats.push(frameSeconds * 1000);
-  loop.advance(frameSeconds);
+  // R95: outside 'run' the sim does not step and the accumulator does not grow.
+  const running = flow.simRunning;
+  loop.advance(running ? frameSeconds : 0);
   // R24: drift yaw from the sim angle, interpolated like the other car fields.
   const pa = loop.prev.cars[0]!.angle;
   const ca = loop.curr.cars[0]!.angle;
-  updateVisuals(Math.min(frameSeconds, MAX_VISUAL_DT), pa + (ca - pa) * loop.alpha, loop.alpha);
+  updateVisuals(
+    running ? Math.min(frameSeconds, MAX_VISUAL_DT) : 0,
+    pa + (ca - pa) * loop.alpha,
+    loop.alpha,
+  );
   renderFrame();
   hud?.update(time, frameStats, lastCalls, baseCar.model === 1 ? entryText : undefined);
   if (params.frames !== null && game.frames >= params.frames) {
