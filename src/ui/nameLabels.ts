@@ -18,7 +18,8 @@ const MAX_LABELS = 64;
 
 /**
  * R67 rival name labels: a 2D canvas over the game canvas at the device pixel ratio (crisp text
- * on the upscaled 360x640 picture), pointer-transparent, UI layer (never rolled by R27). Names
+ * on the upscaled 360x640 picture), pointer-transparent, UI layer. The text stays upright, but its
+ * anchor points turn with the picture roll (R27/R27c) so the names stay over the cars. Names
  * are prebuilt strings; draw() only clears and fills text (no allocations per frame).
  */
 export class NameLabels {
@@ -78,8 +79,15 @@ export class NameLabels {
    * skipped, so names never pile up near the horizon. Box width is estimated from the monospace
    * advance (MONO_ADVANCE x font size per character), no text measuring.
    */
-  draw(src: LabelSource, cars: readonly Car[]): void {
+  draw(src: LabelSource, cars: readonly Car[], rollDeg = 0): void {
     const ctx = this.ctx;
+    // R27c: the same roll as the game picture (> 0 = counter-clockwise) about the screen centre,
+    // in game px (square), y down.
+    const ra = (rollDeg * Math.PI) / 180;
+    const rc = Math.cos(ra);
+    const rs = Math.sin(ra);
+    const cx = this.gameW / 2;
+    const cy = this.gameH / 2;
     ctx.clearRect(0, 0, this.el.width, this.el.height);
     const n = src.labelCount < MAX_LABELS ? src.labelCount : MAX_LABELS;
     const done = this.done;
@@ -94,8 +102,10 @@ export class NameLabels {
       const c = cars[src.labelCar[best]!]!;
       const name = this.names[c.nameId];
       if (name === undefined) continue;
-      const gx = src.labelX[best]!;
-      const gy = src.labelY[best]!;
+      const dx = src.labelX[best]! - cx;
+      const dy = src.labelY[best]! - cy;
+      const gx = cx + dx * rc + dy * rs;
+      const gy = cy - dx * rs + dy * rc;
       const half = 0.5 * name.length * MONO_ADVANCE * h;
       let free = true;
       for (let j = 0; j < drawn && free; j++) {

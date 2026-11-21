@@ -49,7 +49,9 @@ import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
 import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
-import { roadPointAt, TyreMarks } from '../render/tyreMarks';
+import { frontMarksActive, roadPointAt, TyreMarks } from '../render/tyreMarks';
+import { stepCamDrift, type CamDrift } from '../render/cameraDrift';
+import { stepWheelSpin } from '../render/wheelSpin';
 import { WorldSprites } from '../render/worldSprites';
 import { DT, SEG_PER_UNIT } from '../sim/constants';
 import { createRivalDrivers, fillRivalInputs } from '../bot/rivals';
@@ -447,6 +449,11 @@ const bump = new BumpFeedback(spritesConfig.bump, spritesConfig.crash);
 const tumble = new CrashTumble(spritesConfig.crash);
 // R27b: the lateral camera position (render field); camPosX = x at the start of the race.
 const camLag: CamLag = { posX: race.cars[0]!.x };
+// R27c: camera shift into the turn and horizon roll (render fields), added on top of R27b.
+const camDrift: CamDrift = { shiftX: 0, rollDeg: 0 };
+// R25c: wheel angles about their axles, rad (render fields).
+let spinFront = 0;
+let spinRear = 0;
 const render3d = use3d
   ? new Render3d(renderer, {
       cfg: render3dConfig,
@@ -604,7 +611,8 @@ function poseFrame(): void {
   // R24: in DRIFT the camera moves toward the inside of the corner; the car is drawn off-centre.
   // R45: the contact shake moves the whole camera (road, traffic and the car line together).
   // R27b: everything is projected from the lagging camPosX; the car is drawn x - camPosX off it.
-  const camX = driftVisual.cameraX + bump.shake;
+  // R27c: camShiftX on top of the R27b camPosX (R27b keeps its own state without it).
+  const camX = driftVisual.cameraX + bump.shake + camDrift.shiftX;
   const zCam = p.z + (c.z - p.z) * a;
   // R30b: the camera rides above the road at the player's line (the line traffic and rivals are
   // drawn at too), pulled back toward z only on descents too steep for it (cameraLineOffset).
@@ -631,16 +639,29 @@ function poseFrame(): void {
     weight.roll,
     carDx,
     weight.pitch - slopePitch,
-    screenRoll.deg,
+    screenRoll.total,
     tumble.rollDeg,
     tumble.hop,
     spritesConfig.crash.pivotY,
     wheelSteer.deg,
+    spinFront,
+    spinRear,
   );
   const found =
     roadPointAt(tyreMarks.left, proj, carView.rearLX, carView.rearLY) &&
     roadPointAt(tyreMarks.right, proj, carView.rearRX, carView.rearRY);
-  tyreMarks.track(c.state === 'DRIFT' && c.dir !== 0, found, proj.length);
+  // R24d: in a strong drift the front wheels mark too.
+  const front = frontMarksActive(
+    c.state,
+    c.yaw - c.vel,
+    baseCar.slipFull,
+    spritesConfig.tyreMarks.frontMarkSlip,
+  );
+  const frontFound =
+    front &&
+    roadPointAt(tyreMarks.frontLeft, proj, carView.frontLX, carView.frontLY) &&
+    roadPointAt(tyreMarks.frontRight, proj, carView.frontRX, carView.frontRY);
+  tyreMarks.track(c.state === 'DRIFT' && c.dir !== 0, found, proj.length, front, frontFound);
 }
 
 function renderFrame(): void {
@@ -696,7 +717,7 @@ function renderFrame(): void {
       tailLights,
       track,
     );
-    nameLabels?.draw(rivalModels, loop.curr.cars);
+    nameLabels?.draw(rivalModels, loop.curr.cars, screenRoll.total);
   }
   leaderboard?.update(visualDt, loop.curr.cars);
   if (stress) world.drawStress(sprites, proj, stress.fill);
@@ -725,16 +746,15 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   const c = loop.curr.cars[0]!;
   visualDt = dt;
   driftVisual.update(dt, c, angle);
-  screenRoll.update(dt, c, angle);
   // R27b: camPosX chases the interpolated x; back on x when the crash returns the car (R48).
   const x = p.x + (c.x - p.x) * alpha;
   if (p.crashTicks > 0 && c.crashTicks === 0) camLag.posX = x;
   else camLag.posX = stepCamLag(camLag.posX, x, dt, view.camLagTau, view.camLagMax);
+  const speed = p.speed + (c.speed - p.speed) * alpha;
   // R89: in model B the body yaw is vis*slipDeg + vel*velDeg + leadDeg*lead (interpolated fields,
   // both states).
   let bodyYaw: number | null = null;
   if (baseCar.model === 1) {
-    const speed = p.speed + (c.speed - p.speed) * alpha;
     bodyYaw = bodyYawDeg(
       p.yaw + (c.yaw - p.yaw) * alpha,
       p.vel + (c.vel - p.vel) * alpha,
@@ -745,6 +765,19 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
       spritesConfig.weight,
     );
   }
+  // R27c: g = body angle over its full-drift value (visible slip slipFull x slipDeg, R89); in
+  // model A the R24 drift yaw over yawMaxDeg. Picture roll > 0 is counter-clockwise, so a right
+  // drift (g > 0) rolls it clockwise: the right edge of the road goes down.
+  const g =
+    bodyYaw !== null
+      ? bodyYaw / (baseCar.slipFull * spritesConfig.weight.slipDeg)
+      : driftVisual.yaw / spritesConfig.drift.yawMaxDeg;
+  stepCamDrift(camDrift, g, c.state === 'DRIFT', dt, view);
+  screenRoll.update(dt, c, angle, -camDrift.rollDeg);
+  // R25c: every wheel rolls at the world speed (m/s from the speedometer scale) over its radius.
+  const mps = (speed / baseCar.vmax) * (spritesConfig.speedometer.vmaxKmh / 3.6);
+  spinFront = stepWheelSpin(spinFront, mps, carView.frontRadius, dt);
+  spinRear = stepWheelSpin(spinRear, mps, carView.rearRadius, dt);
   weight.update(
     dt,
     p,
@@ -799,6 +832,8 @@ function restartRace(): void {
   driftVisual.yaw = 0;
   driftVisual.cameraX = 0;
   camLag.posX = race.cars[0]!.x;
+  camDrift.shiftX = 0;
+  camDrift.rollDeg = 0;
 }
 const menu = menuOn
   ? new GameMenu(

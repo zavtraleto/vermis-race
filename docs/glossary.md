@@ -53,6 +53,9 @@
 | Долг скраба | `scrubDebt`, `debtTime` | R86e: скраб R86b, накопленный в первые `debtTime` с дрифта; платится скоростью при раннем выходе, потом прощается |
 | Нарастание опережения | `leadRamp` | R85d: опережение дрифта набирает силу за `leadRamp` с от входа |
 | Отставание камеры | `camPosX`, `camLagTau`, `camLagMax` | R27b: боковая позиция камеры в рендере догоняет `x` машины |
+| Камера в дрифте | `camShiftX`, `camDriftShift`, `camRollDeg`, `camGripMul`, `camDriftTau` | R27c: сдвиг камеры внутрь поворота и наклон горизонта по углу кузова R89 (`g = θ/θ_full`, `θ_full = slipFull·slipDeg`); в GRIP доля `camGripMul`; прибавляется к R27b |
+| Вращение колёс | `stepWheelSpin`, `frontRadius`, `rearRadius` | R25c: угол колёс вокруг оси копится в рендере, скорость = мировая скорость / радиус колеса модели (высота оси) |
+| Следы передних колёс | `frontMarkSlip`, `frontMarksActive` | R24d: в DRIFT при `|slip| ≥ frontMarkSlip·slipFull` след R24c оставляют и передние колёса |
 | Угол опережения | `leadDeg` | R89: часть угла кузова от опережения (`vx/(sp*latScale) − vel`) |
 | Автодрифт | `driftEntry` 4, `autoSteer`, `autoHold`, `autoLook`, `autoNeed` | R81e (H16 E): вход в дрифт решает симуляция — поворот впереди требует не меньше `autoNeed` предела сцепления, руль в его сторону ≥ `autoSteer` удержан `autoHold` с; выход — отпускание (R82) |
 | Счётчик автодрифта | `autoTicks` | R81e: тики подряд, в которые выполнены условия входа автодрифта; 0 вне GRIP |

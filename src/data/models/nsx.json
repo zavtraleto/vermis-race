@@ -17,5 +17,6 @@
   },
   "pivots": { "wheelFL": [-0.755,0.31,-1.215], "wheelFR": [0.755,0.31,-1.215] },
   "rearAxleZ": 1.315,
-  "rearWheelX": 0.765
+  "rearWheelX": 0.765,
+  "rearWheels": {"pivots":{"wheelRL":[-0.765,0.33,1.315],"wheelRR":[0.765,0.33,1.315]},"ranges":{"wheelRL":[3774,294],"wheelRR":[4068,294]}}
 }

@@ -8,7 +8,9 @@
 // (a half-turn about Y, winding preserved).
 // Output: positions as integers in `unit` metres, 9 per triangle (non-indexed), one palette index
 // per triangle. `body` = every mesh except the two front wheels; the front wheels are stored
-// relative to their pivot (node origin = wheel centre). Deterministic: no timestamps, fixed key order.
+// relative to their pivot (node origin = wheel centre). The rear wheels stay in `body`; their
+// triangle ranges there and their pivots are recorded for the R25c spin.
+// Deterministic: no timestamps, fixed key order.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
@@ -185,14 +187,23 @@ const pivotFL = origin(fl);
 const pivotFR = origin(fr);
 const zero = [0, 0, 0];
 const body = { positions: [], colors: [] };
-for (const n of meshNodes) if (n !== fl && n !== fr) addMesh(body, n, zero);
+const rlNode = byName(REAR_LEFT);
+const rrNode = byName(REAR_RIGHT);
+const ranges = {}; // R25c: [first triangle, triangle count] of each rear wheel inside body
+for (const n of meshNodes) {
+  if (n === fl || n === fr) continue;
+  const first = body.colors.length;
+  addMesh(body, n, zero);
+  if (n === rlNode) ranges.wheelRL = [first, body.colors.length - first];
+  if (n === rrNode) ranges.wheelRR = [first, body.colors.length - first];
+}
 const wheelFL = { positions: [], colors: [] };
 const wheelFR = { positions: [], colors: [] };
 addMesh(wheelFL, fl, pivotFL);
 addMesh(wheelFR, fr, pivotFR);
 
-const rl = origin(byName(REAR_LEFT));
-const rr = origin(byName(REAR_RIGHT));
+const rl = origin(rlNode);
+const rr = origin(rrNode);
 
 const out = {
   unit: UNIT,
@@ -201,6 +212,10 @@ const out = {
   pivots: { wheelFL: pivotFL.map(metres), wheelFR: pivotFR.map(metres) },
   rearAxleZ: metres((rl[2] + rr[2]) / 2),
   rearWheelX: metres((Math.abs(rl[0]) + Math.abs(rr[0])) / 2),
+  rearWheels: {
+    pivots: { wheelRL: rl.map(metres), wheelRR: rr.map(metres) },
+    ranges,
+  },
 };
 
 // One array per line keeps the file diffable without a line per number.
@@ -218,7 +233,8 @@ const text =
   '  },\n' +
   `  "pivots": { "wheelFL": ${line(out.pivots.wheelFL)}, "wheelFR": ${line(out.pivots.wheelFR)} },\n` +
   `  "rearAxleZ": ${line(out.rearAxleZ)},\n` +
-  `  "rearWheelX": ${line(out.rearWheelX)}\n` +
+  `  "rearWheelX": ${line(out.rearWheelX)},\n` +
+  `  "rearWheels": ${line(out.rearWheels)}\n` +
   '}\n';
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, text);

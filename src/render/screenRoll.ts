@@ -34,8 +34,10 @@ export interface RollUniform {
  * `deg`. The UI (DOM) is not touched. Reads sim state, never writes it.
  */
 export class ScreenRoll {
-  /** Degrees, > 0 = picture counter-clockwise. */
+  /** Degrees, > 0 = picture counter-clockwise (the R27 part). */
   deg = 0;
+  /** Degrees of the whole picture roll: R27 plus the R27c horizon roll; what the uniform holds. */
+  total = 0;
   readonly uniform: RollUniform;
 
   constructor(
@@ -45,11 +47,15 @@ export class ScreenRoll {
     this.uniform = { value: new Vector4(1, 0, aspect, 0) };
   }
 
-  /** `angle` = sim drift angle interpolated between the prev and curr states (0 in GRIP). */
-  update(dt: number, car: Car, angle: number): void {
+  /**
+   * `angle` = sim drift angle interpolated between the prev and curr states (0 in GRIP);
+   * `extraDeg` = R27c roll added on top (already smoothed by its caller, same sense as deg).
+   */
+  update(dt: number, car: Car, angle: number, extraDeg = 0): void {
     const drifting = car.state === 'DRIFT' && car.dir !== 0;
     this.deg = approach(this.deg, drifting ? angle * this.cfg.rollDeg : 0, dt, this.cfg.rollTau);
-    const r = this.deg * DEG;
+    this.total = this.deg + extraDeg;
+    const r = this.total * DEG;
     const u = this.uniform.value;
     u.x = Math.cos(r);
     u.y = Math.sin(r);
