@@ -38,6 +38,14 @@ export interface TouchStickConfig {
   driftPull: number;
   /** R81c zone stick: ms for the released steer to return to 0 (0 = at once). */
   zoneReleaseMs: number;
+  /** R81h (H19) touch drift mode of the zone stick, read at each touch-down; absent = 'B'. */
+  touchDrift?: 'A' | 'B' | 'C';
+  /** R81h A: flick window after touch-down, ms. */
+  flickMs: number;
+  /** R81h A: sideways flick distance as a multiple of stickRadius. */
+  flickDist: number;
+  /** R81h C: bottom fraction of the steering zone where a touch-down drifts. */
+  driftZoneFrac: number;
 }
 
 export interface InputConfig {

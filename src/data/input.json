@@ -16,6 +16,9 @@
     "stickRadius": 0.16,
     "driftEdge": 0,
     "driftPull": 0.6,
-    "zoneReleaseMs": 0
+    "zoneReleaseMs": 0,
+    "flickMs": 200,
+    "flickDist": 0.6,
+    "driftZoneFrac": 0.5
   }
 }

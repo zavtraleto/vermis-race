@@ -163,5 +163,10 @@
     "widthEm": 38,
     "heightEm": 64,
     "marginEm": 1.2
+  },
+  "menu": {
+    "widthEm": 24,
+    "heightEm": 42,
+    "marginEm": 0.8
   }
 }

@@ -12,6 +12,11 @@ import type { TouchStickConfig } from './types';
  *   driftEdge 0 = off); then true until release, even when the finger goes back up. dy never steers.
  * - Release (up / cancel): drift false at once; steer returns to 0 at 1/zoneReleaseMs per ms
  *   (R81c, T68: zoneReleaseMs 0 = steer 0 on the first read; releaseMs of other schemes untouched).
+ * - R81h (H19): cfg.touchDrift is read at each pointerDown and kept for that touch (absent = 'B').
+ *   A: a move with |dx| >= R * flickDist within flickMs of the touch-down latches the drift until
+ *   release; later moves of the touch never do. B: the R81g / R81c latches above. C: a touch-down in
+ *   the bottom driftZoneFrac of the steering zone drifts at once until release, a higher one never.
+ *   In A and C driftPull and driftEdge do not act.
  * - brake is always false.
  */
 export function createZoneStick(cfg: TouchStickConfig): TouchStick {
@@ -22,6 +27,8 @@ export function createZoneStick(cfg: TouchStickConfig): TouchStick {
   let anchorY = 0;
   let steer = 0;
   let drift = false;
+  let mode: 'A' | 'B' | 'C' = 'B';
+  let downT = 0;
   let releasing = false;
   let releaseSteer = 0;
   let releaseT = 0;
@@ -43,23 +50,33 @@ export function createZoneStick(cfg: TouchStickConfig): TouchStick {
       width = w;
       height = h;
     },
-    pointerDown(id: number, x: number, y: number): boolean {
+    pointerDown(id: number, x: number, y: number, tMs: number): boolean {
       if (active !== null) return false;
       if (y < height - height * cfg.steerZoneFrac) return false;
       active = id;
       anchorX = x;
       anchorY = y;
+      downT = tMs;
+      mode = cfg.touchDrift ?? 'B';
       steer = 0;
-      drift = false;
+      // R81h C: the bottom driftZoneFrac of the steering zone makes a drift touch.
+      drift = mode === 'C' && y >= height - height * cfg.steerZoneFrac * cfg.driftZoneFrac;
       releasing = false;
       return true;
     },
-    pointerMove(id: number, x: number, y: number): void {
+    pointerMove(id: number, x: number, y: number, tMs: number): void {
       if (id !== active) return;
       const r = cfg.stickRadius * width;
       const dx = x - anchorX;
       const raw = r > 0 ? dx / r : 0;
       steer = raw > 1 ? 1 : raw < -1 ? -1 : raw;
+      if (mode === 'C') return;
+      if (mode === 'A') {
+        // R81h A: a sideways flick within flickMs of the touch-down latches the drift until release.
+        if (r > 0 && tMs - downT <= cfg.flickMs && (dx < 0 ? -dx : dx) >= r * cfg.flickDist)
+          drift = true;
+        return;
+      }
       // R81c: the first crossing of the drift border latches the drift until release.
       if (r > 0 && cfg.driftEdge > 0 && (dx < 0 ? -dx : dx) >= r * cfg.driftEdge) drift = true;
       // R81g: the first pull down by R * driftPull latches the drift until release.

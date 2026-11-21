@@ -67,6 +67,9 @@
     "input.touch.stickRadius": { "min": 0.05, "max": 0.5, "step": 0.01 },
     "input.touch.driftEdge": { "min": 0, "max": 3, "step": 0.05 },
     "input.touch.driftPull": { "min": 0, "max": 2, "step": 0.05 },
+    "input.touch.flickMs": { "min": 50, "max": 600, "step": 10 },
+    "input.touch.flickDist": { "min": 0.1, "max": 2, "step": 0.05 },
+    "input.touch.driftZoneFrac": { "min": 0.1, "max": 0.9, "step": 0.05 },
     "input.touch.deadZone": { "min": 0, "max": 0.3, "step": 0.01 },
     "input.touch.responseExp": { "min": 0.5, "max": 3, "step": 0.05 },
     "input.touch.releaseMs": { "min": 10, "max": 500, "step": 10 },
@@ -175,6 +178,7 @@
     "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E", "F"],
     "hypotheses.H17_gripScrub": ["A", "B"],
     "hypotheses.H18_driftTurbo": ["A", "B"],
+    "hypotheses.H19_touchDrift": ["A", "B", "C"],
     "sprites.drift.smoke": ["on", "off"],
     "sprites.tailLights.enabled": ["on", "off"]
   },
@@ -1117,10 +1121,39 @@
     },
     "input.touch.driftPull": {
       "title": "Тяга вниз для дрифта",
-      "hint": "во сколько радиусов стика палец тянут вниз до дрифта; 0 — выкл",
+      "hint": "способ B: во сколько радиусов стика палец тянут вниз до дрифта; 0 — выкл",
       "tier": "more",
       "group": "Управление",
       "rule": "R81g"
+    },
+    "hypotheses.H19_touchDrift": {
+      "title": "Способ дрифта пальцем",
+      "hint": "A — коснись и рвани вбок; B — потяни вниз; C — касание в нижней половине зоны",
+      "tier": "more",
+      "group": "Управление",
+      "model": "B",
+      "rule": "R81h"
+    },
+    "input.touch.flickMs": {
+      "title": "Рывок вбок: окно",
+      "hint": "способ A: сколько мс после касания рывок вбок включает дрифт",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R81h"
+    },
+    "input.touch.flickDist": {
+      "title": "Рывок вбок: длина",
+      "hint": "способ A: во сколько радиусов стика палец рвут вбок до дрифта",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R81h"
+    },
+    "input.touch.driftZoneFrac": {
+      "title": "Нижняя зона дрифта",
+      "hint": "способ C: доля зоны руля снизу, где касание сразу дрифтует",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R81h"
     },
     "input.touch.stickRadiusFrac": {
       "title": "Ход пальца",
