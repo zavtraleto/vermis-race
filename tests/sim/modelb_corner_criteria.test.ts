@@ -14,6 +14,7 @@ import { DT } from '../../src/sim/constants';
 import { buildTrack } from '../../src/sim/track';
 import type { CarParams, Track } from '../../src/sim/types';
 import { Lcg, Rig, T71 } from './corner_helpers';
+import { NO_T77 } from './pinT77';
 
 // Spec: docs/brief.md R81f "Критерии" (a)-(e), R83c criterion, R86f criterion, named before the
 // implementation and measured by tools/spike/corner-drift.ts (real step + variant 5 wrapper,
@@ -27,7 +28,8 @@ import { Lcg, Rig, T71 } from './corner_helpers';
 //     easy: n <= 20; medium: n <= 23; hard: n <= 24; sharp: n <= 25
 //   The first curved segment (n = 1 of the enter) is the corner start `a`; the end of the leave is a + 59.
 
-const P = { ...baseCar, ...T71, driftTurbo: 0, model: 1 } as CarParams;
+// T77: H20 (R85f) off: variant 5 was measured without the release memory (R84c does not act in variant 5).
+const P = { ...baseCar, ...T71, driftTurbo: 0, model: 1, ...NO_T77 } as CarParams;
 const free = (p: CarParams): CarParams => ({
   ...p,
   xLimit: 1e9,

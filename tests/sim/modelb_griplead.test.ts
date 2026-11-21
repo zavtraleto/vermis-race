@@ -26,6 +26,12 @@ const OPEN: CarParams = {
 const WITH: CarParams = { ...OPEN, ...lead(L) };
 const NONE: CarParams = { ...OPEN, ...lead(0) };
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
+/**
+ * R85e (2026-11-21): a lead not toward the finger (L*steer <= 0) may only cancel the course motion:
+ * L in [-base, 0] for base = vel*sp*latScale >= 0, symmetric for base < 0.
+ */
+const catchOnly = (L: number, steer: number, base: number): number =>
+  L * steer > 0 ? L : base >= 0 ? clamp(L, -base, 0) : clamp(L, 0, -base);
 
 /** vStar of R85b from the brief formula (on road). */
 function vStar(p: CarParams, steer: number, curve: number, sp: number): number {
@@ -88,7 +94,10 @@ describe('R85b GRIP lead: exact term on curves, low speed and the clamp, vs grip
   ];
   for (const sign of [1, -1] as const) {
     for (const [curve, steer, sp, want] of CASES) {
-      it(`mirror ${sign}, curve ${curve}, steer ${steer}, sp ${sp}: x diff = 0.9*(vStar - vel)*sp*1.3*DT`, () => {
+      // T77: R85e clips the lead of the cases whose lead is not toward the finger: curve 20, steer 1
+      // (vStar -1.03 < vel: outward against the finger -> -base) and curve -2, steer 0 (vStar 0.22 > vel,
+      // steer 0 -> 0). Was: the raw 0.9*(vStar - vel)*sp*1.3 for every case.
+      it(`mirror ${sign}, curve ${curve}, steer ${steer}, sp ${sp}: x diff = R85e(0.9*(vStar - vel)*sp*1.3)*DT`, () => {
         const start = { speed: sp, vel: sign * 0.1, yaw: sign * 0.15, yawRate: sign * 0.3 };
         const a = mk(start);
         const b = mk(start);
@@ -102,10 +111,12 @@ describe('R85b GRIP lead: exact term on curves, low speed and the clamp, vs grip
         expect(c.vel).toBe(car(b).vel); // the lead is not fed back
         expect(c.yaw).toBe(car(b).yaw);
         expect(c.yawRate).toBe(car(b).yawRate);
-        expect(c.vx).toBeCloseTo((c.vel + L * (vs - c.vel)) * sp * LS, 12);
+        const base = c.vel * sp * LS;
+        const le = catchOnly(L * (vs - c.vel) * sp * LS, sign * steer, base);
+        expect(c.vx).toBeCloseTo(base + le, 12);
         expect(car(b).vx).toBeCloseTo(car(b).vel * sp * LS, 12);
         expect(c.x).toBeCloseTo(c.vx * DT, 12); // x started at 0
-        expect(c.x - car(b).x).toBeCloseTo(L * (vs - c.vel) * sp * LS * DT, 12);
+        expect(c.x - car(b).x).toBeCloseTo(le * DT, 12);
       });
     }
   }

@@ -3,6 +3,7 @@ import { NO_H17_H18 } from './pinH17H18';
 import { ENTRY_A } from './pinEntryA';
 import { NO_GRIP_LEAD } from './pinGripLead';
 import { NO_T68 } from './pinT68';
+import { NO_T77 } from './pinT77';
 import { DT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
@@ -17,6 +18,7 @@ export const PB: CarParams = {
   ...ENTRY_A, // flick entry (R81): the zone stick (R81c) has its own tests
   ...NO_GRIP_LEAD, // R85b off: the GRIP lead has its own tests (modelb_griplead.test.ts)
   ...NO_T68, // R85c, R83b, R84b, R85d, R86e off: they have their own tests (modelb_t68.test.ts)
+  ...NO_T77, // H20 (R85f) and H21 (R84c) off: they have their own tests (modelb_t77.test.ts)
   vmax: 1,
   accel: 0.22,
   brake: 0.6,

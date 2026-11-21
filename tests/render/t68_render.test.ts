@@ -77,8 +77,10 @@ describe('R89 body yaw with the lead term (bodyYawDeg)', () => {
   it('leadDeg 0 is the old formula vis*slipDeg + vel*velDeg', () => {
     expect(bodyYawDeg(0.5, 0.3, 0.1, 0.8, 1, 1, { ...CFG, leadDeg: 0 })).toBeCloseTo(6.6, 12);
   });
-  it('release: vx below vel gives a negative lead (nose comes back past straight): vel 0.5, vx 0 -> 0.5*5 - 8*0.5 = -1.5', () => {
-    expect(bodyYawDeg(0.5, 0.5, 0, 0, 1, 1, CFG)).toBeCloseTo(-1.5, 12);
+  // R89d (2026-11-21): the lead term only when lead*vx > 0; the release case no longer turns the nose
+  // back past straight (was: 0.5*5 - 8*0.5 = -1.5). The R89d cases live in t77_render.test.ts.
+  it('release (R89d): vx below vel, lead*vx = 0 -> no lead term: vel 0.5, vx 0 -> 0.5*5 = 2.5', () => {
+    expect(bodyYawDeg(0.5, 0.5, 0, 0, 1, 1, CFG)).toBeCloseTo(2.5, 12);
   });
   it('odd symmetry: mirrored fields give the mirrored angle', () => {
     expect(bodyYawDeg(-0.5, -0.3, -0.1, -0.8, 1, 1, CFG)).toBeCloseTo(
@@ -134,7 +136,10 @@ describe('R27b camera lag along x (stepCamLag)', () => {
     }
     expect(cam).toBeCloseTo(0.5, 6);
   });
-  it('criterion (360x640): instant full steer at vmax moves the car >= 50 px off the screen centre within 0.25 s; after the lateral motion stops it is back within 5 px in 0.5 s', () => {
+  // R27d (2026-11-21) replaces the R27b bound "back within 5 px in 0.5 s" by "under 5 px for good within
+  // 1.2 s after the release" with camReturnTau (tested in t77_render.test.ts). The stepCamLag law below
+  // (the R27b part, camReturnTau 0) still has to stop within 1 s; the 5 px bound is no longer asserted.
+  it('criterion (360x640): instant full steer at vmax moves the car >= 50 px off the screen centre within 0.25 s; the lateral motion stops within 1 s', () => {
     const carY = spritesConfig.player.baseY * cameraConfig.screenHeight; // 0.74*640 = 473.6
     const pxPerHw = roadHalfWidthPxAt(carY, cameraConfig, roadConfig); // (473.6 - 300.8)/320*1000 = 540
     expect(pxPerHw).toBeCloseTo(540, 6);
@@ -171,7 +176,7 @@ describe('R27b camera lag along x (stepCamLag)', () => {
       for (let i = 0; i < v.length; i++) if (Math.abs(v[i]!) > 0.02) last = i;
       const stop = last + 1;
       expect(stop).toBeLessThan(120);
-      expect(off[stop + Math.round(0.5 / DT) - 1]!).toBeLessThan(5);
+      expect(off.length).toBe(240);
     }
   });
 });
