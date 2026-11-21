@@ -421,13 +421,15 @@ describe('R83c criterion: line authority in a steady drift at vmax (steer 0 for 
 
 // ------------------------------------------------------------------------------------------------
 describe('R81f criterion (e): release and re-touch in a steady drift at vmax, steer 0', () => {
-  // brief: outward in 0.1 s 0.09 / 0.14 / 0.17, in 0.3 s 0.29 / 0.43 / 0.49, in 0.6 s 0.60 / 0.83 / 0.90
-  // (medium / hard / sharp); re-touch -> DRIFT after one tick for any pause 0.05-0.6 s; speed at the end
-  // of a 0.3 s pause 0.999 / 0.943 / 0.901 vmax, 1 s after the re-touch 1.00.
+  // brief [re-measured 2026-11-21, T77: R85e, which acts with every entry variant and has no switch]:
+  // outward in 0.1 s 0.027 / 0.041 / 0.049, in 0.3 s 0.207 / 0.301 / 0.341, in 0.6 s 0.508 / 0.701 / 0.758
+  // (medium / hard / sharp; was 0.093 / 0.142 / 0.166, 0.293 / 0.430 / 0.487, 0.595 / 0.829 / 0.904;
+  // the same as the F1 row of tools/spike/release-pullback.ts); re-touch -> DRIFT after one tick for any
+  // pause 0.05-0.6 s; speed at the end of a 0.3 s pause 0.999 / 0.943 / 0.901 vmax, 1 s after the re-touch 1.00.
   const OUT: Record<string, Record<string, number>> = {
-    medium: { '0.1': 0.09, '0.3': 0.29, '0.6': 0.6 },
-    hard: { '0.1': 0.14, '0.3': 0.43, '0.6': 0.83 },
-    sharp: { '0.1': 0.17, '0.3': 0.49, '0.6': 0.9 },
+    medium: { '0.1': 0.027, '0.3': 0.207, '0.6': 0.508 },
+    hard: { '0.1': 0.041, '0.3': 0.301, '0.6': 0.701 },
+    sharp: { '0.1': 0.049, '0.3': 0.341, '0.6': 0.758 },
   };
   const V03: Record<string, number> = { medium: 0.999, hard: 0.943, sharp: 0.901 };
   for (const cls of ['medium', 'hard', 'sharp'] as const) {

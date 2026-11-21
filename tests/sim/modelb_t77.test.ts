@@ -92,6 +92,7 @@ describe('T77 data: R85f / R84c parameters, H20 / H21 flags, dev panel', () => {
     expect(m?.rule).toBe('R84c');
     expect(m?.group).toBe(T.meta['car.driftPush']!.group);
     expect(m?.tier).toBe(T.meta['car.driftPush']!.tier);
+    expect(m?.tier).toBe('core'); // the author wants the rail slider at hand (P13 limit: another item moves to more)
     expect(m?.model).toBe('B');
   });
   it('the older-test helper PB pins releaseHold 0 and driftRail 0 (NO_T77)', () => {
@@ -244,11 +245,15 @@ describe('R85f criterion: steady drift at the hold steer 3 s -> release (medium 
         expect(r.jump).toBeLessThanOrEqual(0.01);
       });
     }
-    it(`${cls}: with driftRail 0.5 the same numbers +-0.02 (and the same bounds)`, () => {
+    it(`${cls}: with driftRail 0.5 the same numbers +-0.02 up to 1.5 s, +-0.04 at 3.0 s (and the same bounds)`, () => {
+      // The rail acts only in DRIFT; after the release both runs are the same GRIP memory from a
+      // slightly different release state, and the constant-acceleration slide widens that gap with
+      // time (spike release-pullback.ts: sharp 0.036 at 3.0 s). Brief R85f: +-0.02 to 1.5 s, +-0.04 at 3.0 s.
       const a = drift(cls, -1, 0);
       const b = drift(cls, -1, 0.5);
       for (const t of REL_TS) {
-        expect(Math.abs(b.out[String(t)]! - a.out[String(t)]!)).toBeLessThanOrEqual(0.02);
+        const tol = t <= 1.5 ? 0.02 : 0.04;
+        expect(Math.abs(b.out[String(t)]! - a.out[String(t)]!)).toBeLessThanOrEqual(tol);
         expect(b.out[String(t)]).toBeGreaterThanOrEqual(BOUND[String(t)]![0]);
         expect(b.out[String(t)]).toBeLessThanOrEqual(BOUND[String(t)]![1]);
       }
@@ -461,7 +466,7 @@ describe('R85f properties: symmetry, determinism, JSON round trip, no allocation
       const b = play(1, n).cars[0]!;
       for (const k of ['x', 'vx', 'vel', 'yaw', 'yawRate'] as const)
         expect(a[k]).toBeCloseTo(-b[k], 12);
-      expect(num(relSide(a))).toBe(-num(relSide(b)));
+      expect(num(relSide(a)) + num(relSide(b))).toBe(0); // mirrored, sign of zero ignored
       expect(num(relV(a))).toBeCloseTo(-num(relV(b)), 12);
     }
   });

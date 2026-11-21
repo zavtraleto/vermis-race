@@ -113,7 +113,7 @@ export function holdSteer(p: CarParams, c: number, dir: number): number {
 export const REL_TS = [0.3, 0.6, 1.0, 1.5, 3.0] as const;
 export interface Release {
   out: Record<string, number>; // outward displacement from x at the release, by "0.3" ... "3"
-  jump: number; // largest outward vx increment per tick in the first 0.3 s
+  jump: number; // largest per-tick growth of max(0, outward vx) in the first 0.3 s
   first: number; // outward vx on the first tick after the release
   out01: number; // outward displacement at 0.1 s
   tEdge: number; // s until 1 half-width outward (NaN: not within the run)
@@ -125,9 +125,11 @@ export function release(S: Sample[], tRel: number, o: number): Release {
   const at = (dt: number): Sample => S[Math.min(S.length - 1, i0 + Math.round(dt / DT))]!;
   const out: Record<string, number> = {};
   for (const t of REL_TS) out[String(t)] = o * (at(t).x - a.x);
+  // Only growth of the outward component counts (R85f: a throw OUTWARD); braking a sideways motion
+  // inward (e.g. vx 0.042 -> 0.004 toward the corner) is not a jump.
   let jump = 0;
   for (let k = 1; k <= Math.round(0.3 / DT); k++) {
-    const d = o * (S[i0 + k]!.vx - S[i0 + k - 1]!.vx);
+    const d = Math.max(0, o * S[i0 + k]!.vx) - Math.max(0, o * S[i0 + k - 1]!.vx);
     if (d > jump) jump = d;
   }
   let tEdge = NaN;

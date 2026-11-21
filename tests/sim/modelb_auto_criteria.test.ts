@@ -478,7 +478,7 @@ describe('R81e criterion (f): R86e holds under variant 4', () => {
     ['hard', 120],
     ['sharp', 120],
   ] as const) {
-    it(`${cls} ${len}: every chain "touch -> 0.1 s -> drift 0.1-0.45 s -> release 0.05-0.1 s" is slower than pure GRIP; the held drift is faster`, () => {
+    it(`${cls} ${len}: every chain "touch -> 0.1 s -> drift 0.1-0.45 s -> release 0.05-0.1 s" is not faster than pure GRIP by more than 0.5%; the held drift is faster`, () => {
       const g = chainRun('grip', cls, len, 0, 0);
       const h = chainRun('held', cls, len, 0, 0);
       expect(h).toBeLessThan(g);
@@ -488,7 +488,10 @@ describe('R81e criterion (f): R86e holds under variant 4', () => {
         [0.3, 0.1],
         [0.45, 0.05],
       ] as const) {
-        expect(chainRun('chain', cls, len, d, rl)).toBeGreaterThan(g);
+        // [T77: after R85e the tap-drift cost is gone; closed by the next rule, drift outside a corner
+        // brakes, author's decision 2026-11-21] Meaning: the chain gives no gain - not faster than
+        // GRIP by more than 0.5% of the corner time (measured sharp 120 0.1/0.05: 2.633 vs 2.642, -0.32%).
+        expect(chainRun('chain', cls, len, d, rl)).toBeGreaterThanOrEqual(g * (1 - 0.005));
       }
     });
   }
