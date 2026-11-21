@@ -21,6 +21,23 @@ export interface RoadPoint {
   x: number;
 }
 
+/**
+ * R24d: the front wheels also lay marks in a strong drift: state DRIFT and
+ * |slip| >= frontMarkSlip * slipFull (inclusive). Pure.
+ */
+export function frontMarksActive(
+  state: 'GRIP' | 'DRIFT',
+  slip: number,
+  slipFull: number,
+  frontMarkSlip: number,
+): boolean {
+  void state;
+  void slip;
+  void slipFull;
+  void frontMarkSlip;
+  throw new Error('not implemented');
+}
+
 /** Segments travelled forward from track z `a` to `b` on a loop of `len` segments, in [0, len). */
 export function forwardDist(a: number, b: number, len: number): number {
   let d = (b - a) % len;
