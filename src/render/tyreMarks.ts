@@ -31,11 +31,7 @@ export function frontMarksActive(
   slipFull: number,
   frontMarkSlip: number,
 ): boolean {
-  void state;
-  void slip;
-  void slipFull;
-  void frontMarkSlip;
-  throw new Error('not implemented');
+  return state === 'DRIFT' && Math.abs(slip) >= frontMarkSlip * slipFull;
 }
 
 /** Segments travelled forward from track z `a` to `b` on a loop of `len` segments, in [0, len). */
@@ -131,8 +127,10 @@ function lerp(a: Float32Array, i: number, t: number): number {
 
 /**
  * R24c ring of mark samples: both rear wheels' road points per sample and a link flag (1 = the
- * sample continues the mark of the previous, older one). Fixed capacity, the oldest is overwritten.
- * k = 0 is the newest sample. No allocations after construction.
+ * sample continues the mark of the previous, older one). R24d: each sample also holds both front
+ * wheels' road points and their own link flag (linkF), so one ring carries all four marks.
+ * Fixed capacity, the oldest is overwritten. k = 0 is the newest sample. No allocations after
+ * construction.
  */
 export class TyreMarkRing {
   readonly zL: Float64Array;
@@ -140,6 +138,11 @@ export class TyreMarkRing {
   readonly zR: Float64Array;
   readonly xR: Float64Array;
   readonly link: Uint8Array;
+  readonly zFL: Float64Array;
+  readonly xFL: Float64Array;
+  readonly zFR: Float64Array;
+  readonly xFR: Float64Array;
+  readonly linkF: Uint8Array;
   private head = 0;
   private n = 0;
 
@@ -149,6 +152,11 @@ export class TyreMarkRing {
     this.zR = new Float64Array(capacity);
     this.xR = new Float64Array(capacity);
     this.link = new Uint8Array(capacity);
+    this.zFL = new Float64Array(capacity);
+    this.xFL = new Float64Array(capacity);
+    this.zFR = new Float64Array(capacity);
+    this.xFR = new Float64Array(capacity);
+    this.linkF = new Uint8Array(capacity);
   }
 
   get count(): number {
@@ -168,8 +176,20 @@ export class TyreMarkRing {
     this.zR[i] = zR;
     this.xR[i] = xR;
     this.link[i] = link ? 1 : 0;
+    this.linkF[i] = 0;
     this.head = (i + 1) % this.capacity;
     if (this.n < this.capacity) this.n += 1;
+  }
+
+  /** R24d: front wheels' road points of the newest sample and whether they continue the older one. */
+  setFront(zFL: number, xFL: number, zFR: number, xFR: number, link: boolean): void {
+    if (this.n === 0) return;
+    const i = this.at(0);
+    this.zFL[i] = zFL;
+    this.xFL[i] = xFL;
+    this.zFR[i] = zFR;
+    this.xFR[i] = xFR;
+    this.linkF[i] = link ? 1 : 0;
   }
 
   clear(): void {
@@ -188,8 +208,13 @@ export class TyreMarks {
   readonly ring: TyreMarkRing;
   readonly left: RoadPoint = { z: 0, x: 0 };
   readonly right: RoadPoint = { z: 0, x: 0 };
+  /** R24d live front wheel points. */
+  readonly frontLeft: RoadPoint = { z: 0, x: 0 };
+  readonly frontRight: RoadPoint = { z: 0, x: 0 };
   /** The live wheel points continue the newest sample (a mark is being laid now). */
   open = false;
+  /** R24d: the live front points continue the newest sample's front points. */
+  frontOpen = false;
   private lastZ = 0;
 
   constructor(private readonly cfg: TyreMarksConfig) {
@@ -198,32 +223,46 @@ export class TyreMarks {
 
   /**
    * `found` = both wheel points were found on the road surface this frame (left / right written).
-   * `len` = track length in segments.
+   * `len` = track length in segments. R24d: `front` = the front wheels mark now (frontMarksActive),
+   * `frontFound` = both front wheel points were found (frontLeft / frontRight written); the front
+   * pair is checked for the asphalt on its own. Turning the front marks off ends them at once.
    */
-  track(drifting: boolean, found: boolean, len: number): void {
+  track(drifting: boolean, found: boolean, len: number, front = false, frontFound = false): void {
     const c = this.cfg;
     if (c.marks !== 'on') {
       this.ring.clear();
       this.open = false;
+      this.frontOpen = false;
       return;
     }
     const l = this.left;
     const r = this.right;
     if (!drifting || !found || Math.abs(l.x) > 1 || Math.abs(r.x) > 1) {
       this.open = false;
+      this.frontOpen = false;
       return;
     }
+    const fl = this.frontLeft;
+    const fr = this.frontRight;
+    const frontOn = front && frontFound && Math.abs(fl.x) <= 1 && Math.abs(fr.x) <= 1;
+    if (!frontOn) this.frontOpen = false;
     const z = (l.z + r.z) * 0.5;
     if (this.open && forwardDist(this.lastZ, z, len) > c.maxGap) this.open = false;
+    let pushed = false;
     if (!this.open) {
       this.ring.push(l.z, l.x, r.z, r.x, false);
       this.lastZ = z;
       this.open = true;
-      return;
-    }
-    if (forwardDist(this.lastZ, z, len) >= c.spacing) {
+      this.frontOpen = false;
+      pushed = true;
+    } else if (forwardDist(this.lastZ, z, len) >= c.spacing) {
       this.ring.push(l.z, l.x, r.z, r.x, true);
       this.lastZ = z;
+      pushed = true;
+    }
+    if (pushed && frontOn) {
+      this.ring.setFront(fl.z, fl.x, fr.z, fr.x, this.frontOpen);
+      this.frontOpen = true;
     }
   }
 }

@@ -90,7 +90,8 @@
     "maxGap": 4,
     "stepPx": 3,
     "maxSub": 24,
-    "slant": 1
+    "slant": 1,
+    "frontMarkSlip": 0.7
   },
   "traffic": {
     "capacity": 24,

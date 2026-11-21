@@ -143,7 +143,8 @@ describe('R27c camera shift into the turn and roll in drift (stepCamDrift)', () 
     expect(crossedShift).toBe(true);
     expect(crossedRoll).toBe(true);
     expect(s.shiftX).toBeCloseTo(-0.05, 8);
-    expect(s.rollDeg).toBeCloseTo(-1.5, 8);
+    // residual after 5 s = (1.5 + 1.5(1 - e^-20)) * e^-20 ≈ 3 * 2.061e-9 ≈ 6.18e-9 > 5e-9, so 7 digits (5e-8)
+    expect(s.rollDeg).toBeCloseTo(-1.5, 7);
   });
 
   it('camDriftShift 0 and camRollDeg 0: always 0 whatever g and state', () => {

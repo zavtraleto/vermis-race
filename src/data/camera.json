@@ -6,5 +6,9 @@
   "screenWidth": 360,
   "screenHeight": 640,
   "camLagTau": 0.08,
-  "camLagMax": 0.12
+  "camLagMax": 0.12,
+  "camDriftShift": 0.05,
+  "camRollDeg": 1.5,
+  "camGripMul": 0.3,
+  "camDriftTau": 0.25
 }

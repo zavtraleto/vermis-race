@@ -94,6 +94,11 @@
     "camera.height": { "min": 200, "max": 1600, "step": 10 },
     "camera.horizon": { "min": 0.25, "max": 0.5, "step": 0.005 },
     "camera.drawDistance": { "min": 50, "max": 400, "step": 10 },
+    "camera.camDriftShift": { "min": 0, "max": 0.3, "step": 0.005 },
+    "camera.camRollDeg": { "min": -6, "max": 6, "step": 0.1 },
+    "camera.camGripMul": { "min": 0, "max": 1, "step": 0.05 },
+    "camera.camDriftTau": { "min": 0, "max": 1, "step": 0.01 },
+    "sprites.tyreMarks.frontMarkSlip": { "min": 0, "max": 1.5, "step": 0.05 },
     "sprites.player.baseY": { "min": 0.6, "max": 0.98, "step": 0.005 },
     "sprites.player.width": { "min": 0.1, "max": 0.5, "step": 0.005 },
     "sprites.roadside.posts.every": { "min": 1, "max": 20, "step": 1 },
@@ -663,6 +668,41 @@
       "hint": "больше — дорога видна дальше, кадр дороже",
       "tier": "more",
       "group": "Камера"
+    },
+    "camera.camDriftShift": {
+      "title": "Камера внутрь поворота",
+      "hint": "больше — в дрифте камера сильнее уходит внутрь поворота; 0 — выключено",
+      "tier": "more",
+      "group": "Камера",
+      "rule": "R27c"
+    },
+    "camera.camRollDeg": {
+      "title": "Наклон горизонта в дрифте",
+      "hint": "больше — в дрифте горизонт наклоняется сильнее; 0 — выключено",
+      "tier": "more",
+      "group": "Камера",
+      "rule": "R27c"
+    },
+    "camera.camGripMul": {
+      "title": "Камера без дрифта, доля",
+      "hint": "больше — в обычном повороте камера сдвигается и наклоняется сильнее",
+      "tier": "more",
+      "group": "Камера",
+      "rule": "R27c"
+    },
+    "camera.camDriftTau": {
+      "title": "Плавность камеры в дрифте, с",
+      "hint": "больше — сдвиг и наклон камеры плавнее и запаздывают; 0 — мгновенно",
+      "tier": "more",
+      "group": "Камера",
+      "rule": "R27c"
+    },
+    "sprites.tyreMarks.frontMarkSlip": {
+      "title": "Следы передних: порог",
+      "hint": "больше — передние колёса оставляют след только в более глубоком дрифте; 0 — в любом",
+      "tier": "more",
+      "group": "Дрифт",
+      "rule": "R24d"
     },
     "sprites.drift.cameraOffset": {
       "title": "Камера внутрь дрифта",

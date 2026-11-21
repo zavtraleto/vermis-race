@@ -78,7 +78,8 @@ export interface SpritesConfig {
   roadside: RoadsideDrawConfig;
   drift: DriftVisualConfig;
   smokeOver: SmokeOverConfig;
-  tyreMarks: TyreMarksConfig;
+  // R24d frontMarkSlip: share of slipFull from which the front wheels mark too (DRIFT only).
+  tyreMarks: TyreMarksConfig & { frontMarkSlip: number };
   traffic: TrafficDrawConfig;
   bump: BumpFeedbackConfig;
   crash: CrashTumbleConfig;
@@ -140,7 +141,14 @@ const BB_PANEL = 36; // palette.billboard[], then palette.building[]
 /** Placeholder sprites of layers 2-4: roadside objects, drift smoke, stress filler. */
 export class WorldSprites {
   private readonly rgb: Float32Array;
-  private readonly placement: Required<MarkPlacement> = { x: 0, y: 0, w: 0, h: 0, depth: 0, shear: 0 };
+  private readonly placement: Required<MarkPlacement> = {
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+    depth: 0,
+    shear: 0,
+  };
   private readonly screenW: number;
   private readonly screenH: number;
   private readonly panels: number;
@@ -230,6 +238,13 @@ export class WorldSprites {
       this.piece(batch, proj, l.z, l.x, ring.zL[i]!, ring.xL[i]!, 0, dI);
       this.piece(batch, proj, r.z, r.x, ring.zR[i]!, ring.xR[i]!, 0, dI);
     }
+    // R24d: the front marks run to the live front wheel points while they are being laid.
+    if (marks.open && marks.frontOpen) {
+      const fl = marks.frontLeft;
+      const fr = marks.frontRight;
+      this.piece(batch, proj, fl.z, fl.x, ring.zFL[i]!, ring.xFL[i]!, 0, dI);
+      this.piece(batch, proj, fr.z, fr.x, ring.zFR[i]!, ring.xFR[i]!, 0, dI);
+    }
     for (let k = 0; k + 1 < ring.count; k++) {
       i = ring.at(k);
       if (dI > c.length) break;
@@ -238,6 +253,10 @@ export class WorldSprites {
       if (ring.link[i] === 1) {
         this.piece(batch, proj, ring.zL[i]!, ring.xL[i]!, ring.zL[j]!, ring.xL[j]!, dI, dJ);
         this.piece(batch, proj, ring.zR[i]!, ring.xR[i]!, ring.zR[j]!, ring.xR[j]!, dI, dJ);
+        if (ring.linkF[i] === 1) {
+          this.piece(batch, proj, ring.zFL[i]!, ring.xFL[i]!, ring.zFL[j]!, ring.xFL[j]!, dI, dJ);
+          this.piece(batch, proj, ring.zFR[i]!, ring.xFR[i]!, ring.zFR[j]!, ring.xFR[j]!, dI, dJ);
+        }
       }
       dI = dJ;
     }

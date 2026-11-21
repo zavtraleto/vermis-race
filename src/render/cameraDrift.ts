@@ -1,3 +1,5 @@
+import { approach } from './driftVisual';
+
 /** R27c camera shift into the turn and horizon roll (render only; numbers in src/data/camera.json). */
 export interface CamDriftConfig {
   camDriftShift: number; // half-widths of lateral camera shift at |g| = 1 in DRIFT (0 = off)
@@ -24,10 +26,8 @@ export function stepCamDrift(
   dt: number,
   cfg: CamDriftConfig,
 ): void {
-  void state;
-  void g;
-  void drifting;
-  void dt;
-  void cfg;
-  throw new Error('not implemented');
+  const gc = g > 1 ? 1 : g < -1 ? -1 : g;
+  const k = drifting ? 1 : cfg.camGripMul;
+  state.shiftX = approach(state.shiftX, gc * k * cfg.camDriftShift, dt, cfg.camDriftTau);
+  state.rollDeg = approach(state.rollDeg, gc * k * cfg.camRollDeg, dt, cfg.camDriftTau);
 }

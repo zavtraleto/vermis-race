@@ -30,6 +30,11 @@ export interface CarModelData {
   pivots: { wheelFL: [number, number, number]; wheelFR: [number, number, number] };
   rearAxleZ: number;
   rearWheelX: number;
+  /** R25c: the rear wheels inside body ([first triangle, triangle count]) and their axle centres. */
+  rearWheels: {
+    pivots: { wheelRL: [number, number, number]; wheelRR: [number, number, number] };
+    ranges: { wheelRL: [number, number]; wheelRR: [number, number] };
+  };
 }
 
 const playerModel = nsx as unknown as CarModelData;
@@ -378,6 +383,14 @@ export class CarView {
   rearLY = 0;
   rearRX = 0;
   rearRY = 0;
+  /** R24d: screen px of the left / right front wheel ground contact, from the last update(). */
+  frontLX = 0;
+  frontLY = 0;
+  frontRX = 0;
+  frontRY = 0;
+  /** R25c: wheel radii from the model (axle height above the ground), metres. */
+  readonly frontRadius: number;
+  readonly rearRadius: number;
   private readonly pose: CarCameraPose = { pitch: 0, height: 0, back: 0, depth: 0, focalPx: 0 };
   private readonly v = new Vector3();
   private readonly model: CarModelData = playerModel;
@@ -386,6 +399,13 @@ export class CarView {
   private readonly wheelFLFloats: number;
   private readonly wheelRange = { start: 0, count: 0 };
   private wheelDeg = 0;
+  /** R25c rear-wheel vertices relative to their axle centres (RL then RR), body float offsets. */
+  private readonly rear: Float32Array;
+  private readonly rearStart: number;
+  private readonly rearRLFloats: number;
+  private readonly rearRange = { start: 0, count: 0 };
+  private spinF = 0;
+  private spinR = 0;
 
   constructor(
     private readonly cfg: Car3dConfig,
@@ -403,11 +423,29 @@ export class CarView {
     this.wheelFLFloats = model.parts.wheelFL.positions.length;
     this.wheels = new Float32Array(this.wheelFLFloats + model.parts.wheelFR.positions.length);
     this.wheelRange.count = this.wheels.length;
+    const rw = model.rearWheels;
+    this.frontRadius = model.pivots.wheelFL[1];
+    this.rearRadius = rw.pivots.wheelRL[1];
     // R25: one mesh (body, front wheels and the shadow quad) = one draw call, as the old model.
     this.mesh = new Mesh(
       buildModelGeometry(model, cfg, palette, this.wheels),
       new MeshBasicMaterial({ vertexColors: true }),
     );
+    // R25c: the rear wheels are contiguous triangles in body (RL then RR); keep them relative to
+    // their axle centres. Geometry layout: [FL][FR][body][shadow].
+    const pos = this.mesh.geometry.getAttribute('position').array as Float32Array;
+    const [rlFirst, rlCount] = rw.ranges.wheelRL;
+    const [rrFirst, rrCount] = rw.ranges.wheelRR;
+    if (rrFirst !== rlFirst + rlCount) throw new Error('nsx: rear wheels are not contiguous');
+    this.rearStart = this.wheels.length + rlFirst * 9;
+    this.rearRLFloats = rlCount * 9;
+    this.rear = new Float32Array((rlCount + rrCount) * 9);
+    for (let i = 0; i < this.rear.length; i += 3) {
+      const p = i < this.rearRLFloats ? rw.pivots.wheelRL : rw.pivots.wheelRR;
+      for (let c = 0; c < 3; c++) this.rear[i + c] = pos[this.rearStart + i + c]! - p[c]!;
+    }
+    this.rearRange.start = this.rearStart;
+    this.rearRange.count = this.rear.length;
     this.mesh.frustumCulled = false;
     this.mesh.rotation.order = 'YXZ';
     this.scene.add(this.mesh);
@@ -415,31 +453,67 @@ export class CarView {
 
   /**
    * R25b: turn the front wheels about the vertical axis through their pivots by `deg` (> 0 =
-   * wheels to the right, the sense of yawDeg > 0). The mesh vertices are rewritten in place and
-   * only the wheel range of the position buffer is uploaded; nothing is allocated.
+   * wheels to the right, the sense of yawDeg > 0). R25c: every wheel first spins about its own
+   * axle (car-space x) by `spinF` / `spinR` (rad, > 0 = rolling forward), then the front ones
+   * steer. The mesh vertices are rewritten in place and only the wheel ranges of the position
+   * buffer are uploaded; nothing is allocated.
    */
-  private steerWheels(deg: number): void {
-    if (deg === this.wheelDeg) return;
-    this.wheelDeg = deg;
-    const a = -deg * DEG; // as the body yaw: rotation.y = -deg turns -Z (the nose) toward +X
-    const c = Math.cos(a);
-    const s = Math.sin(a);
+  private poseWheels(deg: number, spinF: number, spinR: number): void {
+    const front = deg !== this.wheelDeg || spinF !== this.spinF;
+    const rear = spinR !== this.spinR;
+    if (!front && !rear) return;
     const attr = this.mesh.geometry.getAttribute('position') as BufferAttribute;
     const out = attr.array as Float32Array;
-    const w = this.wheels;
-    const fl = this.model.pivots.wheelFL;
-    const fr = this.model.pivots.wheelFR;
-    for (let i = 0; i < w.length; i += 3) {
-      const p = i < this.wheelFLFloats ? fl : fr;
-      const x = w[i]!;
-      const z = w[i + 2]!;
-      out[i] = p[0] + x * c + z * s;
-      out[i + 1] = p[1] + w[i + 1]!;
-      out[i + 2] = p[2] - x * s + z * c;
+    const ranges = attr.updateRanges;
+    // Reused range objects, each queued at most once until the renderer uploads and clears them
+    // (no growth while the car is hidden); reset on queueing, the renderer merges ranges in place.
+    if (front) {
+      this.wheelDeg = deg;
+      this.spinF = spinF;
+      const a = -deg * DEG; // as the body yaw: rotation.y = -deg turns -Z (the nose) toward +X
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      // Rolling forward (-Z) moves the top of the wheel toward -Z: rotation about +x by -spin.
+      const cf = Math.cos(spinF);
+      const sf = Math.sin(spinF);
+      const w = this.wheels;
+      const fl = this.model.pivots.wheelFL;
+      const fr = this.model.pivots.wheelFR;
+      for (let i = 0; i < w.length; i += 3) {
+        const p = i < this.wheelFLFloats ? fl : fr;
+        const x = w[i]!;
+        const y = w[i + 1]! * cf + w[i + 2]! * sf;
+        const z = -w[i + 1]! * sf + w[i + 2]! * cf;
+        out[i] = p[0] + x * c + z * s;
+        out[i + 1] = p[1] + y;
+        out[i + 2] = p[2] - x * s + z * c;
+      }
+      if (ranges.indexOf(this.wheelRange) < 0) {
+        this.wheelRange.start = 0;
+        this.wheelRange.count = w.length;
+        ranges.push(this.wheelRange);
+      }
     }
-    // Reuse one range object covering all wheel vertices; one pending entry is enough, so the
-    // array does not grow while the car is hidden and the renderer skips the upload.
-    if (attr.updateRanges.length === 0) attr.updateRanges.push(this.wheelRange);
+    if (rear) {
+      this.spinR = spinR;
+      const cr = Math.cos(spinR);
+      const sr = Math.sin(spinR);
+      const r = this.rear;
+      const rl = this.model.rearWheels.pivots.wheelRL;
+      const rr = this.model.rearWheels.pivots.wheelRR;
+      const o = this.rearStart;
+      for (let i = 0; i < r.length; i += 3) {
+        const p = i < this.rearRLFloats ? rl : rr;
+        out[o + i] = p[0] + r[i]!;
+        out[o + i + 1] = p[1] + r[i + 1]! * cr + r[i + 2]! * sr;
+        out[o + i + 2] = p[2] - r[i + 1]! * sr + r[i + 2]! * cr;
+      }
+      if (ranges.indexOf(this.rearRange) < 0) {
+        this.rearRange.start = o;
+        this.rearRange.count = r.length;
+        ranges.push(this.rearRange);
+      }
+    }
     attr.needsUpdate = true;
   }
 
@@ -449,6 +523,7 @@ export class CarView {
    * the car turns with the rest of the picture (> 0 = picture counter-clockwise); the rear wheel
    * points stay in unrolled screen space, like every other sprite before the shader roll.
    * steerDeg (R25b) turns the front wheels relative to the body, > 0 = to the right.
+   * spinFrontRad / spinRearRad (R25c): wheel angles about their axles, > 0 = rolling forward.
    */
   update(
     yawDeg: number,
@@ -460,8 +535,10 @@ export class CarView {
     liftY = 0,
     pivotY = 0,
     steerDeg = 0,
+    spinFrontRad = 0,
+    spinRearRad = 0,
   ): void {
-    this.steerWheels(steerDeg);
+    this.poseWheels(steerDeg, spinFrontRad, spinRearRad);
     const model = this.model;
     const cfg = this.cfg;
     const view = this.view;
@@ -509,6 +586,15 @@ export class CarView {
     v.set(model.rearWheelX, 0, model.rearAxleZ).applyMatrix4(m.matrixWorld).project(cam);
     this.rearRX = ((v.x + 1) / 2) * view.screenWidth;
     this.rearRY = ((1 - v.y) / 2) * view.screenHeight;
+    // R24d: the front wheels' ground contacts (under their pivots, the body turned by the yaw).
+    const fl = model.pivots.wheelFL;
+    const fr = model.pivots.wheelFR;
+    v.set(fl[0], 0, fl[2]).applyMatrix4(m.matrixWorld).project(cam);
+    this.frontLX = ((v.x + 1) / 2) * view.screenWidth;
+    this.frontLY = ((1 - v.y) / 2) * view.screenHeight;
+    v.set(fr[0], 0, fr[2]).applyMatrix4(m.matrixWorld).project(cam);
+    this.frontRX = ((v.x + 1) / 2) * view.screenWidth;
+    this.frontRY = ((1 - v.y) / 2) * view.screenHeight;
     if (screenRollDeg !== 0) {
       // Rolling the camera by -a about its view axis turns the image by +a about the centre.
       cam.rotation.set(-pose.pitch, 0, -screenRollDeg * DEG);
