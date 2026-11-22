@@ -1,4 +1,4 @@
-import { DT, SEG_PER_UNIT } from './constants';
+import { COUNTER_SHARE, DT, G, SEG_PER_UNIT, TRAVEL_SHARE } from './constants';
 import { nextRandom } from './rng';
 import type {
   Car,
@@ -125,7 +125,7 @@ export function step(
       continue;
     }
     const z0 = car.z;
-    drive(car, input, p, cars);
+    drive(car, input, p, cars, track);
     lampHit(car, z0, p, segCount); // R47/R64: after the move, before R40
   }
   // R71: respawn after all cars moved, relative to the player.
@@ -145,39 +145,104 @@ export function step(
 }
 
 /**
- * R200-R210 driving tick of a player or rival car. Demolition stub (ADR 0005): R203, R205-R209 and
- * the road turn of R210 are not implemented yet, so travel and heading stay as they are.
+ * R200-R210 driving tick of a player or rival car (slice 1: R203, R204, R206, R207, R210, R18,
+ * R15; drift R205/R208/R209/R211 not yet, so gripRear = 1). Order as in the R210 order line.
  */
-function drive(car: Car, input: InputFrame, p: CarParams, cars: readonly Car[]): void {
-  // R203 (stub): steer = the target, no smoothing yet.
-  let steer = input.steer;
-  if (steer > 1) steer = 1;
-  if (steer < -1) steer = -1;
+function drive(
+  car: Car,
+  input: InputFrame,
+  p: CarParams,
+  cars: readonly Car[],
+  track: Track,
+): void {
+  const slip0 = car.heading - car.travel; // R200: slip at the end of the previous tick
+  // R203: steer chases the target at 1/steerInTime away from zero or across it, else at
+  // 1/steerOutTime; never past the target.
+  let target = input.steer;
+  if (target > 1) target = 1;
+  if (target < -1) target = -1;
+  let steer = car.steer;
+  const away =
+    target !== 0 &&
+    (target * steer < 0 || (target < 0 ? -target : target) > (steer < 0 ? -steer : steer));
+  const rate = away ? DT / p.steerInTime : DT / p.steerOutTime;
+  const ds = target - steer;
+  if (ds > rate) steer += rate;
+  else if (ds < -rate) steer -= rate;
+  else steer = target;
   car.steer = steer;
+  const wheel = steer * ((p.wheelMax * Math.PI) / 180); // R203
   const gas = input.gas < 0 ? 0 : input.gas > 1 ? 1 : input.gas;
   const brake = input.brake < 0 ? 0 : input.brake > 1 ? 1 : input.brake;
   car.prevGas = gas; // R200/R208
   car.prevBrake = brake;
   if (car.driftTimer > 0) car.driftTimer--; // R208
+  const gripRear = 1; // R208: outside drift (drift is slice 2)
+
+  // R206: front axle limit from the rear direction; counter-steer shrinks it.
+  const L = p.wheelBase;
+  const v0 = (car.speed * p.vmaxKmh) / 3.6;
+  const rear = -slip0;
+  const as = steer < 0 ? -steer : steer;
+  const counterTarget = (wheel - rear) * wheel < 0 ? as : 0;
+  car.counter += (counterTarget - car.counter) * COUNTER_SHARE;
+  const aFront = (1 - car.counter) * Math.atan((p.gripFront * G * L) / (v0 * v0));
+  let dw = wheel - rear;
+  if (dw > aFront) dw = aFront;
+  if (dw < -aFront) dw = -aFront;
+  const front = rear + dw;
+  // R207: bicycle yaw of the body, then travel catches the body.
+  const omega = (v0 * Math.cos(rear) * (Math.tan(front) - Math.tan(rear))) / L;
+  car.heading += omega * DT;
+  const slip = car.heading - car.travel;
+  const aslip = slip < 0 ? -slip : slip;
+  const T = p.slipRecover * Math.atan((gripRear * p.rearMu * G * L) / (v0 * v0));
+  const want = aslip * p.slipDecay;
+  const desired = (slip > 0 ? 1 : slip < 0 ? -1 : 0) * (want < T ? want : T);
+  let tr = car.travelRate + (desired - car.travelRate) * TRAVEL_SHARE;
+  const trMax = (p.slipRateMax * Math.PI) / 180;
+  if (tr > trMax) tr = trMax;
+  if (tr < -trMax) tr = -trMax;
+  car.travelRate = tr;
+  car.travel += tr * DT;
+  // R207: |slip| <= slipMax, travel pulled to heading -+ slipMax.
+  const slipMax = (p.slipMax * Math.PI) / 180;
+  if (car.heading - car.travel > slipMax) car.travel = car.heading - slipMax;
+  else if (car.heading - car.travel < -slipMax) car.travel = car.heading + slipMax;
 
   // R50-R52: slipstream of the player on the positions at the start of the step; frozen in a drift.
   let boosted = false;
   if (car.kind === 'player') boosted = slipstream(car, cars, p, car.driftTimer > 0);
 
-  // R204 (traction 1 in the stub): the cap is vmax*capMul, vcap = vmax*pace*(1 + band) (R62/R63).
+  // R204: traction 1 below slipGrip, else driftTraction; the cap is vmax*capMul,
+  // vcap = vmax*pace*(1 + band) (R62/R63).
+  const s1 = car.heading - car.travel;
+  const traction = (s1 < 0 ? -s1 : s1) < (p.slipGrip * Math.PI) / 180 ? 1 : p.driftTraction;
   const vcap = p.vmax * car.pace * (1 + car.band);
   const cap = boosted ? vcap * p.draftCapMul : vcap;
   const accel = boosted ? p.accel * p.draftAccelMul : p.accel;
   let speed =
-    car.speed + accel * gas * gas * DT - p.engineBrake * (1 - gas) * DT - p.brakeDecel * brake * DT;
+    car.speed +
+    accel * gas * gas * traction * DT -
+    p.engineBrake * (1 - gas) * DT -
+    p.brakeDecel * brake * DT;
   if (speed > cap) speed = cap;
   if (speed < 0) speed = 0;
   car.speed = speed;
 
-  // R210: z and x from the speed and its direction travel (road turn under the car: TODO R210).
+  // R210: z and x from the speed and its direction travel, then the road turns under the car
+  // by the advance dz of this tick (curve of the segment the car starts the tick on).
+  const n = track.segments.length;
+  let si = Math.floor(car.z) % n;
+  if (si < 0) si += n;
+  const curve = track.segments[si]!.curve;
   const v = (speed * p.vmaxKmh) / 3.6;
-  car.z += speed * DT * SEG_PER_UNIT * Math.cos(car.travel);
+  const dz = speed * DT * SEG_PER_UNIT * Math.cos(car.travel);
+  car.z += dz;
   car.x += (v * Math.sin(car.travel) * DT) / p.halfWidthM;
+  const turn = curve * p.roadTurn * dz;
+  car.travel -= turn;
+  car.heading -= turn;
 
   // R18/R211: clamp to xLimit, travel toward the wall is zeroed.
   if (car.x > p.xLimit) {
@@ -187,8 +252,10 @@ function drive(car: Car, input: InputFrame, p: CarParams, cars: readonly Car[]):
     car.x = -p.xLimit;
     if (car.travel < 0) car.travel = 0;
   }
-  // R15: offroad slowdown. TODO R15b: its grip and steer part waits for R206/R208.
+  // R15: offroad slowdown (R15b inactive since 2026-11-22).
   if (car.x > 1 || car.x < -1) car.speed *= Math.pow(p.offroadMul, 60 * DT);
+  // R200/R210: slipRate = change of slip over this tick / DT.
+  car.slipRate = (car.heading - car.travel - slip0) / DT;
 }
 
 /**
