@@ -183,8 +183,9 @@ for (const [label, P] of MODELS) {
     });
 
     it('the driving state (R200 fields), draft and boost are zeroed', () => {
+      // z 15.8: with slip 0.3 the advance is 0.25*cos(travel) < 0.25 (R210), so start 0.2 short of 16
       const s = mk({
-        z: 15.75,
+        z: 15.8,
         x: 1.4,
         speed: 0.5,
         steer: 0.5,
