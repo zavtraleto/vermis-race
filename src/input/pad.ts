@@ -29,7 +29,8 @@ export function padPedals(y: number, cfg: PadConfig, out: InputFrame): void {
  * Pure model of the R202 control pad (no DOM). Coordinates are CSS px relative to the top-left
  * corner of the game area; the pad centre is the area centre. One finger: the first pointerDown
  * while none is active becomes the active pointer. Released: steer 0, gas 1, brake 0.
- * driftTap (the re-touch gesture of R202) and the visible pad (R214) come in later slices.
+ * driftTap: the R202 re-touch gesture (lift, touch again within retouchWindow, then |steer| >=
+ * retouchSteer within retouchWindow of the touch) on exactly one read. The visible pad (R214) comes later.
  */
 export interface Pad {
   /** Game area size in CSS px. Call before pointerDown and whenever the area changes. */
@@ -51,17 +52,25 @@ export function createPad(cfg: PadConfig): Pad {
   let active: number | null = null;
   let fx = 0;
   let fy = 0;
-  const release = (id: number): void => {
-    if (id === active) active = null;
+  let liftMs = -Infinity; // R202: time of the last lift of the active finger
+  let armedMs = -Infinity; // R202: time of a re-touch that may still give driftTap
+  const release = (id: number, tMs: number, lifted: boolean): void => {
+    if (id !== active) return;
+    active = null;
+    liftMs = lifted ? tMs : -Infinity;
+    armedMs = -Infinity;
   };
   return {
     setArea(w: number, h: number): void {
       width = w;
       height = h;
     },
-    pointerDown(id: number, x: number, y: number): boolean {
+    pointerDown(id: number, x: number, y: number, tMs: number): boolean {
       if (active !== null) return false;
       active = id;
+      // R202: a touch no later than retouchWindow after the lift arms the drift entry.
+      armedMs = tMs - liftMs <= cfg.retouchWindow * 1000 ? tMs : -Infinity;
+      liftMs = -Infinity;
       fx = x;
       fy = y;
       return true;
@@ -71,12 +80,16 @@ export function createPad(cfg: PadConfig): Pad {
       fx = x;
       fy = y;
     },
-    pointerUp: release,
-    pointerCancel: release,
+    pointerUp(id: number, tMs: number): void {
+      release(id, tMs, true);
+    },
+    pointerCancel(id: number, tMs: number): void {
+      release(id, tMs, false);
+    },
     get activeId(): number | null {
       return active;
     },
-    read(_tMs: number, out: InputFrame): void {
+    read(tMs: number, out: InputFrame): void {
       out.driftTap = false;
       if (active === null || width <= 0 || height <= 0) {
         // R201: a released finger = steer 0, full gas, no brake.
@@ -90,6 +103,14 @@ export function createPad(cfg: PadConfig): Pad {
       const halfH = height / 2;
       out.steer = padSteer((fx - halfW) / (cfg.steerSpan * halfW), cfg);
       padPedals((halfH - fy) / (cfg.padHalfH * halfH), cfg, out);
+      // R202: driftTap once when the armed re-touch reaches retouchSteer in time.
+      if (armedMs > -Infinity) {
+        if (tMs - armedMs > cfg.retouchWindow * 1000) armedMs = -Infinity;
+        else if ((out.steer < 0 ? -out.steer : out.steer) >= cfg.retouchSteer) {
+          out.driftTap = true;
+          armedMs = -Infinity;
+        }
+      }
     },
   };
 }

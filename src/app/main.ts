@@ -381,7 +381,16 @@ const render3d = use3d
 const carParams: CarParams[] = race.cars.map((c) =>
   c.kind === 'rival' ? { ...baseCar } : baseCar,
 );
+// H23-H26 reach the sim as CarParams numbers (1 = A, 0 = B), read live from the dev panel.
+const syncHypotheses = (): void => {
+  baseCar.hypAssist = hypotheses.H23_assist === 'B' ? 0 : 1;
+  baseCar.hypEdge = hypotheses.H24_edge === 'B' ? 0 : 1;
+  baseCar.hypRef = hypotheses.H25_ref === 'B' ? 0 : 1;
+  baseCar.hypBrakeTap = hypotheses.H26_brakeTap === 'B' ? 0 : 1;
+};
+syncHypotheses();
 tunables.onChange(() => {
+  syncHypotheses();
   for (const p of carParams) if (p !== baseCar) Object.assign(p, baseCar);
 });
 let rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;

@@ -1,4 +1,13 @@
-import { COUNTER_SHARE, DT, G, SEG_PER_UNIT, TRAVEL_SHARE } from './constants';
+import {
+  COUNTER_SHARE,
+  DT,
+  G,
+  OR2_HZ,
+  REF_SHARE,
+  SEG_PER_UNIT,
+  TRAVEL_SHARE,
+  perTick,
+} from './constants';
 import { nextRandom } from './rng';
 import type {
   Car,
@@ -171,17 +180,59 @@ function drive(
   else if (ds < -rate) steer -= rate;
   else steer = target;
   car.steer = steer;
-  const wheel = steer * ((p.wheelMax * Math.PI) / 180); // R203
+  let wheel = steer * ((p.wheelMax * Math.PI) / 180); // R203
   const gas = input.gas < 0 ? 0 : input.gas > 1 ? 1 : input.gas;
   const brake = input.brake < 0 ? 0 : input.brake > 1 ? 1 : input.brake;
-  if (car.driftTimer > 0) car.driftTimer--; // R208
-  const gripRear = 1; // R208: outside drift (drift is slice 2)
+  const n = track.segments.length;
+  let si = Math.floor(car.z) % n;
+  if (si < 0) si += n;
 
-  // R206: front axle limit from the rear direction; counter-steer shrinks it.
+  // R208 (timer, window, gripRear): count down, then an opening sets the full window.
+  if (car.driftTimer > 0) car.driftTimer--;
+  const on = p.brakeTapOn;
+  const lift = p.gasTapMax;
+  const brakeTap =
+    p.hypBrakeTap === 1 &&
+    ((car.prevBrake <= on && brake > on && gas < lift) ||
+      (car.prevGas >= lift && gas < lift && brake > on)); // H26
+  if (input.driftTap || brakeTap) car.driftTimer = Math.round(p.driftWindow / DT);
+  const sign0 = slip0 > 0 ? 1 : slip0 < 0 ? -1 : 0;
+  const aslip0 = slip0 < 0 ? -slip0 : slip0;
+  let gripRear = 1;
+  if (car.driftTimer > 0 && aslip0 >= (p.slipGrip * Math.PI) / 180) {
+    let cs = (1 - steer * sign0) / 2;
+    if (cs < 0) cs = 0;
+    if (cs > 1) cs = 1;
+    gripRear = p.gripDrift - (p.dropFull + (p.dropLift - p.dropFull) * (1 - gas) * cs);
+    if (gripRear < 0) gripRear = 0;
+    if (gripRear > 1) gripRear = 1;
+    // H25: beyond the reference angle (same side) the rear grips more.
+    const ref = car.refAngle;
+    const aref = ref < 0 ? -ref : ref;
+    if (p.hypRef === 1 && ref !== 0 && ref * slip0 > 0 && aslip0 > aref) {
+      gripRear += (p.refGrip * (aslip0 - aref)) / (Math.PI / 2 - aref);
+      if (gripRear < 0) gripRear = 0;
+      if (gripRear > 1) gripRear = 1;
+    }
+  }
+
+  // R205 (H23): countersteer assist, changes only this tick's wheel.
   const L = p.wheelBase;
   const v0 = (car.speed * p.vmaxKmh) / 3.6;
-  const rear = -slip0;
   const as = steer < 0 ? -steer : steer;
+  if (p.hypAssist === 1 && v0 > p.assistSpeed / 3.6) {
+    const goMax = (p.assistMax * Math.PI) / 180;
+    let go = -slip0 - car.slipRate * p.assistLead;
+    if (go > goMax) go = goMax;
+    if (go < -goMax) go = -goMax;
+    if (wheel * go > 0 && (go < 0 ? -go : go) > (wheel < 0 ? -wheel : wheel)) {
+      const k = as / p.assistFull;
+      wheel += (go - wheel) * (k < 1 ? k : 1);
+    } else if (car.driftTimer > 0) wheel -= car.slipRate / OR2_HZ;
+  }
+
+  // R206: counter first, then the front axle limit from the rear direction.
+  const rear = -slip0;
   const counterTarget = (wheel - rear) * wheel < 0 ? as : 0;
   car.counter += (counterTarget - car.counter) * COUNTER_SHARE;
   const aFront = (1 - car.counter) * Math.atan((p.gripFront * G * L) / (v0 * v0));
@@ -189,10 +240,11 @@ function drive(
   if (dw > aFront) dw = aFront;
   if (dw < -aFront) dw = -aFront;
   const front = rear + dw;
-  // R207: bicycle yaw of the body, then travel catches the body.
+  // R207: bicycle yaw of the body, then travel catches the body (rear grip gripRear*rearMu).
   const omega = (v0 * Math.cos(rear) * (Math.tan(front) - Math.tan(rear))) / L;
   car.heading += omega * DT;
-  const slip = car.heading - car.travel;
+  // R207: the desired catch-up uses the slip at the start of the tick (as R205/R206 do).
+  const slip = slip0;
   const aslip = slip < 0 ? -slip : slip;
   const T = p.slipRecover * Math.atan((gripRear * p.rearMu * G * L) / (v0 * v0));
   const want = aslip * p.slipDecay;
@@ -205,6 +257,43 @@ function drive(
   car.travel += tr * DT;
   // R207: |slip| <= slipMax, travel pulled to heading -+ slipMax.
   const slipMax = (p.slipMax * Math.PI) / 180;
+  if (car.heading - car.travel > slipMax) car.travel = car.heading - slipMax;
+  else if (car.heading - car.travel < -slipMax) car.travel = car.heading + slipMax;
+
+  // R208 (latch): in the window or drift |slip| > slipLatch holds the drift for driftHold.
+  const s2 = car.heading - car.travel;
+  const hold = Math.round(p.driftHold / DT);
+  if (car.driftTimer > 0 && (s2 < 0 ? -s2 : s2) > (p.slipLatch * Math.PI) / 180)
+    car.driftTimer = hold;
+
+  // R209: rails turn travel toward the road, speed unchanged; shares per OR2 tick.
+  const drift = car.driftTimer > 0;
+  const sn = Math.sin(s2);
+  const c = drift ? p.railDrift * (sn < 0 ? -sn : sn) : p.railGrip * sn * sn;
+  car.travel *= 1 - perTick(c);
+  // R209 (H24): edge pull in drift toward the side the car is carried to.
+  let edgeT = 0;
+  if (p.hypEdge === 1 && drift) {
+    let side = car.x * (car.travel > 0 ? 1 : car.travel < 0 ? -1 : 0);
+    if (side < 0) side = 0;
+    if (side > 1) side = 1;
+    const h = car.driftTimer / hold;
+    edgeT = p.edgePull * (h < 1 ? h : 1) * sn * sn * side;
+    if (edgeT > 1) edgeT = 1;
+  }
+  const fall = p.edgeFall * OR2_HZ * DT;
+  car.edge = edgeT >= car.edge ? edgeT : car.edge - fall > edgeT ? car.edge - fall : edgeT;
+  if (car.edge > 0) car.travel *= 1 - perTick(car.edge);
+  // R209 (H25): reference angle from the road turn over refLook segments ahead.
+  let turnAhead = 0;
+  for (let i = 0; i < p.refLook; i++) turnAhead += track.segments[(si + i) % n]!.curve;
+  const refT = p.refGain * turnAhead * p.roadTurn;
+  const refMax = ((p.refRateMax * Math.PI) / 180) * OR2_HZ * DT;
+  let dr = (refT - car.refAngle) * REF_SHARE;
+  if (dr > refMax) dr = refMax;
+  if (dr < -refMax) dr = -refMax;
+  car.refAngle += dr;
+  // R209: |slip| <= slipMax again.
   if (car.heading - car.travel > slipMax) car.travel = car.heading - slipMax;
   else if (car.heading - car.travel < -slipMax) car.travel = car.heading + slipMax;
 
@@ -230,9 +319,6 @@ function drive(
 
   // R210: z and x from the speed and its direction travel, then the road turns under the car
   // by the advance dz of this tick (curve of the segment the car starts the tick on).
-  const n = track.segments.length;
-  let si = Math.floor(car.z) % n;
-  if (si < 0) si += n;
   const curve = track.segments[si]!.curve;
   const v = (speed * p.vmaxKmh) / 3.6;
   const dz = speed * DT * SEG_PER_UNIT * Math.cos(car.travel);

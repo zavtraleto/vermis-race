@@ -2,7 +2,7 @@
 // writes an InputFrame (R201); it goes through the same step() as a human. Pure, deterministic,
 // allocation-free per tick (same boundary as src/sim).
 // R212 minimal (slice 1): the bot steers at full gas toward its line, aiming at where the car will be
-// in aimTime s (its travel angle and the road curving away, R210) plus the steer that holds the
+// in aimTime s (its travel angle; the road turn is covered by the hold steer) plus the steer that holds the
 // curve ahead in grip (R203/R207), and brakes before a corner its speed cannot hold in grip (R206
 // front limit vs the curvature ahead); it never drifts yet (drift entry, counter-steer come later).
 import { DT, G, SEG_PER_UNIT } from '../sim/constants';
@@ -221,11 +221,12 @@ export function botInput(
     const xa = avoidX(bp, car, cars, p, xTarget);
     if (xa === xa) xTarget = xa;
   }
-  // R210: the road turns under the car at omega; the car's path relative to the road over aimTime.
+  // R210: the road turns under the car at omega; `hold` below already turns the car with it, so the
+  // predicted lateral move over aimTime is the travel angle only (no second road-turn term).
   const v = (car.speed * p.vmaxKmh) / 3.6;
   const omega = curve * p.roadTurn * car.speed * SEG_PER_UNIT;
   const t = bp.aimTime;
-  const xAhead = car.x + (v * (Math.sin(car.travel) * t - 0.5 * omega * t * t)) / p.halfWidthM;
+  const xAhead = car.x + (v * Math.sin(car.travel) * t) / p.halfWidthM;
   // R206/R207 in grip: yaw = v*tan(wheel)/wheelBase, so holding omega needs this steer.
   const hold = v > 0 ? Math.atan((omega * p.wheelBase) / v) / ((p.wheelMax * Math.PI) / 180) : 0;
   out.steer = humanize(bot, bp, hold + bp.steerGain * (xTarget - xAhead));
