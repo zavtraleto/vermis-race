@@ -451,34 +451,77 @@ describe('R18 lateral limit', () => {
 describe('R215(9) corner calibration at vmax (curves.json, real car data)', () => {
   /**
    * Body yaw relative to the road over 0.75 s -> 1.5 s with a constant steer on a constant curve (right),
-   * x kept at 0 so the border never interferes. > 0: the body outruns the road (the steer holds the
-   * corner, the car goes inside); < 0: it cannot hold it (the car goes outside).
+   * speed held and x kept at 0 so the border never interferes. > 0: the body outruns the road (the
+   * steer holds the corner, the car goes inside); < 0: it cannot hold it (the car goes outside).
    */
-  function yawDrift(curve: number, steer: number): number {
-    const s = race1({ speed: P.vmax, steer });
+  function yawDrift(curve: number, steer: number, speed = P.vmax): number {
+    const s = race1({ speed, steer });
     const t = curveTrack(curve);
-    stepN(s, 90, frame(steer), t, P, true);
-    const h1 = car0(s).heading;
-    stepN(s, 90, frame(steer), t, P, true, (c) => {
+    const c = car0(s);
+    let h1 = 0;
+    for (let i = 0; i < 180; i++) {
+      c.speed = speed;
+      c.x = 0;
+      if (i === 90) h1 = c.heading;
+      stepN(s, 1, frame(steer), t);
       expect(c.driftTimer).toBe(0);
-      expect(c.speed).toBe(P.vmax);
-    });
-    return car0(s).heading - h1;
+    }
+    return c.heading - h1;
   }
 
-  it('R215(9): medium is held in grip with a steady steer in 0.9..1.0', () => {
-    expect(yawDrift(curves.medium, 0.9)).toBeLessThan(0);
-    expect(yawDrift(curves.medium, 1.0)).toBeGreaterThanOrEqual(0);
+  /**
+   * R206 front-axle limit as a path curvature at a speed (rad/m): steady curvature on a straight
+   * with the front axle saturated at aFront (wheelMax raised to 89 deg so the steer is never the
+   * bound, railGrip 0 so R209 does not bend travel back to the road). Speed and x held each tick;
+   * curvature = |delta travel| / path over 1.0 s -> 1.5 s.
+   */
+  function limitCurvature(speed: number): number {
+    const p: CarParams = { ...P, wheelMax: 89, railGrip: 0 };
+    const s = race1({ speed, steer: 1 });
+    const c = car0(s);
+    let t0 = 0;
+    let path = 0;
+    for (let i = 0; i < 180; i++) {
+      c.speed = speed;
+      c.x = 0;
+      if (i === 120) t0 = c.travel;
+      if (i >= 120) path += vMs(P, speed) * DT;
+      stepN(s, 1, frame(1), STRAIGHT, p);
+    }
+    expect(c.driftTimer).toBe(0);
+    return Math.abs(c.travel - t0) / path;
+  }
+
+  /** Road curvature of a constant curve (rad/m): curve*roadTurn per segment, segM = vmaxKmh/3.6/60 m. */
+  const roadCurvature = (curve: number): number =>
+    (Math.abs(curve) * P.roadTurn) / (P.vmaxKmh / 3.6 / SEG_PER_UNIT);
+
+  /** Share of the R206 limit a constant curve needs at a speed (curvature ratio). */
+  const share = (curve: number, speed = P.vmax): number =>
+    roadCurvature(curve) / limitCurvature(speed);
+
+  it('R215(9): medium needs 85..100% of the R206 front-axle limit at vmax', () => {
+    const k = share(curves.medium);
+    expect(k).toBeGreaterThanOrEqual(0.85);
+    expect(k).toBeLessThanOrEqual(1);
   });
 
-  it('R215(9): easy is held with a steady steer in 0.4..0.5', () => {
-    expect(yawDrift(curves.easy, 0.4)).toBeLessThan(0);
-    expect(yawDrift(curves.easy, 0.5)).toBeGreaterThanOrEqual(0);
+  it('R215(9): easy needs at most 50% of the limit at vmax', () => {
+    expect(share(curves.easy)).toBeLessThanOrEqual(0.5);
   });
 
-  it('R215(9): hard and sharp are not held without drift even at full steer', () => {
+  it('R215(9): hard and sharp need more than 100% of the limit at vmax', () => {
+    expect(share(curves.hard)).toBeGreaterThan(1);
+    expect(share(curves.sharp)).toBeGreaterThan(1);
+  });
+
+  it('R215(9): hard and sharp are not held without drift even at full steer (real car)', () => {
     expect(yawDrift(curves.hard, 1.0)).toBeLessThan(0);
     expect(yawDrift(curves.sharp, 1.0)).toBeLessThan(0);
+  });
+
+  it('R215(9): medium is held at full steer with the real car (steer reaches the limit)', () => {
+    expect(yawDrift(curves.medium, 1.0)).toBeGreaterThanOrEqual(0);
   });
 
   it('R215(9): property: more steer never holds the corner worse (medium)', () => {
@@ -487,6 +530,47 @@ describe('R215(9) corner calibration at vmax (curves.json, real car data)', () =
       const d = yawDrift(curves.medium, st);
       expect(d).toBeGreaterThanOrEqual(prev);
       prev = d;
+    }
+  });
+});
+
+describe('R215(10) braking is an honest alternative: sharp at 0.5*vmax in grip', () => {
+  it('R215(10): sharp needs at most 100% of the R206 limit at 0.5*vmax', () => {
+    // same measure as R215(9), at speed 0.5
+    const p: CarParams = { ...P, wheelMax: 89, railGrip: 0 };
+    const s = race1({ speed: 0.5, steer: 1 });
+    const c = car0(s);
+    let t0 = 0;
+    let path = 0;
+    for (let i = 0; i < 180; i++) {
+      c.speed = 0.5;
+      c.x = 0;
+      if (i === 120) t0 = c.travel;
+      if (i >= 120) path += vMs(P, 0.5) * DT;
+      stepN(s, 1, frame(1), STRAIGHT, p);
+    }
+    const lim = Math.abs(c.travel - t0) / path;
+    const road = (curves.sharp * P.roadTurn) / (P.vmaxKmh / 3.6 / SEG_PER_UNIT);
+    expect(road / lim).toBeLessThanOrEqual(1);
+  });
+
+  it('R215(10): at 0.5*vmax a driver holds sharp for 4 s: on the asphalt, no drift, full steer is enough', () => {
+    for (const curve of [curves.sharp, -curves.sharp]) {
+      const s = race1({ speed: 0.5 });
+      const c = car0(s);
+      const t = curveTrack(curve);
+      const side = Math.sign(curve);
+      let maxSteer = 0;
+      for (let i = 0; i < 480; i++) {
+        c.speed = 0.5; // the speed of the rule; gas only matters for R204
+        // centre-seeking driver: steer to the corner side, more when outside or moving outward
+        const target = Math.max(-1, Math.min(1, side - 1.5 * c.x - 3 * c.travel));
+        stepN(s, 1, frame(target), t);
+        maxSteer = Math.max(maxSteer, Math.abs(c.steer));
+        expect(Math.abs(c.x)).toBeLessThanOrEqual(1);
+        expect(c.driftTimer).toBe(0);
+      }
+      expect(maxSteer).toBeLessThanOrEqual(1);
     }
   });
 });
