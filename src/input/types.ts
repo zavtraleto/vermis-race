@@ -14,6 +14,17 @@ export interface PadConfig {
   retouchSteer: number;
 }
 
+/** R214 look of the visible pad (CSS px); positions come from padLayout. */
+export interface PadViewConfig {
+  /** Stroke width of the pad lines. */
+  lineWidth: number;
+  /** Full height of a dead-zone mark across the X axis. */
+  deadMark: number;
+  /** Radius of the finger dot. */
+  dotRadius: number;
+}
+
 export interface InputConfig {
   pad: PadConfig;
+  padView: PadViewConfig;
 }

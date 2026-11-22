@@ -50,6 +50,7 @@ import { NameLabels } from '../ui/nameLabels';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
 import { GameMenu } from '../ui/menu';
+import { PadOverlay } from '../ui/pad';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { copyRaceState, createLoop } from './loop';
@@ -277,6 +278,11 @@ const keyboard = createKeyboardInput();
 const pad = createPad(inputConfig.pad);
 attachKeyboard(window, keyboard, now);
 attachPointer(canvas, pad, now);
+// R214 visible pad; screenshot scenarios use a fixed input and keep their frames without it.
+const padOverlay =
+  fixedScenario === null
+    ? new PadOverlay(document.body, canvas, inputConfig.pad, inputConfig.padView)
+    : null;
 // Constant input for screenshot scenarios so the frame does not depend on the keyboard (R201:
 // steer from the scenario, full gas).
 function fixedInput(steer: number): PlayerInput {
@@ -727,6 +733,7 @@ function frame(time: number): void {
   loop.advance(running ? frameSeconds : 0);
   updateVisuals(running ? Math.min(frameSeconds, MAX_VISUAL_DT) : 0, loop.alpha);
   renderFrame();
+  padOverlay?.update(running, pad);
   hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
     game.done = true;

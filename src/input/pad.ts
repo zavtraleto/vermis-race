@@ -30,7 +30,7 @@ export function padPedals(y: number, cfg: PadConfig, out: InputFrame): void {
  * corner of the game area; the pad centre is the area centre. One finger: the first pointerDown
  * while none is active becomes the active pointer. Released: steer 0, gas 1, brake 0.
  * driftTap: the R202 re-touch gesture (lift, touch again within retouchWindow, then |steer| >=
- * retouchSteer within retouchWindow of the touch) on exactly one read. The visible pad (R214) comes later.
+ * retouchSteer within retouchWindow of the touch) on exactly one read.
  */
 export interface Pad {
   /** Game area size in CSS px. Call before pointerDown and whenever the area changes. */
@@ -42,6 +42,9 @@ export interface Pad {
   pointerCancel(id: number, tMs: number): void;
   /** Id of the active pointer, or null. */
   readonly activeId: number | null;
+  /** Last position of the active finger (CSS px, game area); meaningful while activeId is set. */
+  readonly fingerX: number;
+  readonly fingerY: number;
   /** Fills `out` for time tMs. No allocations. */
   read(tMs: number, out: InputFrame): void;
 }
@@ -88,6 +91,12 @@ export function createPad(cfg: PadConfig): Pad {
     },
     get activeId(): number | null {
       return active;
+    },
+    get fingerX(): number {
+      return fx;
+    },
+    get fingerY(): number {
+      return fy;
     },
     read(tMs: number, out: InputFrame): void {
       out.driftTap = false;
