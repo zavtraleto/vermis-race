@@ -494,16 +494,3 @@ describe('P14 unread hypothesis flags are not shown', () => {
     });
   }
 });
-
-describe('P15 model split is real', () => {
-  it('has paths scoped to A and to B', () => {
-    const vals = Object.values(meta);
-    expect(vals.some((x) => x.model === 'A')).toBe(true);
-    expect(vals.some((x) => x.model === 'B')).toBe(true);
-  });
-
-  it('car.model is not model-scoped', () => {
-    expect(meta['car.model']).toBeDefined();
-    expect(meta['car.model']?.model).toBeUndefined();
-  });
-});

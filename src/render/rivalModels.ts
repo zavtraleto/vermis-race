@@ -12,10 +12,8 @@ import {
 import type { Palette } from '../data/render';
 import { DT } from '../sim/constants';
 import type { Car, Track } from '../sim/types';
-import { driftBodyYawDeg, type CarWeightConfig } from './carWeight';
 import { Builder, type Car3dConfig } from './carModel';
 import { CrashTumble, type CrashTumbleConfig } from './crashTumble';
-import { approach } from './driftVisual';
 import { placeOnRoad, type Placement } from './placeOnRoad';
 import {
   focalPx,
@@ -112,8 +110,7 @@ function buildPlayerBody(cfg: Car3dConfig): Builder {
 /**
  * R67 rivals drawn with the player's car model, one colour per name (palette.rivals by nameId),
  * one instanced draw call in the road pass. Placement, crest clipping (R30) and depth band as for
- * traffic (trafficModels.ts); body yaw on top of the road heading by the player's rules (R89 in
- * model B: vis*slipDeg + vel*velDeg smoothed by yawTau; model A: the R24 angle), R49 tumble and
+ * traffic (trafficModels.ts); body yaw on top of the road heading = the sim heading (R213), R49 tumble and
  * hop while crashTicks > 0, R45 blink while bumpTicks > 0. After update(), labelCount / labelCar /
  * labelX / labelY give the screen point above each drawn rival within `nameDistance` segments
  * ahead (for the name labels). No allocations per frame.
@@ -138,15 +135,12 @@ export class RivalModels {
   private readonly placement: Placement = { x: 0, y: 0, w: 0, h: 0, depth: 0 };
   private readonly proj: Vector4;
   private readonly tumble: CrashTumble;
-  /** Smoothed R89 body yaw per car index, degrees; NaN = not started. */
-  private readonly yawDeg: Float32Array;
   private n = 0;
 
   constructor(
     private readonly cfg: Car3dConfig,
     private readonly draw: RivalDrawConfig,
     private readonly traffic: TrafficDrawConfig,
-    private readonly weight: CarWeightConfig,
     private readonly bump: BumpFeedbackConfig,
     private readonly crash: CrashTumbleConfig,
     private readonly camera: CameraConfig,
@@ -154,7 +148,6 @@ export class RivalModels {
     palette: Palette,
     roll: RollUniform,
     private readonly overscan: { overscanPx: number },
-    carCount: number,
   ) {
     const built = buildPlayerBody(cfg);
     const verts = built.keys.length;
@@ -178,7 +171,6 @@ export class RivalModels {
     this.colours = new Float32Array(this.colourCount * 3);
     for (let i = 0; i < this.colourCount; i++) writeHex(this.colours, i * 3, palette.rivals[i]!);
     this.tumble = new CrashTumble(crash);
-    this.yawDeg = new Float32Array(carCount).fill(NaN);
 
     const geo = new InstancedBufferGeometry();
     geo.setAttribute('position', new BufferAttribute(new Float32Array(built.pos), 3));
@@ -233,8 +225,7 @@ export class RivalModels {
 
   /**
    * Places every 'rival' car of `curr` (interpolated from `prev`) at z + zOffset, as traffic.
-   * dt = frame seconds for the yaw smoothing; model = H14 driving model (0 A, 1 B, 2 C); crashTicks =
-   * crashTime in ticks; driftYawMaxDeg = R24 yaw at full angle (model A); nameDistance =
+   * crashTicks = crashTime in ticks; nameDistance =
    * rivalNameDistance in segments ahead of the player (labels). R45b: the tail lights of every
    * drawn rival go to `lights`.
    */
@@ -243,11 +234,8 @@ export class RivalModels {
     prev: readonly Car[],
     curr: readonly Car[],
     alpha: number,
-    dt: number,
     zOffset: number,
-    model: number,
     crashTicks: number,
-    driftYawMaxDeg: number,
     nameDistance: number,
     lights: TailLights,
     track: Track,
@@ -256,7 +244,6 @@ export class RivalModels {
     const slope = this.cfg.slope;
     const road = this.road;
     const tc = this.traffic;
-    const w = this.weight;
     const p = this.placement;
     const f = focalPx(cam);
     const d0 = nearDistance(cam, f);
@@ -284,27 +271,9 @@ export class RivalModels {
       const zs = snap ? bc.z : ac.z + jump * alpha;
       const x = snap ? bc.x : ac.x + (bc.x - ac.x) * alpha;
       const t = snap ? 1 : alpha;
-      // R89 (model B) body yaw, smoothed like CarWeight; model A: the R24 drift yaw.
-      let target: number;
-      if (model === 2 && bc.state === 'DRIFT') {
-        // R160: model C DRIFT, the slip angle beta (interpolated within one drift).
-        const vel = (snap ? bc.vel : ac.vel + (bc.vel - ac.vel) * t) || 0;
-        const beta =
-          !snap && ac.state === 'DRIFT' && ac.dir === bc.dir
-            ? ac.beta + (bc.beta - ac.beta) * t
-            : bc.beta;
-        target = driftBodyYawDeg(bc.dir, beta, vel, w);
-      } else if (model === 1 || model === 2) {
-        const vel = (snap ? bc.vel : ac.vel + (bc.vel - ac.vel) * t) || 0;
-        const vis =
-          (snap ? bc.yaw : ac.yaw + (bc.yaw - ac.yaw) * t) -
-          vel +
-          (snap ? bc.carry : ac.carry + (bc.carry - ac.carry) * t);
-        target = vis * w.slipDeg + vel * w.velDeg;
-      } else target = (ac.angle + (bc.angle - ac.angle) * t) * driftYawMaxDeg;
-      const prevYaw = this.yawDeg[i]!;
-      const yawDeg = snap || prevYaw !== prevYaw ? target : approach(prevYaw, target, dt, w.yawTau);
-      this.yawDeg[i] = yawDeg;
+      // R213: body yaw = the sim heading (radians -> degrees), interpolated.
+      const yawDeg =
+        ((snap ? bc.heading : ac.heading + (bc.heading - ac.heading) * t) * 180) / Math.PI;
       // R45 blink: same on/off rule as the player.
       if (bc.bumpTicks > 0 && Math.floor(bc.bumpTicks * DT * blinkHz * 2) % 2 !== 0) continue;
 

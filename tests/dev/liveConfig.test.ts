@@ -3,38 +3,26 @@ import camera from '../../src/data/camera.json';
 import input from '../../src/data/input.json';
 import palette from '../../src/data/palette.json';
 import sprites from '../../src/data/sprites.json';
-import { createKeyboardInput } from '../../src/input/keyboard';
-import { createTouchStick } from '../../src/input/touchStick';
+import { createPad } from '../../src/input/pad';
 import car3d from '../../src/data/car3d.json';
 import { CarView } from '../../src/render/carModel';
 import type { InputFrame } from '../../src/sim/types';
 
 // T4 spec: a live edit of a config object takes effect on the next read, no rebuild.
-const frame = (): InputFrame => ({ steer: 0, brake: false, drift: false });
+const frame = (): InputFrame => ({ steer: 0, gas: 1, brake: 0, driftTap: false });
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 describe('consumers read config live', () => {
-  it('keyboard ramp follows steerRampMs changed after creation', () => {
-    const cfg = clone(input.keyboard);
-    const kb = createKeyboardInput(cfg);
-    cfg.steerRampMs = 200;
-    kb.keyDown('ArrowRight', 0);
+  it('control pad follows steerSpan changed after creation (R202)', () => {
+    const cfg = clone(input.pad);
+    cfg.steerDead = 0;
+    const pad = createPad(cfg);
+    pad.setArea(100, 100);
+    cfg.steerSpan = 0.5; // full steer at 0.5 * 50 = 25 px from the centre
+    expect(pad.pointerDown(1, 50, 50, 0)).toBe(true);
+    pad.pointerMove(1, 62.5, 50, 10);
     const f = frame();
-    kb.read(100, f);
-    expect(f.steer).toBeCloseTo(0.5, 9);
-  });
-
-  it('touch stick radius follows stickRadiusFrac changed after creation', () => {
-    const cfg = clone(input.touch);
-    cfg.deadZone = 0;
-    cfg.responseExp = 1;
-    const stick = createTouchStick(cfg);
-    stick.setArea(100, 100);
-    cfg.stickRadiusFrac = 0.5; // R = 50 px
-    expect(stick.pointerDown(1, 50, 95, 0)).toBe(true);
-    stick.pointerMove(1, 75, 95, 10);
-    const f = frame();
-    stick.read(10, f);
+    pad.read(10, f);
     expect(f.steer).toBeCloseTo(0.5, 9);
   });
 

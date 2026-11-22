@@ -37,7 +37,7 @@ describe('R70 traffic cars on rails', () => {
     expect(t.z).toBeCloseTo(250, 9);
   });
 
-  it('ignores steer, brake and drift inputs of its own index; never leaves GRIP', () => {
+  it('ignores steer, brake and drift inputs of its own index; never drifts', () => {
     const curved: Track = { segments: Array.from({ length: 1000 }, () => ({ curve: 2 })) };
     const s = createRace(1, 1, 1);
     const t = s.cars[1]!;
@@ -46,9 +46,9 @@ describe('R70 traffic cars on rails', () => {
     t.speed = 0.5;
     Object.assign(t, { cruise: 0.5 }); // R41b
     const wild: InputFrame[] = [
-      { steer: 1, brake: true, drift: true },
-      { steer: -1, brake: false, drift: true },
-      { steer: 1, brake: true, drift: false },
+      { steer: 1, gas: 0, brake: 1, driftTap: true },
+      { steer: -1, gas: 1, brake: 0, driftTap: true },
+      { steer: 1, gas: 0, brake: 1, driftTap: false },
     ];
     for (let i = 0; i < 600; i++) {
       // traffic gets the player's params object (rails): accel/brake/steer numbers must not matter
@@ -56,12 +56,10 @@ describe('R70 traffic cars on rails', () => {
     }
     expect(t.x).toBe(0.25);
     expect(t.speed).toBe(0.5);
-    expect(t.state).toBe('GRIP');
-    expect(t.dir).toBe(0);
-    expect(Math.abs(t.angle)).toBe(0);
-    expect(Math.abs(t.vx)).toBe(0);
+    expect(t.driftTimer).toBe(0);
+    expect(Math.abs(t.travel)).toBe(0);
     expect(Math.abs(t.steer)).toBe(0);
-    expect(Math.abs(t.heading)).toBe(0); // only R16 runs for traffic (R17 does not)
+    expect(Math.abs(t.heading)).toBe(0); // only its z advance runs for traffic
     expect(t.bumpTicks).toBe(0);
   });
 
@@ -242,7 +240,7 @@ describe('Regression: trafficCount 0', () => {
     const b = createRace(3, 1, 0);
     const p = { ...baseCar };
     for (let i = 0; i < 300; i++) {
-      const input: InputFrame = { steer: Math.sin(i / 20), brake: false, drift: i > 100 };
+      const input: InputFrame = { steer: Math.sin(i / 20), gas: 1, brake: 0, driftTap: false };
       step(a, [input], TRACK, [p]);
       step(b, [input], TRACK, [p], CFG);
     }

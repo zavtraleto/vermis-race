@@ -1,5 +1,4 @@
 import type { GamePhase } from '../app/gameFlow';
-import type { TouchDrift } from '../app/touchDriftPref';
 import { HudFontFit, hudEm, type HudLayout } from './speedometer';
 
 /** What the R95 overlay asks the game to do. */
@@ -8,34 +7,15 @@ export interface MenuActions {
   pause(): void;
   resume(): void;
   restart(): void;
-  /** A drift mode was picked (start screen or pause). */
-  mode(m: TouchDrift): void;
 }
 
-const MODES: readonly TouchDrift[] = ['A', 'B', 'C'];
-// R81h names and one-line descriptions of the touch drift modes.
-const MODE_NAME: Record<TouchDrift, string> = { A: 'Рывок вбок', B: 'Вниз', C: 'Нижняя зона' };
-const MODE_LINE: Record<TouchDrift, string> = {
-  A: 'коснись и сразу рвани вбок',
-  B: 'потяни палец вниз',
-  C: 'коснись в нижней половине зоны',
-};
-// R95 start screen: how to drive with the current mode.
-const CONTROLS: Record<TouchDrift, string> = {
-  A: 'Коснись и сразу рвани вбок — дрифт. Отпусти — выход. Коснись и веди плавно — обычный руль',
-  B: 'Веди пальцем вбок — руль. Потяни вниз — дрифт. Отпусти — выход',
-  C: 'Нижняя половина зоны — дрифт, верхняя — обычный руль. Отпусти — выход',
-};
-const KEYBOARD = 'Клавиатура: стрелки — руль, пробел — дрифт';
-// R151 (model C, H14 = C): one way to drift, the H19 choice is hidden.
-const CONTROLS_C =
-  'Веди пальцем вбок — руль. Потяни вниз и поверни — дрифт. В дрифте: вбок — угол, вверх — шире, вниз — круче. Отпусти — машина выпрямится.';
-const KEYBOARD_C =
-  'Клавиатура: стрелки влево/вправо — руль, вниз + поворот — дрифт, вверх/вниз в дрифте — шире/круче';
+// R95 start screen: how to drive (R202 control pad; the drift entry comes with a later slice).
+const CONTROLS =
+  'Палец от центра экрана: влево и вправо — руль, вверх — газ, вниз — сброс газа и тормоз. Отпусти палец — полный газ, руль прямо.';
+const KEYBOARD = 'Клавиатура: стрелки влево и вправо — руль, вниз — тормоз';
 
 // Look of the HUD plates (docs/art-bible.md "HUD", as the leaderboard): flat dark plates with cut
-// corners and a hard grey edge, monospace heavy type, the warning yellow for the main action and the
-// selected drift mode (as an edge). Every touch target is at least 3em (>= 44 CSS px at 360 px width).
+// corners and a hard grey edge, monospace heavy type, the warning yellow for the main action. Every touch target is at least 3em (>= 44 CSS px at 360 px width).
 const STYLE = `
 #menu,#pause-btn{position:fixed;z-index:15;font-family:ui-monospace,"Lucida Console",Consolas,
 monospace;font-weight:900;color:#e8e8e8;line-height:1.15;-webkit-font-smoothing:none;
@@ -56,11 +36,8 @@ background:#3a3a42;text-align:left;padding:0.45em 0.7em;display:flex;flex-direct
 justify-content:center;gap:0.15em;-webkit-tap-highlight-color:transparent}
 #menu button .n{font-size:1em}
 #menu button .d{font-size:0.75em;font-weight:700;color:#b8b8c0}
-#menu button.on{background:#4a4a54;box-shadow:inset 0.35em 0 0 #ffe14a;color:#ffe14a}
-#menu button.on .d{color:#e8e8e8}
 #menu button.main{background:#ffe14a;color:#0c0c12;font-size:1.25em;align-items:center;
 letter-spacing:0.15em;min-height:2.6em;text-transform:uppercase}
-#menu .modes{display:flex;flex-direction:column;gap:0.3em}
 #pause-btn{display:none;width:3.2em;height:3.2em;border:0;margin:0;padding:0;cursor:pointer;
 background:rgba(28,28,34,0.88);border-left:0.2em solid #8a8a92;color:#e8e8e8;
 -webkit-tap-highlight-color:transparent;
@@ -71,11 +48,6 @@ height:1.3em;background:#e8e8e8}
 #pause-btn::after{left:1.75em}
 `;
 
-interface ModeList {
-  root: HTMLDivElement;
-  buttons: HTMLButtonElement[];
-}
-
 /**
  * R95 start screen, pause button and pause panel: DOM over the 9:16 canvas, outside the sim.
  * Pointer events on the overlay never reach the touch stick (pointerdown stops propagating before
@@ -85,12 +57,6 @@ export class GameMenu {
   private readonly root: HTMLDivElement;
   private readonly startPlate: HTMLDivElement;
   private readonly pausePlate: HTMLDivElement;
-  private readonly ctrl: HTMLDivElement;
-  private readonly kb: HTMLDivElement;
-  /** R151: the H19 labels and lists, hidden in model C. */
-  private readonly modeParts: HTMLElement[] = [];
-  private mode: TouchDrift;
-  private readonly lists: ModeList[] = [];
   private readonly pauseBtn: HTMLButtonElement;
   private readonly fit: HudFontFit;
   private readonly btnFit: HudFontFit;
@@ -100,11 +66,7 @@ export class GameMenu {
     private readonly canvas: HTMLCanvasElement,
     private readonly layoutCfg: HudLayout,
     actions: MenuActions,
-    mode: TouchDrift,
-    /** R151, read live: model C has no touch drift modes (H19). */
-    private readonly modelC: () => boolean = () => false,
   ) {
-    this.mode = mode;
     const style = document.createElement('style');
     style.textContent = STYLE;
     document.head.appendChild(style);
@@ -120,11 +82,7 @@ export class GameMenu {
     const sp = plate();
     sp.dataset.screen = 'start';
     sp.append(div('title', 'VERMIS RACE'));
-    this.ctrl = div('ctrl', '');
-    this.kb = div('kb', KEYBOARD);
-    const startLabel = div('label', 'Способ дрифта');
-    const startList = this.modeList(actions).root;
-    sp.append(this.ctrl, this.kb, startLabel, startList);
+    sp.append(div('ctrl', CONTROLS), div('kb', KEYBOARD));
     sp.append(mainButton('Старт', 'start', () => actions.start()));
 
     // Pause panel.
@@ -132,10 +90,6 @@ export class GameMenu {
     pp.dataset.screen = 'pause';
     pp.append(div('head', 'Пауза'));
     pp.append(mainButton('Продолжить', 'resume', () => actions.resume()));
-    const pauseLabel = div('label', 'Способ дрифта');
-    const pauseList = this.modeList(actions).root;
-    pp.append(pauseLabel, pauseList);
-    this.modeParts.push(startLabel, startList, pauseLabel, pauseList);
     pp.append(textButton('Заново', 'restart', () => actions.restart()));
 
     root.append(sp, pp);
@@ -152,7 +106,6 @@ export class GameMenu {
     parent.appendChild(btn);
     this.pauseBtn = btn;
 
-    this.setMode(mode);
     this.fit = new HudFontFit(root, () => this.layout());
     this.btnFit = new HudFontFit(btn, () => this.layout());
     this.layout();
@@ -165,18 +118,6 @@ export class GameMenu {
     this.startPlate.style.display = phase === 'menu' ? 'flex' : 'none';
     this.pausePlate.style.display = phase === 'pause' ? 'flex' : 'none';
     this.pauseBtn.style.display = phase === 'run' ? 'block' : 'none';
-    this.setMode(this.mode);
-  }
-
-  /** Highlights the current drift mode in both lists and rewrites the controls text. */
-  setMode(m: TouchDrift): void {
-    this.mode = m;
-    const c = this.modelC();
-    this.ctrl.textContent = c ? CONTROLS_C : CONTROLS[m];
-    this.kb.textContent = c ? KEYBOARD_C : KEYBOARD;
-    for (const e of this.modeParts) e.style.display = c ? 'none' : '';
-    for (const l of this.lists)
-      for (let i = 0; i < MODES.length; i++) l.buttons[i]!.classList.toggle('on', MODES[i] === m);
   }
 
   /** Fits the overlay to the canvas rectangle and the pause button into its top-left corner. */
@@ -194,23 +135,6 @@ export class GameMenu {
     const b = this.pauseBtn.style;
     b.left = `${r.left + m}px`;
     b.top = `${r.top + m}px`;
-  }
-
-  private modeList(actions: MenuActions): ModeList {
-    const root = document.createElement('div');
-    root.className = 'modes';
-    const buttons: HTMLButtonElement[] = [];
-    for (const m of MODES) {
-      const b = document.createElement('button');
-      b.dataset.mode = m;
-      b.append(span('n', `${m} — ${MODE_NAME[m]}`), span('d', MODE_LINE[m]));
-      b.addEventListener('click', () => actions.mode(m));
-      buttons.push(b);
-      root.appendChild(b);
-    }
-    const list = { root, buttons };
-    this.lists.push(list);
-    return list;
   }
 }
 

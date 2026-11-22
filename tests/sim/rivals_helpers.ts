@@ -12,7 +12,7 @@ import type {
 } from '../../src/sim/types';
 
 export const LANES = 8;
-export const IDLE: InputFrame = { steer: 0, brake: false, drift: false };
+export const IDLE: InputFrame = { steer: 0, gas: 1, brake: 0, driftTap: false };
 export const TRACK: Track = makeStraightTrack(2000);
 
 /** Explicit rival config (same numbers as the data defaults, but not read from the file). */
@@ -78,7 +78,6 @@ export const BP: CarParams = {
   bumpPushDecay: 0.25,
   bumpKick: 0.6,
   bumpInvulnTime: 0.8,
-  bumpAngleLoss: 0.3,
   xLimit: 2,
 };
 export const BUMP_TICKS = 96;

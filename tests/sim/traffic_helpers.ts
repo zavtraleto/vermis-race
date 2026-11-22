@@ -39,11 +39,10 @@ export const BP: CarParams = {
   bumpPushDecay: 0.25,
   bumpKick: 0.6,
   bumpInvulnTime: 0.8,
-  bumpAngleLoss: 0.3,
 };
 export const BUMP_TICKS = 96;
 
-export const IDLE: InputFrame = { steer: 0, brake: false, drift: false };
+export const IDLE: InputFrame = { steer: 0, gas: 1, brake: 0, driftTap: false };
 export const TRACK: Track = makeStraightTrack(1000);
 
 export interface Spec {

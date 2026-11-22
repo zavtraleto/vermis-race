@@ -59,9 +59,9 @@ describe('R63b a rival beyond poolRadius is replaced on that tick', () => {
         const s = pool(gaps);
         // dirty state of the old car
         Object.assign(s.cars[4]!, {
-          state: 'DRIFT',
-          dir: 1,
-          angle: 0.8,
+          driftTimer: 30,
+          heading: 0.4,
+          travel: 0.1,
           bumpTicks: 30,
           crashTicks: 50,
           crashSpeed0: 0.5,
@@ -99,14 +99,13 @@ describe('R63b a rival beyond poolRadius is replaced on that tick', () => {
         expect(c.speed).toBeCloseTo(s.cars[0]!.speed, 9);
         expect(c.speed).toBeCloseTo(V, 9);
       });
-      it('clean state: GRIP, no drift angle, no bump / crash ticks', () => {
+      it('clean state: no drift, no slip, no bump / crash ticks', () => {
         const c = run().cars[4]!;
-        expect(c.state).toBe('GRIP');
-        expect(c.dir).toBe(0);
-        expect(c.angle).toBe(0);
+        expect(c.driftTimer).toBe(0);
+        expect(c.heading).toBe(0);
+        expect(c.travel).toBe(0);
         expect(c.bumpTicks).toBe(0);
         expect(c.crashTicks).toBe(0);
-        expect(c.offTicks).toBe(0);
         expect(Math.abs(c.x)).toBeLessThanOrEqual(1);
       });
       it('joinTicks = joinShowTime in ticks (480) and counts down 1 per tick to 0', () => {

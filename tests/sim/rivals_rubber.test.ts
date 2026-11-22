@@ -2,15 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { step } from '../../src/sim/race';
 import type { Car, CarParams, InputFrame, RivalConfig } from '../../src/sim/types';
 import { baseCarA } from './baseCarA';
-import { PB } from './modelb_helpers';
 import { DT } from '../../src/sim/constants';
 import { IDLE, RC, TRACK, mkRace } from './rivals_helpers';
 
 const PLAYER: CarParams = { ...baseCarA, accel: 0 };
 /** Rival that does not move by itself (speed 0, accel 0), so d is the same at start and end of the step. */
 const STILL: CarParams = { ...baseCarA, accel: 0 };
-/** Rival whose speed after one step is exactly its cap (accel and driftBrake huge). */
-const SNAP: CarParams = { ...baseCarA, accel: 600, driftBrake: 600 };
+/** Rival whose speed after one step is exactly its cap (accel huge; R204 clamps to the cap). */
+const SNAP: CarParams = { ...baseCarA, accel: 600 };
 const LATE = 1900; // race tick after bandStartDelay (15 s = 1800 ticks)
 
 describe('R62 pace scales the speed cap', () => {
@@ -22,10 +21,8 @@ describe('R62 pace scales the speed cap', () => {
     for (let i = 0; i < 1500; i++) step(s, [IDLE, IDLE], TRACK, [{ ...p, accel: 0 }, p]);
     return s.cars[1]!.speed;
   };
-  for (const [label, p] of [
-    ['model A', baseCarA],
-    ['model B', PB],
-  ] as const) {
+  // [ADR 0005] one driving model.
+  for (const [label, p] of [['R200 model', baseCarA]] as const) {
     it(`${label}: pace 1.03 settles at 1.03*vmax, pace 0.97 at 0.97*vmax, pace 1 at vmax`, () => {
       expect(settle(p, 1.03, 0)).toBeCloseTo(1.03 * p.vmax, 6);
       expect(settle(p, 0.97, 0)).toBeCloseTo(0.97 * p.vmax, 6);
@@ -275,8 +272,8 @@ describe('R63 off switches, player and traffic', () => {
     expect(s.cars[1]!.band).toBe(0);
   });
   it('only the cap changes: lateral motion of step 1 is identical with the band on and off', () => {
-    const steer: InputFrame = { steer: 0.7, brake: false, drift: false };
-    const run = (cfg: RivalConfig): { x: number; vx: number; speed: number } => {
+    const steer: InputFrame = { steer: 0.7, gas: 1, brake: 0, driftTap: false };
+    const run = (cfg: RivalConfig): { x: number; travel: number; speed: number } => {
       const s = mkRace(1, 0, [
         { z: 0, x: 0, speed: 0 },
         { z: -240, x: 0.2, speed: 0.5, slot: 400, slotTicks: 1e6, band: 0.06, role: 1 },
@@ -284,12 +281,12 @@ describe('R63 off switches, player and traffic', () => {
       s.tick = LATE;
       step(s, [IDLE, steer], TRACK, [PLAYER, SNAP], undefined, cfg);
       const c = s.cars[1]!;
-      return { x: c.x, vx: c.vx, speed: c.speed };
+      return { x: c.x, travel: c.travel, speed: c.speed };
     };
     const on = run(RC);
     const off = run({ ...RC, rubberBand: 0 });
     expect(on.x).toBe(off.x);
-    expect(on.vx).toBe(off.vx);
+    expect(on.travel).toBe(off.travel);
     expect(on.speed).toBeGreaterThan(off.speed + 0.03); // ~1.06 vs 1
   });
   it('determinism: the same race run twice gives identical JSON (band, slot included)', () => {

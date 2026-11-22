@@ -10,30 +10,17 @@ import {
 } from '../data/render';
 import hypotheses from '../data/hypotheses.json';
 import { inputConfig } from '../data/input';
-import {
-  mistakeConfig,
-  rivalConfig,
-  rivalDriftEntry,
-  rivalNames,
-  rivalUiConfig,
-} from '../data/rivals';
+import { mistakeConfig, rivalConfig, rivalNames, rivalUiConfig } from '../data/rivals';
 import { trafficConfig } from '../data/traffic';
 import tunablesRivals from '../data/tunablesRivals.json';
 import scenarios from '../data/scenarios.json';
-import { createAutoDrift } from '../input/autoDrift';
 import { createKeyboardInput } from '../input/keyboard';
-import { createFlickDrift } from '../input/flickDrift';
-import { createRetouchDrift } from '../input/retouchDrift';
 import { attachKeyboard } from '../input/keyboardDom';
 import { createPlayerInput, type PlayerInput } from '../input/player';
 import { attachPointer } from '../input/pointerDom';
-import { resolveTouchScheme } from '../input/scheme';
-import { createTouchStick } from '../input/touchStick';
-import { createZoneStick } from '../input/zoneStick';
+import { createPad } from '../input/pad';
 import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
-import { bodyYawDeg, CarWeight, driftBodyYawDeg } from '../render/carWeight';
-import { stepCamOffset, type CamLag } from '../render/cameraLag';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
 import { WheelSteer } from '../render/wheelSteer';
@@ -41,7 +28,7 @@ import { RivalModels } from '../render/rivalModels';
 import { TailLights } from '../render/tailLights';
 import { TrafficModels } from '../render/trafficModels';
 import { readSpeed, Speedometer, type SpeedReading } from '../ui/speedometer';
-import { DriftVisual, roadHalfWidthPxAt } from '../render/driftVisual';
+import { DriftVisual, inDrift, roadHalfWidthPxAt, slipSide } from '../render/driftVisual';
 import { cameraLineOffset, createProjection, focalPx, project } from '../render/projection';
 import { slopePitchDeg } from '../render/roadSlope';
 import { ribbonThresholds } from '../render/ribbonMap';
@@ -49,8 +36,7 @@ import { RibbonMapMesh } from '../render/ribbonMapMesh';
 import { RoadMesh } from '../render/roadMesh';
 import { buildRoadside, indexBySegment } from '../render/roadside';
 import { SpriteBatch } from '../render/spriteBatch';
-import { frontMarksActive, roadPointAt, TyreMarks } from '../render/tyreMarks';
-import { stepCamDrift, type CamDrift } from '../render/cameraDrift';
+import { roadPointAt, TyreMarks } from '../render/tyreMarks';
 import { stepWheelSpin } from '../render/wheelSpin';
 import { WorldSprites } from '../render/worldSprites';
 import { DT, SEG_PER_UNIT } from '../sim/constants';
@@ -64,12 +50,10 @@ import { NameLabels } from '../ui/nameLabels';
 import { FrameStats } from '../ui/frameStats';
 import { FrameHud } from '../ui/hud';
 import { GameMenu } from '../ui/menu';
-import { DriftEntryProbe, driftEntryOf, onOffOf } from './driftEntryProbe';
 import { installErrorCollectors, parseParams, type GameDebug } from './debug';
 import { copyInputFrame, createReadInput } from './input';
 import { copyRaceState, createLoop } from './loop';
 import { createGameFlow, menuEnabled } from './gameFlow';
-import { isTouchDrift, loadTouchDrift, saveTouchDrift, type TouchDrift } from './touchDriftPref';
 import { installDev } from '../dev/install';
 import type { TunableSpec } from '../dev/tunables';
 import render3dJson from '../data/render3d.json';
@@ -89,9 +73,6 @@ const MAX_VISUAL_DT = 0.1;
 const errors: string[] = [];
 installErrorCollectors(errors);
 const params = parseParams(window.location.search);
-// H14: ?model=a|b|c picks the driving model before the dev registry reads its defaults (so it is not
-// saved as a tuning diff); the panel switch car.model still changes it live.
-if (params.model !== null) baseCar.model = params.model;
 // Spike E1: ?render=3d draws the same game as a true 3D scene (src/render3d).
 const render3dConfig: Render3dConfig = render3dJson;
 const use3d = params.render === '3d';
@@ -129,44 +110,6 @@ const tunables = installDev(
 // keeps the sim and the drawn lamps equal (a live slider move changes neither until the reload).
 baseCar.lampEvery = spritesConfig.roadside.lamps.every;
 baseCar.lampOffset = spritesConfig.roadside.lamps.offset;
-// H16 (R81b, R81c, R81e, R81f): the model B drift entry variant follows the hypothesis flag (A..F -> 0..5), on
-// load and on every panel change (the rival copies below take the rest of baseCar, but R81e: their
-// driftEntry is rivalDriftEntry).
-let railValue = baseCar.driftRail;
-let railOff = false;
-const applyDriftEntry = (): void => {
-  baseCar.driftEntry = driftEntryOf(hypotheses.H16_driftEntry);
-  baseCar.gripScrub = onOffOf(hypotheses.H17_gripScrub); // H17 (R86b)
-  baseCar.driftTurbo = onOffOf(hypotheses.H18_driftTurbo); // H18 (R86c)
-  baseCar.releaseHold = onOffOf(hypotheses.H20_releaseHold); // H20 (R85f)
-  // H21 (R84c): A = rails 0, B = the driftRail slider value (kept while A is on).
-  if (hypotheses.H21_driftRail === 'B') {
-    if (railOff) baseCar.driftRail = railValue;
-    railOff = false;
-    railValue = baseCar.driftRail;
-  } else {
-    if (!railOff) railValue = baseCar.driftRail;
-    railOff = true;
-    baseCar.driftRail = 0;
-  }
-};
-applyDriftEntry();
-// R81h/R95: the touch drift mode (H19) is remembered in localStorage and wins over the default and
-// the tuning diff; the zone stick reads inputConfig.touch.touchDrift at every touch-down.
-const storage = ((): Storage | null => {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-})();
-const touchDriftOf = (): TouchDrift =>
-  isTouchDrift(hypotheses.H19_touchDrift) ? hypotheses.H19_touchDrift : 'A';
-const storedDrift = loadTouchDrift(storage, touchDriftOf());
-if (storedDrift !== hypotheses.H19_touchDrift)
-  tunables.set('hypotheses.H19_touchDrift', storedDrift);
-inputConfig.touch.touchDrift = touchDriftOf();
-
 const canvas = document.getElementById('game');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('canvas #game missing');
 
@@ -204,13 +147,13 @@ const trafficScenario =
   params.scenario === 'traffic' || params.scenario === 'traffic-20'
     ? scenarios[params.scenario]
     : null;
-// drift-right / drift-camera: constant hard curve, drift held from an initial speed (R24 drift look,
-// R27 drift camera screenshots; drift-camera also places traffic and shows the UI).
+// drift-right / drift-camera: constant hard curve from an initial speed with the scenario steer (no
+// drift until the new driving model, ADR 0005); drift-camera also places traffic and shows the UI.
 const driftScenario =
   params.scenario === 'drift-right' || params.scenario === 'drift-camera'
     ? scenarios[params.scenario]
     : null;
-// sharp (R31b): drift-run (pinned), drift entered by a flick just before the first hook.
+// sharp (R31b): drift-run (pinned), just before the first hook (no drift entry yet, ADR 0005).
 const sharpScenario = params.scenario === 'sharp' ? scenarios.sharp : null;
 // map-curve: the test-twisty loop (pinned, not the default track), shortly before a corner (ribbon map screenshot).
 const mapScenario = params.scenario === 'map-curve' ? scenarios['map-curve'] : null;
@@ -253,8 +196,8 @@ const track = curve
             ? buildTrack(loadTrackByName(sharpScenario.track).def)
             : buildTrack(loadTrackByName(params.track).def);
 const view = stress ? { ...cameraConfig, drawDistance: stress.drawDistance } : cameraConfig;
-// R27: one roll uniform shared by every game-layer material (road, sprites, traffic).
-const screenRoll = new ScreenRoll(spritesConfig.driftCamera, view.screenWidth / view.screenHeight);
+// One roll uniform shared by every game-layer material (road, sprites, traffic); roll 0 (R213).
+const screenRoll = new ScreenRoll(view.screenWidth / view.screenHeight);
 const overscan = spritesConfig.driftCamera;
 let proj = createProjection(view, roadConfig);
 let road = new RoadMesh(view, roadConfig, paletteConfig, screenRoll.uniform, overscan);
@@ -287,8 +230,6 @@ const smokeBatch = new SpriteBatch(
 carView.scene.add(smokeBatch.mesh);
 // R24c: tyre marks of the player in DRIFT, drawn into the road-pass sprite batch.
 const tyreMarks = new TyreMarks(spritesConfig.tyreMarks);
-// R26: yaw from the real lateral motion, roll and pitch with weight.
-const weight = new CarWeight(spritesConfig.weight);
 // R45: traffic as 3D bodies, one instanced draw call in the road pass.
 const trafficModels = new TrafficModels(
   car3dConfig,
@@ -324,100 +265,35 @@ ribbon.enabled = ribbonMapConfig.enabled && (params.map || mapScenario !== null)
 scene.add(ribbon.mesh);
 const frameStats = new FrameStats(FRAME_STATS_WINDOW);
 const hud = params.hud ? new FrameHud(document.body) : null;
-// R81b (отладка): last model B drift-entry readout on the ?hud=1 overlay.
-const entryProbe = hud ? new DriftEntryProbe() : null;
-// R86d (отладка): the drift charge and the remaining turbo ticks of the player under the entry line.
-const entryText = entryProbe
-  ? (): string => {
-      const c = loop.curr.cars[0]!;
-      return `${entryProbe.text()}\nзаряд ${c.turbo.toFixed(2)} турбо ${c.turboTicks}`;
-    }
-  : undefined;
 // R28 UI layer: on unless ?ui=0; screenshot scenarios show it only when they opt in.
 const uiOn =
   params.ui && (fixedScenario === null || ('ui' in fixedScenario && fixedScenario.ui === true));
 const speedometer = uiOn ? new Speedometer(document.body, canvas, spritesConfig.speedometer) : null;
 const speedReading: SpeedReading = { ratio: 0, boosting: false };
 
-// Input: keyboard + touch scheme (H2; only A exists, the resolve warns on a bad flag).
-resolveTouchScheme(hypotheses.H2_touchSteering, (m) => console.warn(m));
+// Input: keyboard + the R202 control pad (mouse = finger while the left button is held).
 const now = (): number => performance.now();
-// R81: the keyboard reads the same live car model the player input gets (drift entry in model B).
-const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
-// R81c/R81g/R81e/R81f: in model B with driftEntry 3 (H16 D, the default: drift = the stick's pull-down
-// latch, R81g), 4 (H16 E) or 5 (H16 F) the touch
-// input is the zone stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a
-// reload). In variants 4 and 5 the player input ignores the stick's drift latch: touch drift = finger
-// down (player.ts).
-// R151/R155 (model C): the zone stick with the throttle axis; it reads the live model and the state
-// of the player car (the curr state, read by the player input before the next tick).
-const stickCar = {
-  get model(): number {
-    return baseCar.model;
-  },
-  get state(): 'GRIP' | 'DRIFT' {
-    return loop.curr.cars[0]!.state;
-  },
-};
-const zoneStick =
-  baseCar.model === 2 ||
-  (baseCar.model === 1 &&
-    (baseCar.driftEntry === 3 || baseCar.driftEntry === 4 || baseCar.driftEntry === 5))
-    ? createZoneStick(inputConfig.touch, stickCar)
-    : null;
-const touchStick = zoneStick ?? createTouchStick(inputConfig.touch);
+const keyboard = createKeyboardInput();
+const pad = createPad(inputConfig.pad);
 attachKeyboard(window, keyboard, now);
-// H3 D re-touch drift and H3 E flick drift, live config (dev panel); fed alongside the stick.
-// Mouse (left button) goes through the same pointer path.
-const retouch = createRetouchDrift(inputConfig.touch);
-const flick = createFlickDrift(inputConfig.touch);
-attachPointer(canvas, touchStick, now, retouch, flick);
-// Constant input for screenshot scenarios so the frame does not depend on the keyboard. Drift
-// scenarios first hold `flickFrom` for `flickTicks` reads (one read per tick), then `steer`: the
-// R81 flick that enters a drift in model B (model A enters on the R20 edge as before). R154 (model
-// C): a drift scenario lifts (throttle -1) for its first `liftTicks` reads.
-function fixedInput(
-  steer: number,
-  drift: boolean,
-  flickFrom = steer,
-  flickTicks = 0,
-  liftTicks = 0,
-): PlayerInput {
-  const last: InputFrame = { steer, brake: false, drift };
-  let reads = 0;
+attachPointer(canvas, pad, now);
+// Constant input for screenshot scenarios so the frame does not depend on the keyboard (R201:
+// steer from the scenario, full gas).
+function fixedInput(steer: number): PlayerInput {
+  const last: InputFrame = { steer, gas: 1, brake: 0, driftTap: false };
   return {
     last,
     read(out: InputFrame): void {
-      out.steer = reads < flickTicks ? flickFrom : steer;
-      out.throttle = reads < liftTicks ? -1 : 0;
-      reads++;
-      out.brake = false;
-      out.drift = drift;
+      out.steer = steer;
+      out.gas = 1;
+      out.brake = 0;
+      out.driftTap = false;
     },
   };
 }
-const flickScenario = driftScenario ?? sharpScenario;
 const player = fixedScenario
-  ? flickScenario
-    ? fixedInput(
-        flickScenario.steer,
-        true,
-        flickScenario.flickFrom,
-        flickScenario.flickTicks,
-        flickScenario.liftTicks,
-      )
-    : fixedInput(fixedScenario.steer, false)
-  : createPlayerInput(keyboard, touchStick, now, {
-      // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
-      // D = re-touch and swipe sideways, E = sharp sideways flick, held until release.
-      hypotheses,
-      autoDrift: createAutoDrift(inputConfig.touch),
-      retouch,
-      flick,
-      // H14 read live: in model B the touch drift input is "pointer held", H3 is ignored.
-      car: baseCar,
-      warn: (m) => console.warn(m),
-    });
+  ? fixedInput(fixedScenario.steer)
+  : createPlayerInput(keyboard, pad, now);
 
 // R70/R71: the default track runs with a traffic pool (off with ?traffic=0); screenshot and
 // stress scenarios run without traffic unless they opt in (the traffic scenario places its own).
@@ -456,11 +332,7 @@ if (scenarioRivals) {
   });
 }
 // Screenshot scenario may start at speed (app-side initial state, the sim is not touched later).
-if (driftScenario) {
-  race.cars[0]!.speed = driftScenario.speed;
-  // R20 needs a rising edge with the steer already past driftEnterSteer: start with it applied.
-  race.cars[0]!.steer = driftScenario.steer;
-}
+if (driftScenario) race.cars[0]!.speed = driftScenario.speed;
 if (sharpScenario) {
   race.cars[0]!.z = sharpScenario.z;
   race.cars[0]!.speed = sharpScenario.speed;
@@ -485,12 +357,6 @@ if (scenarioCars) {
 // R49: the crash shake is stronger than the bump shake (own numbers in sprites.json "crash").
 const bump = new BumpFeedback(spritesConfig.bump, spritesConfig.crash);
 const tumble = new CrashTumble(spritesConfig.crash);
-// R27b: the lateral camera position (render field); camPosX = x at the start of the race.
-const camLag: CamLag = { posX: race.cars[0]!.x };
-// R27d: the offset x - camPosX (render field); 0 at the start and after a crash.
-let camOffset = 0;
-// R27c: camera shift into the turn and horizon roll (render fields), added on top of R27b.
-const camDrift: CamDrift = { shiftX: 0, rollDeg: 0 };
 // R25c: wheel angles about their axles, rad (render fields).
 let spinFront = 0;
 let spinRear = 0;
@@ -505,9 +371,6 @@ const render3d = use3d
       screenWidth: WIDTH,
       screenHeight: HEIGHT,
       drift: driftVisual,
-      camLag,
-      weight,
-      roll: screenRoll,
       bump,
       roadside,
       roadsideIndex,
@@ -515,35 +378,14 @@ const render3d = use3d
   : null;
 // R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
 // the copies follow live dev-panel edits of the player car.
-// R81e/R81f: the rival copies keep driftEntry = rivalDriftEntry (3 since T73, R81g: the same rule as the player).
 const carParams: CarParams[] = race.cars.map((c) =>
-  c.kind === 'rival' ? { ...baseCar, driftEntry: rivalDriftEntry } : baseCar,
+  c.kind === 'rival' ? { ...baseCar } : baseCar,
 );
 tunables.onChange(() => {
-  applyDriftEntry();
-  // R95: the dev panel and the pause show and store one H19 value.
-  const td = touchDriftOf();
-  if (td !== inputConfig.touch.touchDrift) {
-    inputConfig.touch.touchDrift = td;
-    saveTouchDrift(storage, td);
-    menu?.setMode(td);
-  }
-  for (const p of carParams) {
-    if (p !== baseCar) {
-      Object.assign(p, baseCar);
-      p.driftEntry = rivalDriftEntry; // R81e
-    }
-  }
+  for (const p of carParams) if (p !== baseCar) Object.assign(p, baseCar);
 });
 let rivalDrivers = rivalsOn ? createRivalDrivers(race, params.seed) : null;
-const readPlayerRaw = createReadInput(player);
-// R81b (отладка): the probe sees the player car after each tick (loop.curr before the next one).
-const readPlayer = entryProbe
-  ? (tick: number, out: InputFrame[]): void => {
-      entryProbe.observe(loop.curr.cars[0]!, baseCar, track.segments);
-      readPlayerRaw(tick, out);
-    }
-  : readPlayerRaw;
+const readPlayer = createReadInput(player);
 const readInput = rivalDrivers
   ? (tick: number, out: InputFrame[]): void => {
       readPlayer(tick, out);
@@ -562,7 +404,6 @@ const rivalModels =
         car3dConfig,
         spritesConfig.rivals,
         spritesConfig.traffic,
-        spritesConfig.weight,
         spritesConfig.bump,
         spritesConfig.crash,
         view,
@@ -570,7 +411,6 @@ const rivalModels =
         paletteConfig,
         screenRoll.uniform,
         overscan,
-        race.cars.length,
       )
     : null;
 if (rivalModels) scene.add(rivalModels.mesh);
@@ -593,7 +433,7 @@ const leaderboard = rivalUiOn
       spritesConfig.leaderboard,
     )
   : null;
-// Frame seconds of the last updateVisuals() (rival yaw smoothing and the place flash).
+// Frame seconds of the last updateVisuals() (the place flash).
 let visualDt = 0;
 const loop = createLoop(race, {
   track,
@@ -648,18 +488,15 @@ function poseFrame(): void {
   const a = loop.alpha;
   const p = loop.prev.cars[0]!;
   const c = loop.curr.cars[0]!;
-  // R24: in DRIFT the camera moves toward the inside of the corner; the car is drawn off-centre.
-  // R45: the contact shake moves the whole camera (road, traffic and the car line together).
-  // R27b: everything is projected from the lagging camPosX; the car is drawn x - camPosX off it.
-  // R27c: camShiftX on top of the R27b camPosX (R27b keeps its own state without it).
-  const camX = driftVisual.cameraX + bump.shake + camDrift.shiftX;
+  // R213: the camera simply follows the car x; R45: the contact shake moves the whole camera.
+  const camX = p.x + (c.x - p.x) * a + bump.shake;
   const zCam = p.z + (c.z - p.z) * a;
   // R30b: the camera rides above the road at the player's line (the line traffic and rivals are
   // drawn at too), pulled back toward z only on descents too steep for it (cameraLineOffset).
   lineOff = playerLineOffset(view, roadConfig, spritesConfig.player.baseY);
   const slope = car3dConfig.slope;
   const camOff = cameraLineOffset(track, zCam, lineOff, view, roadConfig, slope.eyeClearance);
-  project(proj, track, zCam, camLag.posX + camX, view, roadConfig, camOff);
+  project(proj, track, zCam, camX, view, roadConfig, camOff);
   // R30b (c): pitch along the road under the car; CarView pitch > 0 is nose down, so subtract.
   // The car's own camera looks down at it far less than the road camera does, so the angle is
   // scaled by playerPitchGain to read the same on screen.
@@ -670,15 +507,15 @@ function poseFrame(): void {
     slope.slopePitchGain * slope.playerPitchGain,
   );
   const carY = spritesConfig.player.baseY * view.screenHeight;
-  const carDx =
-    (p.x + (c.x - p.x) * a - camLag.posX - camX) * roadHalfWidthPxAt(carY, view, roadConfig);
-  // R26 weight (yaw from the real lateral motion, roll, pitch); R27 the car rolls with the picture.
+  const carDx = (p.x + (c.x - p.x) * a - camX) * roadHalfWidthPxAt(carY, view, roadConfig);
+  // R213: body yaw = the sim heading (degrees, > 0 = nose right), no roll or pitch of its own.
   // R49: while crashTicks > 0 the car tumbles (roll and spin) and hops above the road.
+  const yawDeg = ((p.heading + (c.heading - p.heading) * a) * 180) / Math.PI;
   carView.update(
-    weight.yaw + tumble.yawDeg,
-    weight.roll,
+    yawDeg + tumble.yawDeg,
+    0,
     carDx,
-    weight.pitch - slopePitch,
+    -slopePitch,
     screenRoll.total,
     tumble.rollDeg,
     tumble.hop,
@@ -690,18 +527,14 @@ function poseFrame(): void {
   const found =
     roadPointAt(tyreMarks.left, proj, carView.rearLX, carView.rearLY) &&
     roadPointAt(tyreMarks.right, proj, carView.rearRX, carView.rearRY);
-  // R24d: in a strong drift the front wheels mark too.
-  const front = frontMarksActive(
-    c.state,
-    c.yaw - c.vel,
-    baseCar.slipFull,
-    spritesConfig.tyreMarks.frontMarkSlip,
-  );
+  // R24d: front-wheel marks need the drift scale of the new model (slipFull is gone, ADR 0005):
+  // off until the drift slice restates R24d.
+  const front = false;
   const frontFound =
     front &&
     roadPointAt(tyreMarks.frontLeft, proj, carView.frontLX, carView.frontLY) &&
     roadPointAt(tyreMarks.frontRight, proj, carView.frontRX, carView.frontRY);
-  tyreMarks.track(c.state === 'DRIFT' && c.dir !== 0, found, proj.length, front, frontFound);
+  tyreMarks.track(inDrift(c) && slipSide(c) !== 0, found, proj.length, front, frontFound);
 }
 
 function renderFrame(): void {
@@ -748,11 +581,8 @@ function renderFrame(): void {
       loop.prev.cars,
       loop.curr.cars,
       a,
-      visualDt,
       lineOff,
-      baseCar.model,
       Math.round(baseCar.crashTime / DT),
-      spritesConfig.drift.yawMaxDeg,
       rivalUiConfig.rivalNameDistance,
       tailLights,
       track,
@@ -781,71 +611,16 @@ function renderFrame(): void {
 }
 
 /** Smoothed render-only state of the player, advanced by dt (frame time live, DT on the fixed path). */
-function updateVisuals(dt: number, angle: number, alpha: number): void {
+function updateVisuals(dt: number, alpha: number): void {
   const p = loop.prev.cars[0]!;
   const c = loop.curr.cars[0]!;
   visualDt = dt;
-  driftVisual.update(dt, c, angle);
-  // R27b/R27d: the offset x - camPosX chases clamp(vx*camLagTau) (interpolated fields), back slowly
-  // with camReturnTau; 0 when the crash returns the car (R48).
-  const x = p.x + (c.x - p.x) * alpha;
-  if (p.crashTicks > 0 && c.crashTicks === 0) camOffset = 0;
-  else
-    camOffset = stepCamOffset(
-      camOffset,
-      p.vx + (c.vx - p.vx) * alpha,
-      dt,
-      view.camLagTau,
-      view.camReturnTau,
-      view.camLagMax,
-    );
-  camLag.posX = x - camOffset;
+  driftVisual.update(dt, c);
   const speed = p.speed + (c.speed - p.speed) * alpha;
-  // R89: in model B the body yaw is vis*slipDeg + vel*velDeg + leadDeg*lead (interpolated fields,
-  // both states); model C the same in GRIP, R160 in DRIFT.
-  let bodyYaw: number | null = null;
-  if (baseCar.model === 2 && c.state === 'DRIFT') {
-    // R160: model C DRIFT body yaw from the slip angle beta (interpolated within one drift).
-    const beta =
-      p.state === 'DRIFT' && p.dir === c.dir ? p.beta + (c.beta - p.beta) * alpha : c.beta;
-    bodyYaw = driftBodyYawDeg(c.dir, beta, p.vel + (c.vel - p.vel) * alpha, spritesConfig.weight);
-  } else if (baseCar.model === 1 || baseCar.model === 2) {
-    bodyYaw = bodyYawDeg(
-      p.yaw + (c.yaw - p.yaw) * alpha,
-      p.vel + (c.vel - p.vel) * alpha,
-      p.carry + (c.carry - p.carry) * alpha,
-      p.vx + (c.vx - p.vx) * alpha,
-      speed / baseCar.vmax,
-      baseCar.latScale,
-      spritesConfig.weight,
-    );
-  }
-  // R27c: g = body angle over its full-drift value (visible slip slipFull x slipDeg, R89; model C the
-  // same scale as its R87 angle); in
-  // model A the R24 drift yaw over yawMaxDeg. Picture roll > 0 is counter-clockwise, so a right
-  // drift (g > 0) rolls it clockwise: the right edge of the road goes down.
-  const g =
-    bodyYaw !== null
-      ? bodyYaw / (baseCar.slipFull * spritesConfig.weight.slipDeg)
-      : driftVisual.yaw / spritesConfig.drift.yawMaxDeg;
-  stepCamDrift(camDrift, g, c.state === 'DRIFT', dt, view);
-  screenRoll.update(dt, c, angle, -camDrift.rollDeg);
   // R25c: every wheel rolls at the world speed (m/s from the speedometer scale) over its radius.
   const mps = (speed / baseCar.vmax) * (spritesConfig.speedometer.vmaxKmh / 3.6);
   spinFront = stepWheelSpin(spinFront, mps, carView.frontRadius, dt);
   spinRear = stepWheelSpin(spinRear, mps, carView.rearRadius, dt);
-  weight.update(
-    dt,
-    p,
-    c,
-    p.speed + (c.speed - p.speed) * alpha,
-    driftVisual.yaw,
-    spritesConfig.drift.yawMaxDeg,
-    car3dConfig.driftRollDeg,
-    roadConfig.halfWidth,
-    roadConfig.segmentLength,
-    bodyYaw,
-  );
   bump.update(dt, c.bumpTicks, c.crashTicks);
   // R25b: the wheels follow the interpolated steer of the car.
   wheelSteer.update(p.steer + (c.steer - p.steer) * alpha, dt, car3dConfig.player);
@@ -865,19 +640,17 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
 const menuOn =
   menuEnabled(window.location.search) && params.frames === null && params.ticks === null;
 const flow = createGameFlow({ menu: menuOn });
-// Releases the active touch and held keys (pause entry, start): steer 0, drift false.
+// Releases the active touch and held keys (pause entry, start): steer 0, full gas.
 function releaseInput(): void {
   const t = now();
-  const id = touchStick.activeId;
+  const id = pad.activeId;
   if (id !== null) {
-    touchStick.pointerCancel(id, t);
-    retouch.up(t);
-    flick.up(t);
+    pad.pointerCancel(id, t);
   }
   keyboard.releaseAll(t);
 }
 // R95 "Заново": the race starts again from the state built at load (same seed); render-only state
-// that would carry over (tyre marks, smoke, drift look, camera lag) is cleared.
+// that would carry over (tyre marks, smoke) is cleared.
 function restartRace(): void {
   copyRaceState(race, loop.curr);
   copyRaceState(race, loop.prev);
@@ -885,45 +658,29 @@ function restartRace(): void {
   tyreMarks.ring.clear();
   tyreMarks.open = false;
   driftVisual.smoke.clear();
-  driftVisual.yaw = 0;
-  driftVisual.cameraX = 0;
-  camLag.posX = race.cars[0]!.x;
-  camOffset = 0; // R27d
-  camDrift.shiftX = 0;
-  camDrift.rollDeg = 0;
 }
 const menu = menuOn
-  ? new GameMenu(
-      document.body,
-      canvas,
-      spritesConfig.menu,
-      {
-        start: () => {
-          flow.start();
-          releaseInput();
-          menu?.show(flow.phase);
-        },
-        pause: () => {
-          flow.pause();
-          releaseInput();
-          menu?.show(flow.phase);
-        },
-        resume: () => {
-          flow.resume();
-          menu?.show(flow.phase);
-        },
-        restart: () => {
-          if (flow.restart()) restartRace();
-          releaseInput();
-          menu?.show(flow.phase);
-        },
-        mode: (m) => {
-          tunables.set('hypotheses.H19_touchDrift', m);
-        },
+  ? new GameMenu(document.body, canvas, spritesConfig.menu, {
+      start: () => {
+        flow.start();
+        releaseInput();
+        menu?.show(flow.phase);
       },
-      touchDriftOf(),
-      () => baseCar.model === 2, // R151: model C hides the H19 choice
-    )
+      pause: () => {
+        flow.pause();
+        releaseInput();
+        menu?.show(flow.phase);
+      },
+      resume: () => {
+        flow.resume();
+        menu?.show(flow.phase);
+      },
+      restart: () => {
+        if (flow.restart()) restartRace();
+        releaseInput();
+        menu?.show(flow.phase);
+      },
+    })
   : null;
 if (menu) {
   menu.show(flow.phase);
@@ -954,16 +711,9 @@ function frame(time: number): void {
   // R95: outside 'run' the sim does not step and the accumulator does not grow.
   const running = flow.simRunning;
   loop.advance(running ? frameSeconds : 0);
-  // R24: drift yaw from the sim angle, interpolated like the other car fields.
-  const pa = loop.prev.cars[0]!.angle;
-  const ca = loop.curr.cars[0]!.angle;
-  updateVisuals(
-    running ? Math.min(frameSeconds, MAX_VISUAL_DT) : 0,
-    pa + (ca - pa) * loop.alpha,
-    loop.alpha,
-  );
+  updateVisuals(running ? Math.min(frameSeconds, MAX_VISUAL_DT) : 0, loop.alpha);
   renderFrame();
-  hud?.update(time, frameStats, lastCalls, baseCar.model === 1 ? entryText : undefined);
+  hud?.update(time, frameStats, lastCalls);
   if (params.frames !== null && game.frames >= params.frames) {
     game.done = true;
     return;
@@ -978,7 +728,7 @@ if (fixedTicks !== null) {
   // Drift visuals follow each tick with the fixed DT, so the frame is deterministic.
   for (let i = 0; i < fixedTicks; i++) {
     loop.stepTicks(1);
-    updateVisuals(DT, loop.curr.cars[0]!.angle, 1);
+    updateVisuals(DT, 1);
     if (!render3d) poseFrame();
   }
   renderFrame();

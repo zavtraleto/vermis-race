@@ -47,10 +47,10 @@ describe('R65 contact conditions and edges', () => {
       }
     }
   });
-  it('no contact: speeds, vx and bumpTicks stay untouched', () => {
+  it('no contact: speeds, x and bumpTicks stay untouched', () => {
     const { a, b } = pair({ z: 10, x: 0, speed: 0.8 }, { z: 10, x: 0.5, speed: 0.6 });
-    expect([a.speed, a.vx, a.bumpTicks]).toEqual([0.8, 0, 0]);
-    expect([b.speed, b.vx, b.bumpTicks]).toEqual([0.6, 0, 0]);
+    expect([a.speed, a.x, a.bumpTicks]).toEqual([0.8, 0, 0]);
+    expect([b.speed, b.x, b.bumpTicks]).toEqual([0.6, 0.5, 0]);
   });
   it('no contact while either car has bumpTicks > 0 (the counter counts down: 5 -> 4)', () => {
     const f = pair({ z: 10, x: 0, speed: 0.8, bumpTicks: 5 }, { z: 11, x: 0.1, speed: 0.6 });
@@ -58,7 +58,6 @@ describe('R65 contact conditions and edges', () => {
     expect(f.b.bumpTicks).toBe(0);
     expect(f.a.speed).toBeCloseTo(0.8, 12);
     expect(f.b.speed).toBeCloseTo(0.6, 12);
-    expect([f.a.vx, f.b.vx]).toEqual([0, 0]);
     const g = pair({ z: 10, x: 0, speed: 0.8 }, { z: 11, x: 0.1, speed: 0.6, bumpTicks: 5 });
     expect(g.a.bumpTicks).toBe(0);
     expect(g.a.speed).toBeCloseTo(0.8, 12);
@@ -138,35 +137,6 @@ describe('R65 speed: only the rear car slows', () => {
   });
 });
 
-describe('R65 side push (as R42)', () => {
-  it('the car with the smaller x goes left (-0.6), the other right (+0.6)', () => {
-    const f = pair({ z: 10, x: 0, speed: 0.5 }, { z: 10, x: 0.1, speed: 0.5 });
-    expect(f.a.vx).toBeCloseTo(-0.6, 12);
-    expect(f.b.vx).toBeCloseTo(0.6, 12);
-  });
-  it('mirror symmetry: B on the left of A swaps the directions', () => {
-    for (const d of [0.05, 0.1, 0.15]) {
-      const r = pair({ z: 10, x: 0, speed: 0.5 }, { z: 10, x: d, speed: 0.5 });
-      const l = pair({ z: 10, x: 0, speed: 0.5 }, { z: 10, x: -d, speed: 0.5 });
-      expect(l.a.vx).toBeCloseTo(-r.a.vx, 12);
-      expect(l.b.vx).toBeCloseTo(-r.b.vx, 12);
-      expect(r.a.vx).toBeCloseTo(-0.6, 12);
-    }
-  });
-  it('equal x: the smaller index goes left (-0.6), the larger right (+0.6), at any x', () => {
-    for (const x of [-0.5, 0, 0.5]) {
-      const f = pair({ z: 10, x, speed: 0.5 }, { z: 10.5, x, speed: 0.5 });
-      expect(f.a.vx, `x=${x}`).toBeCloseTo(-0.6, 12);
-      expect(f.b.vx, `x=${x}`).toBeCloseTo(0.6, 12);
-    }
-  });
-  it('the push is applied to both cars and keeps their x (R42: only vx)', () => {
-    const f = pair({ z: 10, x: 0.3, speed: 0.5 }, { z: 10, x: 0.4, speed: 0.5 });
-    expect(f.a.x).toBeCloseTo(0.3, 12);
-    expect(f.b.x).toBeCloseTo(0.4, 12);
-  });
-});
-
 describe('R65 at most one contact per car per step, pairs in index order', () => {
   it('A-B-C all overlapping: (A,B) touch; C is untouched (A and B are busy, C has no partner)', () => {
     const s = mkRace(3, 0, [
@@ -179,7 +149,7 @@ describe('R65 at most one contact per car per step, pairs in index order', () =>
     const [a, b, c] = [s.cars[1]!, s.cars[2]!, s.cars[3]!];
     expect([a.bumpTicks, b.bumpTicks]).toEqual([BUMP_TICKS, BUMP_TICKS]);
     expect(c.bumpTicks).toBe(0);
-    expect(c.vx).toBe(0);
+    expect(c.x).toBe(0.15);
     expect(c.speed).toBeCloseTo(0.5, 12);
     // A (front on the tie, smaller index) keeps 0.5; B (rear) min(0.5, max(0.4, 0.3)) = 0.4
     expect(a.speed).toBeCloseTo(0.5, 12);
@@ -220,8 +190,6 @@ describe('R65 player and rival', () => {
     stepAll(s, BP, RC);
     expect(s.cars[0]!.speed).toBeCloseTo(0.5, 12);
     expect(s.cars[1]!.speed).toBeCloseTo(0.6, 12);
-    expect(s.cars[0]!.vx).toBeCloseTo(-0.6, 12);
-    expect(s.cars[1]!.vx).toBeCloseTo(0.6, 12);
     expect([s.cars[0]!.bumpTicks, s.cars[1]!.bumpTicks]).toEqual([BUMP_TICKS, BUMP_TICKS]);
   });
   it('rival behind the player: the rival slows, the player keeps its speed', () => {
@@ -241,37 +209,6 @@ describe('R65 player and rival', () => {
     stepAll(s, BP, RC);
     expect(s.cars[1]!.speed).toBeCloseTo(0.5, 12);
     expect(s.cars[0]!.speed).toBeCloseTo(0.6, 12);
-  });
-});
-
-describe('R65 / R44 a drift is not broken by a contact', () => {
-  const drifting = {
-    state: 'DRIFT' as const,
-    dir: 1 as const,
-    angle: 0.8,
-    steer: 1,
-    driftHeld: true,
-  };
-  const run = (bx: number) => {
-    const s = mkRace(2, 0, [
-      FAR_PLAYER,
-      { ...after1({ z: 10, x: 0, speed: 0.8 }), ...drifting },
-      { ...after1({ z: 10, x: bx, speed: 0.8 }), ...drifting },
-    ]);
-    const f = { steer: 1, brake: false, drift: true };
-    stepAll(s, BP, RC, [f, f, f]);
-    return s;
-  };
-  it('both cars stay in DRIFT; |angle| is smaller by bumpAngleLoss 0.3 than in the same step without contact', () => {
-    const touch = run(0.1);
-    const free = run(0.9); // control: same step, no contact
-    expect(free.cars[1]!.bumpTicks).toBe(0);
-    for (const i of [1, 2]) {
-      expect(touch.cars[i]!.bumpTicks, `car ${i}`).toBe(BUMP_TICKS);
-      expect(touch.cars[i]!.state).toBe('DRIFT');
-      expect(touch.cars[i]!.dir).toBe(1);
-      expect(touch.cars[i]!.angle).toBeCloseTo(free.cars[i]!.angle - 0.3, 9);
-    }
   });
 });
 

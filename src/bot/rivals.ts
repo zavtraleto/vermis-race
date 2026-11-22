@@ -36,7 +36,6 @@ function rivalLevel(skill: number): BotParams {
     trafficLookaheadSeg: t.trafficLookaheadSeg,
     trafficMargin: t.trafficMargin,
     trafficEdge: t.trafficEdge,
-    trafficSteerTime: t.trafficSteerTime,
   };
 }
 
@@ -54,15 +53,7 @@ function resetBot(b: BotState, seed: number): void {
   b.rng = seed;
   b.noise = 0;
   b.steerQueue.fill(0);
-  b.driftQueue.fill(0);
   b.head = 0;
-  b.flick = 0;
-  b.flickDir = 0;
-  b.cTicks = 0; // R162
-  b.cLift = 0;
-  b.cSide = 0;
-  b.cInSince = 0;
-  b.cNDrift = 0;
 }
 
 function resetMistakes(m: MistakeState, seed: number): void {
@@ -95,8 +86,7 @@ export function createRivalDrivers(race: RaceState, seed: number): RivalDrivers 
 }
 
 /**
- * Writes inputs[i] for every rival car of `race`: the driver bot of its skill (model by its
- * params) plus the R63c mistake steer offset. A rival replaced by the pool (R63b: new nameId or
+ * Writes inputs[i] for every rival car of `race`: the driver bot of its skill plus the R63c mistake steer offset. A rival replaced by the pool (R63b: new nameId or
  * a rising joinTicks) gets a fresh bot and mistake state first. Other cars' inputs are untouched.
  */
 export function fillRivalInputs(

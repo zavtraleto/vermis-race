@@ -1,16 +1,13 @@
 // npm run trackmap: for every track in src/data/tracks, writes docs/tracks/<name>.svg (top-down
 // outline integrated from segment curvature, coloured by class, figure labels, start marker,
 // elevation strip) and docs/tracks/<name>.md (one row per figure placement, R31).
-import { baseCar } from '../src/data/cars';
 import {
-  curveClasses,
   figureDict,
   type ClassedSection,
   type FigureRef,
   type SectionClass,
 } from '../src/data/tracks';
-import { K_HEADING, SEG_PER_UNIT } from '../src/sim/constants';
-import type { CarParams } from '../src/sim/types';
+import { SEG_PER_UNIT } from '../src/sim/constants';
 import { loadTracks, TRACK_DIR, type LoadedTrack } from './botlib';
 import type { Io } from './io';
 
@@ -23,11 +20,8 @@ const COLOURS: Record<SectionClass, string> = {
   sharp: '#7b1fa2',
 };
 
-/** R22b holding angle: angle*driftRate*sp = c*sp^2*centrifugal*centMulDrift*kCurve, sp = 1 - L*angle. */
-export function holdingAngle(curve: number, p: CarParams): number {
-  const C = (Math.abs(curve) * p.centrifugal * p.centMulDrift * p.kCurve) / p.driftRate;
-  return C / (1 + C * p.driftSpeedLoss);
-}
+// Plan-view turn per curve unit (the old K_HEADING placeholder 1; R210 roadTurn will replace it).
+const K_HEADING = 1;
 
 interface Placement {
   figure: string;
@@ -166,7 +160,7 @@ function svg(t: LoadedTrack, pl: Placement[]): { text: string; gap: number } {
   return { text: parts.join('\n') + '\n', gap };
 }
 
-function md(t: LoadedTrack, pl: Placement[], gap: number, p: CarParams): string {
+function md(t: LoadedTrack, pl: Placement[], gap: number): string {
   const n = t.track.segments.length;
   // R31b: share of corner length (all non-straight sections) in classes that need a drift (hard, sharp).
   let cornerLen = 0;
@@ -190,25 +184,15 @@ function md(t: LoadedTrack, pl: Placement[], gap: number, p: CarParams): string 
     '',
     `Повороты — ${cornerLen} сегментов (${((100 * cornerLen) / n).toFixed(0)}% круга); из них нужен дрифт (\`hard\`, \`sharp\`) на ${((100 * driftLen) / Math.max(cornerLen, 1)).toFixed(0)}% (R31b: 45–65%).`,
     '',
-    '| # | фигура | сторона | сегментов | классы | угол удержания | скорость, vmax | hill |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| # | фигура | сторона | сегментов | классы | hill |',
+    '| --- | --- | --- | --- | --- | --- |',
   ];
   pl.forEach((q, k) => {
     const secs = t.sections.slice(q.first, q.first + q.count);
     const len = secs.reduce((a, s) => a + s.enter + s.hold + s.leave, 0);
     const cls = secs.map((s) => `${s.curveClass} ${s.side > 0 ? 'R' : 'L'}`).join(' → ');
-    const angles = secs.map((s) =>
-      s.curveClass === 'straight' ? '—' : holdingAngle(curveClasses[s.curveClass], p).toFixed(2),
-    );
-    const speeds = secs.map((s) =>
-      s.curveClass === 'straight'
-        ? '1.00'
-        : (p.vmax * (1 - p.driftSpeedLoss * holdingAngle(curveClasses[s.curveClass], p))).toFixed(
-            2,
-          ),
-    );
     lines.push(
-      `| ${k + 1} | ${q.figure} | ${q.side > 0 ? 'R' : 'L'} | ${len} | ${cls} | ${angles.join(' → ')} | ${speeds.join(' → ')} | ${q.hill} |`,
+      `| ${k + 1} | ${q.figure} | ${q.side > 0 ? 'R' : 'L'} | ${len} | ${cls} | ${q.hill} |`,
     );
   });
   return lines.join('\n') + '\n';
@@ -226,7 +210,7 @@ export function main(io: Io): number {
     const pl = placementsOf(raw, t.sections);
     const { text, gap } = svg(t, pl);
     io.write(`${OUT_DIR}/${t.name}.svg`, text);
-    io.write(`${OUT_DIR}/${t.name}.md`, md(t, pl, gap, baseCar));
+    io.write(`${OUT_DIR}/${t.name}.md`, md(t, pl, gap));
     io.log(
       `wrote ${OUT_DIR}/${t.name}.svg and .md: ${pl.length} placements, ends ${gap.toFixed(0)} apart`,
     );

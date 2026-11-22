@@ -1,125 +1,9 @@
 {
   "numbers": {
-    "car.model": { "min": 0, "max": 2, "step": 1 },
-    "car.liftOn": { "min": 0.1, "max": 1, "step": 0.05 },
-    "car.liftOff": { "min": 0, "max": 0.9, "step": 0.05 },
-    "car.driftWindow": { "min": 0.1, "max": 1.5, "step": 0.05 },
-    "car.betaEntry": { "min": 10, "max": 70, "step": 1 },
-    "car.winTau": { "min": 0.01, "max": 0.3, "step": 0.01 },
-    "car.betaOn": { "min": 2, "max": 20, "step": 0.1 },
-    "car.betaPerA": { "min": 1, "max": 6, "step": 0.1 },
-    "car.refLook": { "min": 0.05, "max": 1, "step": 0.05 },
-    "car.refTau": { "min": 0.02, "max": 0.5, "step": 0.01 },
-    "car.uHold": { "min": 0.2, "max": 0.9, "step": 0.05 },
-    "car.betaMax": { "min": 30, "max": 90, "step": 1 },
-    "car.betaTau": { "min": 0.03, "max": 0.5, "step": 0.01 },
-    "car.entryFloor": { "min": 0, "max": 30, "step": 1 },
-    "car.latPerDeg": { "min": 0.005, "max": 0.06, "step": 0.001 },
-    "car.thrLat": { "min": 0, "max": 1, "step": 0.05 },
-    "car.velGripC": { "min": 1, "max": 12, "step": 0.5 },
-    "car.railK": { "min": 0, "max": 15, "step": 0.5 },
-    "car.bumpFrom": { "min": 0.3, "max": 1, "step": 0.05 },
-    "car.bumpGain": { "min": 0, "max": 2, "step": 0.05 },
-    "car.outSlide": { "min": 0.1, "max": 3, "step": 0.05 },
-    "car.missFree": { "min": 0, "max": 10, "step": 0.5 },
-    "car.missLoss": { "min": 0, "max": 0.05, "step": 0.001 },
-    "car.missCap": { "min": 2, "max": 40, "step": 1 },
-    "car.missBrake": { "min": 0.1, "max": 2, "step": 0.05 },
-    "car.liftDecelDrift": { "min": 0, "max": 0.5, "step": 0.01 },
-    "car.thrAccelUp": { "min": 0, "max": 3, "step": 0.1 },
-    "car.driftEndDelay": { "min": 0, "max": 0.6, "step": 0.01 },
-    "car.switchWindow": { "min": 0, "max": 0.8, "step": 0.05 },
-    "car.liftDecel": { "min": 0, "max": 1, "step": 0.05 },
-    "car.exitRamp": { "min": 0, "max": 1, "step": 0.05 },
-    "input.touch.thrDead": { "min": 0, "max": 1.5, "step": 0.05 },
-    "input.touch.thrFull": { "min": 0.5, "max": 3, "step": 0.05 },
-    "input.touch.thrExp": { "min": 1, "max": 3, "step": 0.1 },
-    "input.touch.edgeMargin": { "min": 0, "max": 40, "step": 1 },
-    "input.touch.thrTauMs": { "min": 0, "max": 100, "step": 1 },
-    "input.touch.driftSteerMul": { "min": 1, "max": 2.5, "step": 0.05 },
-    "sprites.weight.bodyMul": { "min": 0.3, "max": 1.5, "step": 0.05 },
-    "car.velGripDrift": { "min": 1, "max": 20, "step": 0.1 },
-    "car.driftLead": { "min": 0, "max": 4, "step": 0.05 },
-    "car.gripLead": { "min": 0, "max": 1.5, "step": 0.05 },
-    "car.yawRateMax": { "min": 3, "max": 40, "step": 0.5 },
-    "car.velGrip": { "min": 5, "max": 40, "step": 0.5 },
-    "car.yawResponse": { "min": 5, "max": 120, "step": 1 },
-    "car.slipGripMax": { "min": 0.1, "max": 1.5, "step": 0.01 },
-    "car.slipDrag": { "min": 0, "max": 0.3, "step": 0.002 },
-    "car.scrubStart": { "min": 0.3, "max": 1.5, "step": 0.05 },
-    "car.scrubRate": { "min": 0, "max": 3, "step": 0.05 },
-    "car.turboChargeTime": { "min": 0.2, "max": 4, "step": 0.1 },
-    "car.turboTime": { "min": 0.2, "max": 5, "step": 0.1 },
-    "car.turboCap": { "min": 0, "max": 0.4, "step": 0.01 },
-    "car.turboAccelMul": { "min": 1, "max": 4, "step": 0.05 },
-    "car.turboMin": { "min": 0, "max": 1, "step": 0.05 },
-    "car.kickBase": { "min": 0, "max": 30, "step": 0.5 },
-    "car.kickGain": { "min": 0, "max": 40, "step": 0.5 },
-    "car.flickDelta": { "min": 0.2, "max": 1.5, "step": 0.05 },
-    "car.flickWindow": { "min": 0.03, "max": 0.13, "step": 0.01 },
-    "car.offroadVelMul": { "min": 0.3, "max": 1, "step": 0.05 },
-    "car.driftLat": { "min": 0.1, "max": 1.5, "step": 0.01 },
-    "car.driftPush": { "min": 0, "max": 0.1, "step": 0.001 },
-    "car.driftRail": { "min": 0, "max": 1, "step": 0.05 },
-    "car.wrongPush": { "min": 0, "max": 0.3, "step": 0.005 },
-    "car.driftCounter": { "min": 0, "max": 1, "step": 0.05 },
-    "car.flickLook": { "min": 0, "max": 120, "step": 5 },
-    "car.flickCornerMin": { "min": 0, "max": 8, "step": 0.25 },
-    "car.flickCornerMul": { "min": 0.2, "max": 1.5, "step": 0.05 },
-    "car.flickStraightMul": { "min": 0.5, "max": 3, "step": 0.05 },
-    "car.deflectEnter": { "min": 0.3, "max": 1, "step": 0.05 },
-    "car.deflectTime": { "min": 0.03, "max": 0.5, "step": 0.01 },
-    "car.slipFull": { "min": 0.5, "max": 5, "step": 0.02 },
-    "car.slipResponse": { "min": 1, "max": 30, "step": 0.5 },
-    "car.carryDecay": { "min": 0, "max": 30, "step": 0.5 },
-    "car.slipGripLimit": { "min": 0.2, "max": 2, "step": 0.01 },
-    "car.yawAlign": { "min": 2, "max": 40, "step": 0.5 },
-    "sprites.weight.slipDeg": { "min": 0, "max": 30, "step": 0.5 },
-    "sprites.weight.velDeg": { "min": 0, "max": 15, "step": 0.5 },
     "car.vmax": { "min": 0.5, "max": 2, "step": 0.05 },
     "car.accel": { "min": 0.02, "max": 1, "step": 0.01 },
-    "car.brake": { "min": 0, "max": 3, "step": 0.05 },
-    "car.steerRate": { "min": 0.2, "max": 6, "step": 0.1 },
-    "car.steerRise": { "min": 1, "max": 40, "step": 0.5 },
-    "car.grip": { "min": 1, "max": 40, "step": 0.5 },
-    "car.centrifugal": { "min": 0, "max": 1.5, "step": 0.01 },
-    "car.kCurve": { "min": 0, "max": 5, "step": 0.05 },
     "car.offroadMul": { "min": 0.8, "max": 1, "step": 0.001 },
-    "car.offroadGrip": { "min": 0.5, "max": 40, "step": 0.5 },
-    "car.offroadSteerMul": { "min": 0, "max": 1, "step": 0.01 },
     "car.xLimit": { "min": 1, "max": 4, "step": 0.05 },
-    "car.driftRate": { "min": 0.1, "max": 3, "step": 0.05 },
-    "car.driftAngleStart": { "min": 0, "max": 1, "step": 0.01 },
-    "car.driftAngleExit": { "min": 0, "max": 0.5, "step": 0.01 },
-    "car.driftStraightTime": { "min": 0.05, "max": 2, "step": 0.05 },
-    "car.driftAngleResponse": { "min": 0.5, "max": 20, "step": 0.5 },
-    "car.driftSpeedLoss": { "min": 0, "max": 0.6, "step": 0.01 },
-    "car.driftBrake": { "min": 0, "max": 2, "step": 0.05 },
-    "car.gripDrift": { "min": 0.5, "max": 20, "step": 0.5 },
-    "car.centMulDrift": { "min": 0, "max": 1.5, "step": 0.01 },
-    "car.driftEnterSteer": { "min": 0, "max": 1, "step": 0.01 },
-    "car.driftArmTime": { "min": 0, "max": 1, "step": 0.01 },
-    "car.driftOffroad": { "min": 0, "max": 1, "step": 1 },
-    "input.keyboard.steerRampMs": { "min": 10, "max": 600, "step": 10 },
-    "input.touch.stickRadiusFrac": { "min": 0.05, "max": 0.5, "step": 0.01 },
-    "input.touch.stickRadius": { "min": 0.05, "max": 0.5, "step": 0.01 },
-    "input.touch.driftEdge": { "min": 0, "max": 3, "step": 0.05 },
-    "input.touch.driftPull": { "min": 0, "max": 2, "step": 0.05 },
-    "input.touch.flickMs": { "min": 50, "max": 600, "step": 10 },
-    "input.touch.flickDist": { "min": 0.1, "max": 2, "step": 0.05 },
-    "input.touch.driftZoneFrac": { "min": 0.1, "max": 0.9, "step": 0.05 },
-    "input.touch.deadZone": { "min": 0, "max": 0.3, "step": 0.01 },
-    "input.touch.responseExp": { "min": 0.5, "max": 3, "step": 0.05 },
-    "input.touch.releaseMs": { "min": 10, "max": 500, "step": 10 },
-    "input.touch.steerZoneFrac": { "min": 0.1, "max": 1, "step": 0.05 },
-    "input.touch.driftPullDownPx": { "min": 10, "max": 150, "step": 5 },
-    "input.touch.autoDriftSteer": { "min": 0.3, "max": 1, "step": 0.01 },
-    "input.touch.autoDriftRelease": { "min": 0, "max": 0.5, "step": 0.01 },
-    "input.touch.retouchWindowMs": { "min": 50, "max": 1000, "step": 10 },
-    "input.touch.retouchSwipePx": { "min": 2, "max": 80, "step": 1 },
-    "input.touch.flickDelta": { "min": 0.1, "max": 1.5, "step": 0.05 },
-    "input.touch.flickWindowMs": { "min": 30, "max": 400, "step": 10 },
-    "car.driftAutoExit": { "min": 0, "max": 1, "step": 1 },
     "car.draftLength": { "min": 5, "max": 120, "step": 1 },
     "car.draftWidth": { "min": 0.05, "max": 1, "step": 0.01 },
     "car.draftChargeTime": { "min": 0.1, "max": 5, "step": 0.05 },
@@ -132,11 +16,6 @@
     "camera.height": { "min": 200, "max": 1600, "step": 10 },
     "camera.horizon": { "min": 0.25, "max": 0.5, "step": 0.005 },
     "camera.drawDistance": { "min": 50, "max": 400, "step": 10 },
-    "camera.camDriftShift": { "min": 0, "max": 0.3, "step": 0.005 },
-    "camera.camRollDeg": { "min": -6, "max": 6, "step": 0.1 },
-    "camera.camGripMul": { "min": 0, "max": 1, "step": 0.05 },
-    "camera.camDriftTau": { "min": 0, "max": 1, "step": 0.01 },
-    "camera.camReturnTau": { "min": 0, "max": 1.5, "step": 0.01 },
     "sprites.tyreMarks.frontMarkSlip": { "min": 0, "max": 1.5, "step": 0.05 },
     "sprites.player.baseY": { "min": 0.6, "max": 0.98, "step": 0.005 },
     "sprites.player.width": { "min": 0.1, "max": 0.5, "step": 0.005 },
@@ -157,8 +36,6 @@
     "sprites.roadside.buildings.windowMinPx": { "min": 4, "max": 200, "step": 2 },
     "sprites.roadside.buildings.offsetMin": { "min": 2.3, "max": 10, "step": 0.1 },
     "sprites.roadside.buildings.offsetMax": { "min": 2.3, "max": 12, "step": 0.1 },
-    "sprites.drift.yawMaxDeg": { "min": 1, "max": 90, "step": 1 },
-    "sprites.drift.cameraOffset": { "min": 0, "max": 1, "step": 0.01 },
     "car.carLength": { "min": 0.5, "max": 4, "step": 0.05 },
     "car.carHitW": { "min": 0.05, "max": 0.3, "step": 0.01 },
     "car.trafficHitW": { "min": 0.05, "max": 0.3, "step": 0.01 },
@@ -169,7 +46,6 @@
     "car.bumpFloor": { "min": 0, "max": 0.8, "step": 0.01 },
     "car.bumpKick": { "min": 0, "max": 2, "step": 0.05 },
     "car.bumpInvulnTime": { "min": 0.1, "max": 3, "step": 0.05 },
-    "car.bumpAngleLoss": { "min": 0, "max": 1, "step": 0.01 },
     "car.lampHitW": { "min": 0, "max": 0.3, "step": 0.01 },
     "car.crashMinSpeed": { "min": 0, "max": 1, "step": 0.01 },
     "car.crashTime": { "min": 0.2, "max": 4, "step": 0.1 },
@@ -187,494 +63,32 @@
     "sprites.bump.shakeAmp": { "min": 0, "max": 0.2, "step": 0.005 },
     "sprites.bump.shakeTime": { "min": 0.05, "max": 1, "step": 0.01 },
     "sprites.bump.shakeHz": { "min": 1, "max": 40, "step": 1 },
-    "sprites.weight.yawGain": { "min": 0, "max": 6, "step": 0.1 },
-    "sprites.weight.yawMaxDeg": { "min": 0, "max": 40, "step": 1 },
-    "sprites.weight.yawTau": { "min": 0, "max": 0.5, "step": 0.01 },
-    "sprites.weight.blendTau": { "min": 0, "max": 0.5, "step": 0.01 },
-    "sprites.weight.rollGain": { "min": 0, "max": 5, "step": 0.1 },
-    "sprites.weight.rollMaxDeg": { "min": 0, "max": 15, "step": 0.5 },
-    "sprites.weight.rollTau": { "min": 0.02, "max": 0.6, "step": 0.01 },
-    "sprites.weight.pitchGain": { "min": 0, "max": 10, "step": 0.1 },
-    "sprites.weight.pitchMaxDeg": { "min": 0, "max": 10, "step": 0.5 },
-    "sprites.weight.pitchTau": { "min": 0.02, "max": 0.6, "step": 0.01 },
-    "sprites.driftCamera.rollDeg": { "min": -15, "max": 15, "step": 0.5 },
-    "sprites.driftCamera.rollTau": { "min": 0, "max": 1, "step": 0.01 },
     "sprites.traffic.yawGain": { "min": 0, "max": 2, "step": 0.05 },
     "sprites.speedometer.vmaxKmh": { "min": 100, "max": 500, "step": 10 },
     "sprites.tailLights.size": { "min": 0.05, "max": 0.8, "step": 0.01 },
     "sprites.tailLights.spread": { "min": 0, "max": 1, "step": 0.01 },
     "sprites.tailLights.height": { "min": 0, "max": 2, "step": 0.01 },
-    "sprites.tailLights.minPx": { "min": 0, "max": 8, "step": 1 }
+    "sprites.tailLights.minPx": { "min": 0, "max": 8, "step": 1 },
+    "car.engineBrake": { "min": 0, "max": 0.5, "step": 0.01 },
+    "car.brakeDecel": { "min": 0, "max": 3, "step": 0.05 },
+    "car.halfWidthM": { "min": 4, "max": 30, "step": 0.5 },
+    "input.pad.steerSpan": { "min": 0.2, "max": 1, "step": 0.05 },
+    "input.pad.steerDead": { "min": 0, "max": 0.4, "step": 0.01 },
+    "input.pad.padHalfH": { "min": 0.1, "max": 1, "step": 0.05 },
+    "input.pad.liftZone": { "min": 0.1, "max": 0.9, "step": 0.01 }
   },
   "flags": {
-    "hypotheses.H1_driftBoost": ["A", "B"],
-    "hypotheses.H2_touchSteering": ["A", "B", "C"],
-    "hypotheses.H3_driftEntry": ["A", "B", "C", "D", "E"],
-    "hypotheses.H4_fingerVertical": ["A", "B"],
     "hypotheses.H5_slipstream": ["A", "B"],
     "hypotheses.H6_trackFormat": ["P2P", "ring"],
     "hypotheses.H7_rubberBand": ["off", "trailing", "both"],
     "hypotheses.H8_worldRotation": ["off", "on"],
     "hypotheses.H9_nearPerspective": ["off", "on"],
     "hypotheses.H10_offroad": ["A", "B"],
-    "hypotheses.H14_model": ["A", "B", "C"],
     "hypotheses.H15_rubberBand": ["A", "B"],
-    "hypotheses.H16_driftEntry": ["A", "B", "C", "D", "E", "F"],
-    "hypotheses.H17_gripScrub": ["A", "B"],
-    "hypotheses.H18_driftTurbo": ["A", "B"],
-    "hypotheses.H20_releaseHold": ["A", "B"],
-    "hypotheses.H21_driftRail": ["A", "B"],
-    "hypotheses.H19_touchDrift": ["A", "B", "C"],
     "sprites.drift.smoke": ["on", "off"],
     "sprites.tailLights.enabled": ["on", "off"]
   },
   "meta": {
-    "car.velGripDrift": {
-      "title": "Сцепление в дрифте",
-      "hint": "больше — движение быстрее догоняет угол дрифта; меньше — дольше плывёт",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R84"
-    },
-    "camera.camReturnTau": {
-      "title": "Возврат камеры, с",
-      "hint": "больше — после остановки машины камера медленнее возвращается к ней; 0 — сразу",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27d"
-    },
-    "car.driftLead": {
-      "title": "Опережение в дрифте",
-      "hint": "пока угол догоняет палец, машина сразу смещается в сторону пальца; 0 — выключено",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R85"
-    },
-    "car.driftLat": {
-      "title": "Сила руля в дрифте",
-      "hint": "больше — палец в дрифте сильнее ведёт машину внутрь (и наружу контррулём)",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.driftPush": {
-      "title": "Снос в дрифте",
-      "hint": "больше — в дрифте сильнее выносит наружу поворота",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.driftRail": {
-      "title": "Рельсы дрифта",
-      "hint": "больше — дорога меньше выносит дрифт, палец ведёт по дуге; 0 — выключено",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R84c"
-    },
-    "hypotheses.H16_driftEntry": {
-      "title": "Вход в дрифт (B)",
-      "hint": "F — дрифт в каждом повороте (палец, пробел); E — авто; D — зона; A, B — рывок; C — руль",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "H16"
-    },
-    "hypotheses.H17_gripScrub": {
-      "title": "Цена поворота без дрифта",
-      "hint": "A — выключено, B — крутой поворот без дрифта стоит скорости",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "H17"
-    },
-    "hypotheses.H18_driftTurbo": {
-      "title": "Ускорение после дрифта",
-      "hint": "A — выключено, B — заряд дрифта даёт ускорение на выходе",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "H18"
-    },
-    "hypotheses.H20_releaseHold": {
-      "title": "Отпускание в повороте",
-      "hint": "A — снос наружу сразу; B — машина едет по своей линии и сползает наружу плавно",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "H20"
-    },
-    "hypotheses.H21_driftRail": {
-      "title": "Рельсы дрифта (H21)",
-      "hint": "A — выключено; B — сила из ползунка «Рельсы дрифта»",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "H21"
-    },
-    "car.scrubStart": {
-      "title": "Порог цены поворота",
-      "hint": "доля предела сцепления, выше которой поворот без дрифта тормозит",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86b"
-    },
-    "car.scrubRate": {
-      "title": "Сила цены поворота",
-      "hint": "больше — крутой поворот без дрифта сильнее тормозит",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86b"
-    },
-    "car.turboChargeTime": {
-      "title": "Заряд дрифта, с",
-      "hint": "сколько секунд дрифта на полном угле до полного заряда",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86c"
-    },
-    "car.turboTime": {
-      "title": "Длительность ускорения, с",
-      "hint": "сколько длится ускорение после выхода с полным зарядом",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86c"
-    },
-    "car.turboCap": {
-      "title": "Прибавка потолка ускорения",
-      "hint": "на сколько выше vmax можно ехать во время ускорения",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86c"
-    },
-    "car.turboAccelMul": {
-      "title": "Разгон при ускорении",
-      "hint": "во сколько раз быстрее разгон во время ускорения",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86c"
-    },
-    "car.turboMin": {
-      "title": "Мин. заряд для ускорения",
-      "hint": "короткий дрифт с зарядом ниже порога ускорения не даёт",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86c"
-    },
-    "car.wrongPush": {
-      "title": "Вынос против дрифта",
-      "hint": "больше — дрифт против поворота быстрее выносит с дороги",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.driftCounter": {
-      "title": "Власть контрруля",
-      "hint": "0 — палец против дрифта не уводит машину в другую сторону; 1 — уводит",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.flickLook": {
-      "title": "Взгляд вперёд для рывка",
-      "hint": "сегментов дороги впереди, где ищется поворот (вариант B)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81b"
-    },
-    "car.flickCornerMin": {
-      "title": "Кривизна поворота (B)",
-      "hint": "меньше — поворотом считаются и мягкие изгибы (вариант B)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81b"
-    },
-    "car.flickCornerMul": {
-      "title": "Порог рывка в поворот",
-      "hint": "меньше — рывок в сторону поворота срабатывает легче (вариант B)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81b"
-    },
-    "car.flickStraightMul": {
-      "title": "Порог рывка на прямой",
-      "hint": "больше — на прямой и против поворота рывок нужен сильнее (вариант B)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81b"
-    },
-    "car.deflectEnter": {
-      "title": "Отклонение для входа",
-      "hint": "насколько отвести палец, чтобы войти в дрифт (вариант C)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81b"
-    },
-    "car.deflectTime": {
-      "title": "Время отклонения, с",
-      "hint": "сколько держать отклонение до входа в дрифт (вариант C)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81b"
-    },
-    "car.slipDrag": {
-      "title": "Цена скольжения без дрифта",
-      "hint": "больше — скольжение без дрифта и остаток угла после дрифта сильнее тормозят",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R86"
-    },
-    "car.flickDelta": {
-      "title": "Порог рывка",
-      "hint": "больше — для входа в дрифт руль надо дёрнуть сильнее",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81"
-    },
-    "car.flickWindow": {
-      "title": "Окно рывка, с",
-      "hint": "больше — рывок для входа можно делать медленнее (не больше 0.13 с)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81"
-    },
-    "car.kickBase": {
-      "title": "Толчок на входе",
-      "hint": "больше — угол дрифта сразу после рывка нарастает быстрее",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81"
-    },
-    "car.kickGain": {
-      "title": "Толчок от силы рывка",
-      "hint": "больше — резкий рывок набирает угол заметно быстрее мягкого",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R81"
-    },
-    "car.slipFull": {
-      "title": "Угол дрифта на экране",
-      "hint": "больше — кузов в дрифте повёрнут сильнее; на движение почти не влияет",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R83, R87"
-    },
-    "car.slipResponse": {
-      "title": "Отклик угла",
-      "hint": "больше — угол дрифта быстрее следует за пальцем",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R83"
-    },
-    "car.carryDecay": {
-      "title": "Затухание остатка угла",
-      "hint": "больше — после входа и выхода из дрифта кузов быстрее встаёт по движению",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "B",
-      "rule": "R82b"
-    },
-    "car.driftRate": {
-      "title": "Снос в дрифте (A)",
-      "hint": "больше — в дрифте машина быстрее уходит вбок",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R22"
-    },
-    "car.gripDrift": {
-      "title": "Сцепление в дрифте (A)",
-      "hint": "больше — в дрифте меньше плывёт, боковое движение точнее",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R22"
-    },
-    "car.driftSpeedLoss": {
-      "title": "Цена угла",
-      "hint": "больше — большой угол дрифта сильнее срезает скорость",
-      "tier": "core",
-      "group": "Дрифт",
-      "rule": "R22, R86"
-    },
-    "car.driftAngleResponse": {
-      "title": "Отклик угла (A)",
-      "hint": "больше — угол дрифта быстрее следует за пальцем",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R22"
-    },
-    "car.driftAngleStart": {
-      "title": "Угол на входе (A)",
-      "hint": "больше — дрифт сразу начинается с большего угла",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R20"
-    },
-    "car.centMulDrift": {
-      "title": "Вынос в дрифте (A)",
-      "hint": "больше — в дрифте сильнее выносит наружу поворота",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R22"
-    },
-    "car.driftEnterSteer": {
-      "title": "Руль для входа (A)",
-      "hint": "больше — для входа в дрифт руль надо отклонить сильнее",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R20"
-    },
-    "car.driftArmTime": {
-      "title": "Окно входа, с (A)",
-      "hint": "больше — после нажатия дрифта дольше ждёт поворота руля",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R20"
-    },
-    "car.driftAngleExit": {
-      "title": "Малый угол для срыва (A)",
-      "hint": "больше — дрифт срывается уже при заметном угле (если срыв включён)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R21"
-    },
-    "car.driftStraightTime": {
-      "title": "Время до срыва, с (A)",
-      "hint": "больше — дольше можно держать малый угол без срыва",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "A",
-      "rule": "R21"
-    },
-    "car.yawRateMax": {
-      "title": "Острота руля",
-      "hint": "больше — без дрифта нос поворачивает сильнее при том же пальце",
-      "tier": "core",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R83"
-    },
-    "car.velGrip": {
-      "title": "Лёгкость машины",
-      "hint": "больше — движение сразу идёт за носом, легче; меньше — тяжелее, плывёт",
-      "tier": "core",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.gripLead": {
-      "title": "Опережение без дрифта",
-      "hint": "без дрифта машина сразу смещается туда, куда придёт при этом руле; 0 — выключено",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R85b"
-    },
-    "car.yawResponse": {
-      "title": "Отклик кузова на руль",
-      "hint": "больше — нос сразу следует за пальцем; меньше — с запаздыванием",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R83"
-    },
-    "car.slipGripMax": {
-      "title": "Предел сцепления",
-      "hint": "больше — без дрифта дольше держит дорогу, позже начинает сносить наружу",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.slipGripLimit": {
-      "title": "Предел угла без дрифта",
-      "hint": "больше — без дрифта кузов может сильнее развернуться относительно движения",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.yawAlign": {
-      "title": "Выравнивание кузова",
-      "hint": "больше — нос быстрее встаёт по движению, тот же палец поворачивает слабее",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "B",
-      "rule": "R83"
-    },
-    "car.steerRate": {
-      "title": "Острота руля (A)",
-      "hint": "больше — машина быстрее уходит вбок при том же пальце",
-      "tier": "core",
-      "group": "Руль и вес",
-      "model": "A",
-      "rule": "R11"
-    },
-    "car.grip": {
-      "title": "Сцепление (A)",
-      "hint": "больше — боковое движение быстрее догоняет руль, меньше плывёт",
-      "tier": "core",
-      "group": "Руль и вес",
-      "model": "A",
-      "rule": "R12"
-    },
-    "car.centrifugal": {
-      "title": "Снос в повороте (A)",
-      "hint": "больше — сильнее выносит наружу поворота",
-      "tier": "core",
-      "group": "Руль и вес",
-      "model": "A",
-      "rule": "R13"
-    },
-    "car.steerRise": {
-      "title": "Скорость руля (A)",
-      "hint": "больше — руль быстрее доходит до положения пальца, резче",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "A",
-      "rule": "R10"
-    },
-    "car.kCurve": {
-      "title": "Множитель сноса (A)",
-      "hint": "больше — снос наружу сильнее во всех поворотах",
-      "tier": "more",
-      "group": "Руль и вес",
-      "model": "A",
-      "rule": "R19"
-    },
     "car.xLimit": {
       "title": "Где стенка",
       "hint": "больше — стенка дальше от дороги, места на обочине больше",
@@ -695,20 +109,6 @@
       "tier": "core",
       "group": "Скорость",
       "rule": "R14"
-    },
-    "car.brake": {
-      "title": "Тормоз",
-      "hint": "больше — сильнее тормозит по кнопке тормоза",
-      "tier": "more",
-      "group": "Скорость",
-      "rule": "R14"
-    },
-    "car.driftBrake": {
-      "title": "Сброс лишней скорости",
-      "hint": "больше — быстрее теряет скорость выше потолка (дрифт, конец ускорения)",
-      "tier": "more",
-      "group": "Скорость",
-      "rule": "R22"
     },
     "sprites.speedometer.vmaxKmh": {
       "title": "Спидометр на максимуме",
@@ -741,61 +141,12 @@
       "tier": "more",
       "group": "Камера"
     },
-    "camera.camDriftShift": {
-      "title": "Камера внутрь поворота",
-      "hint": "больше — в дрифте камера сильнее уходит внутрь поворота; 0 — выключено",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27c"
-    },
-    "camera.camRollDeg": {
-      "title": "Наклон горизонта в дрифте",
-      "hint": "больше — в дрифте горизонт наклоняется сильнее; 0 — выключено",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27c"
-    },
-    "camera.camGripMul": {
-      "title": "Камера без дрифта, доля",
-      "hint": "больше — в обычном повороте камера сдвигается и наклоняется сильнее",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27c"
-    },
-    "camera.camDriftTau": {
-      "title": "Плавность камеры в дрифте, с",
-      "hint": "больше — сдвиг и наклон камеры плавнее и запаздывают; 0 — мгновенно",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27c"
-    },
     "sprites.tyreMarks.frontMarkSlip": {
       "title": "Следы передних: порог",
       "hint": "больше — передние колёса оставляют след только в более глубоком дрифте; 0 — в любом",
       "tier": "more",
       "group": "Дрифт",
       "rule": "R24d"
-    },
-    "sprites.drift.cameraOffset": {
-      "title": "Камера внутрь дрифта",
-      "hint": "больше — в дрифте камера сдвигается внутрь поворота; 0 — строго сзади",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R24"
-    },
-    "sprites.driftCamera.rollDeg": {
-      "title": "Наклон картинки в дрифте",
-      "hint": "больше — в дрифте экран наклоняется сильнее; знак — в какую сторону",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27"
-    },
-    "sprites.driftCamera.rollTau": {
-      "title": "Плавность наклона, с",
-      "hint": "больше — наклон картинки плавнее и запаздывает",
-      "tier": "more",
-      "group": "Камера",
-      "rule": "R27"
     },
     "sprites.player.baseY": {
       "title": "Машина по высоте экрана",
@@ -808,102 +159,6 @@
       "hint": "больше — машина на экране шире",
       "tier": "more",
       "group": "Машина на экране"
-    },
-    "sprites.weight.slipDeg": {
-      "title": "Разворот кузова от заноса",
-      "hint": "больше — при скольжении кузов на экране развёрнут сильнее",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R89"
-    },
-    "sprites.weight.velDeg": {
-      "title": "Разворот кузова от сноса",
-      "hint": "больше — при боковом движении кузов поворачивается сильнее",
-      "tier": "more",
-      "group": "Машина на экране",
-      "model": "B",
-      "rule": "R89"
-    },
-    "sprites.drift.yawMaxDeg": {
-      "title": "Разворот в дрифте (A)",
-      "hint": "больше — в дрифте машина на экране развёрнута сильнее",
-      "tier": "more",
-      "group": "Машина на экране",
-      "model": "A",
-      "rule": "R24"
-    },
-    "sprites.weight.yawGain": {
-      "title": "Разворот кузова (A)",
-      "hint": "больше — вне дрифта кузов сильнее поворачивается по движению",
-      "tier": "more",
-      "group": "Машина на экране",
-      "model": "A",
-      "rule": "R26"
-    },
-    "sprites.weight.yawMaxDeg": {
-      "title": "Предел разворота (A)",
-      "hint": "больше — вне дрифта кузов может развернуться сильнее",
-      "tier": "more",
-      "group": "Машина на экране",
-      "model": "A",
-      "rule": "R26"
-    },
-    "sprites.weight.blendTau": {
-      "title": "Переход позы в дрифт (A)",
-      "hint": "больше — поза кузова плавнее меняется между ездой и дрифтом",
-      "tier": "more",
-      "group": "Машина на экране",
-      "model": "A",
-      "rule": "R26"
-    },
-    "sprites.weight.yawTau": {
-      "title": "Плавность разворота, с",
-      "hint": "больше — разворот кузова плавнее и запаздывает",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
-    },
-    "sprites.weight.rollGain": {
-      "title": "Крен",
-      "hint": "больше — машина сильнее кренится в поворотах",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
-    },
-    "sprites.weight.rollMaxDeg": {
-      "title": "Предел крена",
-      "hint": "больше — крен может быть сильнее",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
-    },
-    "sprites.weight.rollTau": {
-      "title": "Плавность крена, с",
-      "hint": "больше — крен плавнее и запаздывает",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
-    },
-    "sprites.weight.pitchGain": {
-      "title": "Клевок",
-      "hint": "больше — нос сильнее клюёт при торможении и приседает при разгоне",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
-    },
-    "sprites.weight.pitchMaxDeg": {
-      "title": "Предел клевка",
-      "hint": "больше — клевок может быть сильнее",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
-    },
-    "sprites.weight.pitchTau": {
-      "title": "Плавность клевка, с",
-      "hint": "больше — клевок плавнее и запаздывает",
-      "tier": "more",
-      "group": "Машина на экране",
-      "rule": "R26"
     },
     "car.carLength": {
       "title": "Длина касания",
@@ -974,13 +229,6 @@
       "tier": "more",
       "group": "Трафик и удар",
       "rule": "R43"
-    },
-    "car.bumpAngleLoss": {
-      "title": "Удар гасит угол",
-      "hint": "больше — удар в дрифте сильнее уменьшает угол",
-      "tier": "more",
-      "group": "Трафик и удар",
-      "rule": "R44"
     },
     "car.lampHitW": {
       "title": "Ширина столба",
@@ -1192,177 +440,6 @@
       "group": "Обочина",
       "rule": "R15"
     },
-    "car.offroadVelMul": {
-      "title": "Сцепление на обочине",
-      "hint": "больше — на обочине держит как на асфальте; 1 — только потеря скорости",
-      "tier": "more",
-      "group": "Обочина",
-      "model": "B",
-      "rule": "R84"
-    },
-    "car.offroadGrip": {
-      "title": "Сцепление на обочине (A)",
-      "hint": "больше — вне дороги боковое движение быстрее слушается руля",
-      "tier": "more",
-      "group": "Обочина",
-      "model": "A",
-      "rule": "R15b"
-    },
-    "car.offroadSteerMul": {
-      "title": "Руль на обочине (A)",
-      "hint": "больше — вне дороги руль работает сильнее; 1 — как на асфальте",
-      "tier": "more",
-      "group": "Обочина",
-      "model": "A",
-      "rule": "R15b"
-    },
-    "input.touch.stickRadius": {
-      "title": "Радиус стика",
-      "hint": "доля ширины экрана; больше — для полного руля палец надо увести дальше",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R81c"
-    },
-    "input.touch.driftEdge": {
-      "title": "Граница дрифта",
-      "hint": "во сколько радиусов стика палец уходит вбок до дрифта; 0 — границы нет",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R81c"
-    },
-    "input.touch.driftPull": {
-      "title": "Тяга вниз для дрифта",
-      "hint": "способ B: во сколько радиусов стика палец тянут вниз до дрифта; 0 — выкл",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R81g"
-    },
-    "hypotheses.H19_touchDrift": {
-      "title": "Способ дрифта пальцем",
-      "hint": "A — коснись и рвани вбок; B — потяни вниз; C — касание в нижней половине зоны",
-      "tier": "more",
-      "group": "Управление",
-      "model": "B",
-      "rule": "R81h"
-    },
-    "input.touch.flickMs": {
-      "title": "Рывок вбок: окно",
-      "hint": "способ A: сколько мс после касания рывок вбок включает дрифт",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R81h"
-    },
-    "input.touch.flickDist": {
-      "title": "Рывок вбок: длина",
-      "hint": "способ A: во сколько радиусов стика палец рвут вбок до дрифта",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R81h"
-    },
-    "input.touch.driftZoneFrac": {
-      "title": "Нижняя зона дрифта",
-      "hint": "способ C: доля зоны руля снизу, где касание сразу дрифтует",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R81h"
-    },
-    "input.touch.stickRadiusFrac": {
-      "title": "Ход пальца",
-      "hint": "больше — для полного руля палец надо увести дальше",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R33"
-    },
-    "input.touch.deadZone": {
-      "title": "Мёртвая зона",
-      "hint": "больше — маленькие движения пальца не поворачивают",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R33"
-    },
-    "input.touch.responseExp": {
-      "title": "Кривая руля",
-      "hint": "больше — мягче около центра и резче у края хода",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R33"
-    },
-    "input.touch.releaseMs": {
-      "title": "Возврат руля, мс",
-      "hint": "больше — отпущенный руль дольше возвращается в центр",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R33"
-    },
-    "input.touch.steerZoneFrac": {
-      "title": "Высота зоны руля",
-      "hint": "больше — зона внизу, где палец рулит, выше по экрану",
-      "tier": "more",
-      "group": "Управление",
-      "rule": "R33"
-    },
-    "input.keyboard.steerRampMs": {
-      "title": "Клавиши: плавность руля",
-      "hint": "больше — с клавиш руль доходит до упора медленнее, мс",
-      "tier": "more",
-      "group": "Управление"
-    },
-    "input.touch.flickDelta": {
-      "title": "Флик пальцем: порог (A)",
-      "hint": "больше — для дрифта надо резче дёрнуть пальцем вбок",
-      "tier": "more",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 E"
-    },
-    "input.touch.flickWindowMs": {
-      "title": "Флик пальцем: окно (A)",
-      "hint": "больше — рывок пальцем можно делать медленнее, мс",
-      "tier": "more",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 E"
-    },
-    "input.touch.driftPullDownPx": {
-      "title": "Палец вниз для дрифта",
-      "hint": "больше — палец надо тянуть вниз дальше (старый вход в дрифт)",
-      "tier": "legacy",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 A"
-    },
-    "input.touch.autoDriftSteer": {
-      "title": "Авто-дрифт: вход",
-      "hint": "больше — авто-дрифт включается только при сильном руле",
-      "tier": "legacy",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 C"
-    },
-    "input.touch.autoDriftRelease": {
-      "title": "Авто-дрифт: выход",
-      "hint": "больше — авто-дрифт выключается раньше",
-      "tier": "legacy",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 C"
-    },
-    "input.touch.retouchWindowMs": {
-      "title": "Повторное касание, мс",
-      "hint": "больше — дольше ждёт второго касания для дрифта",
-      "tier": "legacy",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 D"
-    },
-    "input.touch.retouchSwipePx": {
-      "title": "Свайп после касания",
-      "hint": "больше — после касания палец надо сдвинуть дальше",
-      "tier": "legacy",
-      "group": "Управление",
-      "model": "A",
-      "rule": "H3 D"
-    },
     "sprites.roadside.posts.every": {
       "title": "Шаг столбиков",
       "hint": "больше — столбики реже",
@@ -1487,37 +564,12 @@
       "rule": "R32",
       "reload": true
     },
-    "car.model": {
-      "title": "Модель вождения",
-      "hint": "A — старая; B — нос и скольжение отдельно; C — дрифт по углу: сброс вниз и поворот",
-      "tier": "core",
-      "group": "Переключатели",
-      "rule": "H14",
-      "options": ["A", "B", "C"]
-    },
-    "car.driftOffroad": {
-      "title": "Дрифт на обочине",
-      "hint": "да — дрифт работает и на обочине; нет — обочина мешает дрифту",
-      "tier": "more",
-      "group": "Переключатели",
-      "rule": "R21b",
-      "options": ["нет", "да"]
-    },
     "car.draftBoost": {
       "title": "Ускорение после потока",
       "hint": "да — полный заряд даёт ускорение и после выхода из потока",
       "tier": "more",
       "group": "Переключатели",
       "rule": "R52",
-      "options": ["нет", "да"]
-    },
-    "car.driftAutoExit": {
-      "title": "Срыв по малому углу (A)",
-      "hint": "да — дрифт сам кончается, если угол долго мал",
-      "tier": "more",
-      "group": "Переключатели",
-      "model": "A",
-      "rule": "R21c",
       "options": ["нет", "да"]
     },
     "sprites.drift.smoke": {
@@ -1533,36 +585,6 @@
       "tier": "more",
       "group": "Переключатели",
       "rule": "R45b"
-    },
-    "hypotheses.H3_driftEntry": {
-      "title": "Вход в дрифт пальцем (A)",
-      "hint": "A — палец вниз, C — авто, D — повторное касание, E — флик",
-      "tier": "more",
-      "group": "Переключатели",
-      "model": "A",
-      "rule": "H3"
-    },
-    "hypotheses.H2_touchSteering": {
-      "title": "Схема руля",
-      "hint": "сделана только схема A, остальные не существуют",
-      "tier": "legacy",
-      "group": "Переключатели",
-      "rule": "H2",
-      "reload": true
-    },
-    "hypotheses.H1_driftBoost": {
-      "title": "Ускорение после дрифта",
-      "hint": "код этот переключатель не читает",
-      "tier": "legacy",
-      "group": "Переключатели",
-      "rule": "H1"
-    },
-    "hypotheses.H4_fingerVertical": {
-      "title": "Палец по вертикали",
-      "hint": "код этот переключатель не читает",
-      "tier": "legacy",
-      "group": "Переключатели",
-      "rule": "H4"
     },
     "hypotheses.H5_slipstream": {
       "title": "Поток (старый)",
@@ -1606,13 +628,6 @@
       "group": "Переключатели",
       "rule": "H10"
     },
-    "hypotheses.H14_model": {
-      "title": "Модель (старый)",
-      "hint": "не читается: модель выбирает «Модель вождения»",
-      "tier": "legacy",
-      "group": "Переключатели",
-      "rule": "H14"
-    },
     "hypotheses.H15_rubberBand": {
       "title": "Резиновая лента соперников",
       "hint": "A — соперники держатся у своего места (R63), B — лента выключена",
@@ -1620,301 +635,54 @@
       "group": "Соперники",
       "rule": "H15"
     },
-    "car.liftOn": {
-      "title": "Порог сброса",
-      "hint": "палец вниз сильнее этого открывает окно входа в дрифт",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R154"
-    },
-    "car.liftOff": {
-      "title": "Возврат сброса",
-      "hint": "палец выше этого снова готов к сбросу (защита от дрожания)",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R154"
-    },
-    "car.driftWindow": {
-      "title": "Окно входа, с",
-      "hint": "сколько после сброса можно повернуть и войти в дрифт",
+    "car.engineBrake": {
+      "title": "Торможение двигателем",
+      "hint": "больше — без газа машина быстрее теряет скорость",
       "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R154"
+      "group": "Скорость",
+      "rule": "R204"
     },
-    "car.betaEntry": {
-      "title": "Угол входа, °",
-      "hint": "больше — после сброса руль быстрее срывает зад",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R154"
-    },
-    "car.winTau": {
-      "title": "Резкость входа, с",
-      "hint": "меньше — вход в дрифт резче",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R154"
-    },
-    "car.betaOn": {
-      "title": "Порог дрифта, °",
-      "hint": "угол, выше которого машина в дрифте",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R154"
-    },
-    "car.betaPerA": {
-      "title": "Градусы дрифта",
-      "hint": "больше — в том же повороте кузов в дрифте повёрнут сильнее",
+    "car.brakeDecel": {
+      "title": "Тормоз",
+      "hint": "больше — тормоз сильнее замедляет",
       "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R153"
+      "group": "Скорость",
+      "rule": "R204"
     },
-    "car.refLook": {
-      "title": "Взгляд вперёд, с",
-      "hint": "сколько дороги впереди задаёт нужный угол",
+    "car.halfWidthM": {
+      "title": "Полуширина дороги, м",
+      "hint": "больше — тот же снос в метрах сдвигает машину по ленте меньше",
       "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R153"
+      "group": "Скорость",
+      "rule": "R210"
     },
-    "car.refTau": {
-      "title": "Сглаживание поворота, с",
-      "hint": "больше — нужный угол плавнее меняется на S-связке",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R153"
-    },
-    "car.uHold": {
-      "title": "Палец удержания",
-      "hint": "доля хода руля, на которой дрифт держит поворот",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R155"
-    },
-    "car.betaMax": {
-      "title": "Предел угла, °",
-      "hint": "больше — полный руль в дрифте поворачивает кузов сильнее",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R155"
-    },
-    "car.betaTau": {
-      "title": "Резкость угла, с",
-      "hint": "меньше — угол дрифта быстрее догоняет палец",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R155"
-    },
-    "car.entryFloor": {
-      "title": "Пол угла на входе, °",
-      "hint": "угол дрифта в окне входа не ниже этого",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R155"
-    },
-    "car.latPerDeg": {
-      "title": "Угол ведёт внутрь",
-      "hint": "больше — лишний угол сильнее уводит машину внутрь поворота",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.thrLat": {
-      "title": "Газ ведёт линию",
-      "hint": "больше — палец вверх в дрифте сильнее расширяет, вниз — сужает",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.velGripC": {
-      "title": "Сцепление курса",
-      "hint": "больше — курс в дрифте быстрее догоняет угол",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.railK": {
-      "title": "Рельсы угла",
-      "hint": "больше — большой угол сильнее держит курс по дороге",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.bumpFrom": {
-      "title": "Начало отбойника",
-      "hint": "доля полуширины снаружи, где дрифт начинает отталкивать внутрь",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.bumpGain": {
-      "title": "Сила отбойника",
-      "hint": "больше — у внешнего края дрифт сильнее толкает внутрь",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.outSlide": {
-      "title": "Поворот курса наружу",
-      "hint": "больше — при отпускании курс быстрее уходит наружу",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R156"
-    },
-    "car.missFree": {
-      "title": "Бесплатный промах, °",
-      "hint": "промах угла до этого не стоит скорости",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R157"
-    },
-    "car.missLoss": {
-      "title": "Цена промаха",
-      "hint": "больше — неточный угол дрифта сильнее срезает скорость",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R157"
-    },
-    "car.missCap": {
-      "title": "Предел промаха, °",
-      "hint": "больше — полный руль в дрифте стоит больше скорости",
-      "tier": "core",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R157"
-    },
-    "car.missBrake": {
-      "title": "Торможение промахом",
-      "hint": "как быстро скорость падает к потолку дрифта",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R157"
-    },
-    "car.liftDecelDrift": {
-      "title": "Сброс в дрифте",
-      "hint": "больше — палец вниз в дрифте сильнее тормозит",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R157"
-    },
-    "car.thrAccelUp": {
-      "title": "Газ в дрифте",
-      "hint": "больше — палец вверх в дрифте быстрее разгоняет",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R157"
-    },
-    "car.driftEndDelay": {
-      "title": "Задержка конца, с",
-      "hint": "сколько угол должен быть мал, чтобы дрифт кончился",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R158"
-    },
-    "car.switchWindow": {
-      "title": "Окно перекладки, с",
-      "hint": "сколько после дрифта занос в другую сторону входит без сброса",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R158"
-    },
-    "car.liftDecel": {
-      "title": "Сброс без дрифта",
-      "hint": "больше — палец вниз без дрифта сильнее тормозит",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R159"
-    },
-    "car.exitRamp": {
-      "title": "Разгон опережения, с",
-      "hint": "за сколько после дрифта руль снова сдвигает машину сразу",
-      "tier": "more",
-      "group": "Дрифт",
-      "model": "C",
-      "rule": "R159"
-    },
-    "input.touch.thrDead": {
-      "title": "Мёртвая зона по вертикали",
-      "hint": "больше — палец вверх-вниз надо сдвинуть дальше, чтобы сработало",
-      "tier": "more",
-      "group": "Управление",
-      "model": "C",
-      "rule": "R151"
-    },
-    "input.touch.thrFull": {
-      "title": "Ход по вертикали",
-      "hint": "больше — полный газ и сброс дальше от точки касания",
-      "tier": "more",
-      "group": "Управление",
-      "model": "C",
-      "rule": "R151"
-    },
-    "input.touch.thrExp": {
-      "title": "Кривая вертикали",
-      "hint": "больше — у мёртвой зоны газ и сброс мягче",
-      "tier": "more",
-      "group": "Управление",
-      "model": "C",
-      "rule": "R151"
-    },
-    "input.touch.edgeMargin": {
-      "title": "Запас у края, px",
-      "hint": "сколько пикселей оставить до нижнего края для сброса",
-      "tier": "more",
-      "group": "Управление",
-      "model": "C",
-      "rule": "R151"
-    },
-    "input.touch.thrTauMs": {
-      "title": "Сглаживание вертикали, мс",
-      "hint": "больше — газ и сброс плавнее, но позже",
-      "tier": "more",
-      "group": "Управление",
-      "model": "C",
-      "rule": "R151"
-    },
-    "input.touch.driftSteerMul": {
-      "title": "Ход руля в дрифте",
-      "hint": "больше — в дрифте тот же угол руля дальше пальцем, точнее",
+    "input.pad.steerSpan": {
+      "title": "Ход руля пальцем",
+      "hint": "доля полуширины экрана до упора руля; меньше — руль острее",
       "tier": "core",
       "group": "Управление",
-      "model": "C",
-      "rule": "R151, R155"
+      "rule": "R202"
     },
-    "sprites.weight.bodyMul": {
-      "title": "Угол кузова в дрифте",
-      "hint": "меньше — кузов в дрифте повёрнут слабее физического угла",
+    "input.pad.steerDead": {
+      "title": "Мёртвая зона руля",
+      "hint": "больше — палец у центра не рулит",
+      "tier": "core",
+      "group": "Управление",
+      "rule": "R202"
+    },
+    "input.pad.padHalfH": {
+      "title": "Высота сетки",
+      "hint": "доля полувысоты экрана: ход пальца по вертикали до полного тормоза",
       "tier": "more",
-      "group": "Машина на экране",
-      "model": "C",
-      "rule": "R160"
+      "group": "Управление",
+      "rule": "R202"
+    },
+    "input.pad.liftZone": {
+      "title": "Зона сброса газа",
+      "hint": "доля хода вниз, где газ падает до 0; ниже — тормоз",
+      "tier": "more",
+      "group": "Управление",
+      "rule": "R202"
     }
   }
 }

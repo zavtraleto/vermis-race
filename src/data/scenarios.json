@@ -60,19 +60,13 @@
     "ticks": 60,
     "curve": 7,
     "steer": 1,
-    "speed": 0.9,
-    "flickFrom": 1,
-    "flickTicks": 0,
-    "liftTicks": 12
+    "speed": 0.9
   },
   "drift-camera": {
     "ticks": 90,
     "curve": 7,
     "steer": 1,
     "speed": 0.9,
-    "flickFrom": 1,
-    "flickTicks": 0,
-    "liftTicks": 12,
     "ui": true,
     "z": 0,
     "cars": [
@@ -85,9 +79,6 @@
     "ticks": 90,
     "steer": 0.9,
     "speed": 0.95,
-    "flickFrom": 0.9,
-    "flickTicks": 0,
-    "liftTicks": 12,
     "z": 1574
   },
   "hill-crest": {

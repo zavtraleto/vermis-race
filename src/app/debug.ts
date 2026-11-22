@@ -12,7 +12,6 @@ export interface GameParams {
   traffic: boolean; // R70 traffic on the default track; ?traffic=0 turns it off
   rivals: boolean; // R60 rivals on the default track; ?rivals=0 turns them off
   ui: boolean; // R28 UI layer (speedometer); ?ui=0 hides it
-  model: 0 | 1 | 2 | null; // H14 driving model: ?model=a -> 0, ?model=b -> 1, ?model=c -> 2, absent or other -> null (data)
   render: string; // spike E1: '3d' = true 3D renderer (src/render3d), anything else = pseudo-3D
 }
 
@@ -44,7 +43,7 @@ export interface GameDebug {
   readonly tick: number;
   state: () => RaceState;
   stepTicks: (n: number) => void;
-  /** Copy of the player's last InputFrame (what the sim received), independent of the driving model. */
+  /** Copy of the player's last InputFrame (what the sim received). */
   input: () => InputFrame;
   tunables: TunablesDebug;
 }
@@ -76,8 +75,6 @@ export function parseParams(search: string): GameParams {
     traffic: q.get('traffic') !== '0',
     rivals: q.get('rivals') !== '0',
     ui: q.get('ui') !== '0',
-    model:
-      q.get('model') === 'a' ? 0 : q.get('model') === 'b' ? 1 : q.get('model') === 'c' ? 2 : null,
     render: q.get('render') ?? 'pseudo',
   };
 }

@@ -30,7 +30,7 @@ test('panel is absent without ?dev=1 and present with it', async ({ page }) => {
   await expect(page.locator('#dev-panel')).toBeVisible();
   await expect(page.locator('#dev-panel [data-path="car.accel"]')).toHaveCount(1);
   await expect(
-    page.locator('#dev-panel [data-path="hypotheses.H2_touchSteering"] select'),
+    page.locator('#dev-panel [data-path="hypotheses.H7_rubberBand"] select'),
   ).toHaveCount(1);
   expect(problems).toEqual([]);
 });
@@ -71,18 +71,17 @@ test('2x accel via __game.tunables gives a higher speed after the same ticks; su
 
 test('?tune= applies a url-encoded diff', async ({ page }) => {
   const problems = collect(page);
-  const diff = { 'car.grip': 20, 'camera.fovDeg': 90, 'hypotheses.H1_driftBoost': 'B' };
+  const diff = { 'car.brakeDecel': 2, 'camera.fovDeg': 90, 'hypotheses.H5_slipstream': 'A' };
   await open(page, `&tune=${encodeURIComponent(JSON.stringify(diff))}`);
   expect(await page.evaluate(() => window.__game.tunables.diff())).toEqual(diff);
-  expect(await page.evaluate(() => window.__game.tunables.get('car.grip'))).toBe(20);
+  expect(await page.evaluate(() => window.__game.tunables.get('car.brakeDecel'))).toBe(2);
   expect(problems).toEqual([]);
 });
 
 test('steering ignores a drag that starts on the open panel', async ({ page }) => {
   const problems = collect(page);
   await open(page, '&dev=1');
-  // Whole screen is the steering zone, so only the panel guard can stop the drag.
-  await page.evaluate(() => window.__game.tunables.set('input.touch.steerZoneFrac', 1));
+  // Whole screen is the R202 control pad, so only the panel guard can stop the drag.
   const steerAfterDrag = async (x: number, y: number): Promise<number> => {
     await page.mouse.move(x, y);
     await page.mouse.down();
@@ -96,13 +95,14 @@ test('steering ignores a drag that starts on the open panel', async ({ page }) =
   const header = await page.locator('#dev-panel summary').first().boundingBox();
   expect(header).not.toBeNull();
   expect(await steerAfterDrag(header!.x + 20, header!.y + header!.height / 2)).toBe(0);
-  // Control: the same drag on the road below the panel steers.
-  expect(await steerAfterDrag(100, 600)).toBeGreaterThan(0);
+  // Control: the same drag on the road below the panel steers (R202: steer from the finger X
+  // offset to the screen centre, so its sign depends on where the finger ends).
+  expect(await steerAfterDrag(100, 600)).not.toBe(0);
 
   // Collapsed: only the small tab remains, the rest of the screen steers again.
   await page.locator('#dev-panel button', { hasText: '▴' }).click();
   await expect(page.locator('#dev-tab')).toBeVisible();
-  expect(await steerAfterDrag(header!.x + 20, header!.y + header!.height / 2)).toBeGreaterThan(0);
+  expect(await steerAfterDrag(header!.x + 20, header!.y + header!.height / 2)).not.toBe(0);
   expect(problems).toEqual([]);
 });
 

@@ -389,7 +389,7 @@ export function runRivals(
     placeTraffic(race, TRAFFIC, baseCar.vmax);
     const cars = race.cars;
     const params: CarParams[] = cars.map((c) => (c.kind === 'rival' ? { ...baseCar } : baseCar));
-    const inputs: InputFrame[] = cars.map(() => ({ steer: 0, brake: false, drift: false }));
+    const inputs: InputFrame[] = cars.map(() => ({ steer: 0, gas: 1, brake: 0, driftTap: false }));
     const player = cars[0]!;
     const pb = createBot(seed);
     const drivers = createRivalDrivers(race, seed);

@@ -1,28 +1,10 @@
-import type { InputFrame } from '../sim/types';
-import type { FlickDrift } from './flickDrift';
-import type { RetouchDrift } from './retouchDrift';
-import type { TouchStick } from './touchStick';
+import type { Pad } from './pad';
 
 /**
- * Thin DOM adapter: Pointer Events -> pure touch stick. Coordinates are relative to `area`
- * (the letterboxed game canvas), CSS px. Mouse uses the same scheme while the left button is held.
- * `retouch` (H3 D) gets the same events of the stick's active pointer; `flick` (H3 E) gets the
- * stick's steer after each down / move of that pointer, and up / cancel.
+ * Thin DOM adapter: Pointer Events -> pure control pad (R202). Coordinates are relative to `area`
+ * (the letterboxed game canvas), CSS px. Mouse works like a finger while the left button is held.
  */
-export function attachPointer(
-  area: HTMLElement,
-  stick: TouchStick,
-  now: () => number,
-  retouch?: RetouchDrift,
-  flick?: FlickDrift,
-): void {
-  const frame: InputFrame = { steer: 0, brake: false, drift: false };
-  // H3 E: report the stick's current steer to the flick detector.
-  const sampleFlick = (t: number): void => {
-    if (flick === undefined) return;
-    stick.read(t, frame);
-    flick.sample(frame.steer, t);
-  };
+export function attachPointer(area: HTMLElement, stick: Pad, now: () => number): void {
   // Rect cached at pointerdown for move conversion. A resize/rotation in the middle of a gesture
   // keeps the old origin and R until the finger is lifted (accepted for now).
   let left = 0;
@@ -38,9 +20,6 @@ export function attachPointer(
     stick.setArea(rect.width, rect.height);
     const t = now();
     if (!stick.pointerDown(e.pointerId, x, y, t)) return;
-    retouch?.down(x, t);
-    flick?.down(t);
-    sampleFlick(t);
     left = rect.left;
     top = rect.top;
     try {
@@ -60,29 +39,21 @@ export function attachPointer(
         const c = coalesced[i]!;
         const t = now();
         stick.pointerMove(id, c.clientX - left, c.clientY - top, t);
-        retouch?.move(c.clientX - left, t);
-        sampleFlick(t);
       }
     } else {
       const t = now();
       stick.pointerMove(id, e.clientX - left, e.clientY - top, t);
-      retouch?.move(e.clientX - left, t);
-      sampleFlick(t);
     }
   });
   window.addEventListener('pointerup', (e) => {
     if (e.pointerId !== stick.activeId) return;
     const t = now();
     stick.pointerUp(e.pointerId, t);
-    retouch?.up(t);
-    flick?.up(t);
   });
   window.addEventListener('pointercancel', (e) => {
     if (e.pointerId !== stick.activeId) return;
     const t = now();
     stick.pointerCancel(e.pointerId, t);
-    retouch?.up(t);
-    flick?.up(t);
   });
 
   // Losing focus may swallow pointerup (desktop mouse): treat it as a cancel.
@@ -91,8 +62,6 @@ export function attachPointer(
     if (id === null) return;
     const t = now();
     stick.pointerCancel(id, t);
-    retouch?.up(t);
-    flick?.up(t);
   };
   window.addEventListener('blur', cancelActive);
   document.addEventListener('visibilitychange', () => {

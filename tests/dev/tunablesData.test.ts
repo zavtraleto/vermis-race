@@ -14,25 +14,17 @@ import { createProjection } from '../../src/render/projection';
 const spec: TunableSpec = tunablesJson;
 
 const REQUIRED = [
-  // car params used by the current driving model
+  // car params of the driving model (R204, R15, R18) [ADR 0005]
   'car.accel',
-  'car.brake',
-  'car.steerRate',
-  'car.steerRise',
-  'car.grip',
-  'car.centrifugal',
-  'car.kCurve',
+  'car.engineBrake',
+  'car.brakeDecel',
   'car.offroadMul',
   'car.xLimit',
-  // touch stick (scheme A)
-  'input.touch.stickRadiusFrac',
-  'input.touch.deadZone',
-  'input.touch.responseExp',
-  'input.touch.releaseMs',
-  'input.touch.steerZoneFrac',
-  'input.touch.driftPullDownPx',
-  // keyboard ramp
-  'input.keyboard.steerRampMs',
+  // control pad (R202)
+  'input.pad.steerSpan',
+  'input.pad.steerDead',
+  'input.pad.padHalfH',
+  'input.pad.liftZone',
   // camera
   'camera.fovDeg',
   'camera.height',

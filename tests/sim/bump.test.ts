@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { step } from '../../src/sim/race';
-import type { InputFrame } from '../../src/sim/types';
 import { BP, BUMP_TICKS, IDLE, TRACK, dz, setup, stepOnce } from './traffic_helpers';
 
 // Geometry: setup() gives POST-step positions, so every contact check at the end of step 1 sees
-// exactly the stated z/x. Player: accel 0 (constant speed), x = 0, vx = 0, steer = 0, straight track.
+// exactly the stated z/x. Player: accel 0 (constant speed), x = 0, travel = 0, steer = 0, straight track.
 // Hit box: |dz| < carLength = 1.5 and |dx| < (0.2 + 0.2)/2 = 0.2. Rear hit: z < zT - 0.75.
 const P = (speed: number, x = 0) => ({ z: 10, x, speed });
 
@@ -15,7 +14,7 @@ describe('R40 contact condition', () => {
     stepOnce(s);
     expect(s.cars[0]!.speed).toBeCloseTo(0.8, 12);
     expect(s.cars[0]!.bumpTicks).toBe(0);
-    expect(Math.abs(s.cars[0]!.vx)).toBe(0);
+    expect(Math.abs(s.cars[0]!.x)).toBe(0);
   });
 
   it('x overlap only: no contact', () => {
@@ -46,13 +45,13 @@ describe('R40 contact condition', () => {
     s.cars[0]!.bumpTicks = 5;
     stepOnce(s);
     expect(s.cars[0]!.speed).toBeCloseTo(0.8, 12); // would be 0.75 with a contact
-    expect(Math.abs(s.cars[0]!.vx)).toBe(0);
+    expect(Math.abs(s.cars[0]!.x)).toBe(0);
     expect(s.cars[0]!.bumpTicks).toBe(4);
   });
 
   it('at most one contact per step; the lower traffic index wins', () => {
     // car 1: dz 0 (side contact, left of player), car 2: rear hit (dz = +0.9), right of the player.
-    // Applying car 1 only: speed 0.8 - 0.05 = 0.75, vx = +0.6. Applying car 2 would give 0.4 / -0.6.
+    // Applying car 1 only: speed 0.8 - 0.05 = 0.75. Applying car 2 would give 0.4.
     const s = setup(P(0.8), [
       { z: 10, x: -0.1, speed: 0.5 },
       { z: 10.9, x: 0.1, speed: 0.5 },
@@ -60,7 +59,6 @@ describe('R40 contact condition', () => {
     stepOnce(s);
     const p = s.cars[0]!;
     expect(p.speed).toBeCloseTo(0.75, 12);
-    expect(p.vx).toBeCloseTo(0.6, 12);
     expect(p.bumpTicks).toBe(BUMP_TICKS);
   });
 
@@ -77,7 +75,6 @@ describe('R40 contact condition', () => {
     expect(b.speed).toBe(0.4);
     expect(a.x).toBe(0.25);
     expect(b.x).toBe(0.25);
-    expect(Math.abs(a.vx) + Math.abs(b.vx)).toBe(0);
     expect(a.bumpTicks + b.bumpTicks + s.cars[0]!.bumpTicks).toBe(0);
   });
 
@@ -156,52 +153,6 @@ describe('R41 speed loss', () => {
   });
 });
 
-describe('R42 lateral kick', () => {
-  const kick = (px: number, tx: number): number => {
-    const s = setup(P(0.8, px), [{ z: 10, x: tx, speed: 0.5 }]);
-    stepOnce(s);
-    return s.cars[0]!.vx;
-  };
-
-  it('player right of the traffic car: vx = +bumpKick', () => {
-    expect(kick(0.1, 0)).toBeCloseTo(0.6, 12);
-  });
-
-  it('player left of the traffic car: vx = -bumpKick', () => {
-    expect(kick(-0.1, 0)).toBeCloseTo(-0.6, 12);
-  });
-
-  it('x == xT, xT > 0: pushed toward the road centre (left)', () => {
-    expect(kick(0.3, 0.3)).toBeCloseTo(-0.6, 12);
-  });
-
-  it('x == xT, xT < 0: pushed toward the road centre (right)', () => {
-    expect(kick(-0.3, -0.3)).toBeCloseTo(0.6, 12);
-  });
-
-  it('x == xT == 0: pushed right', () => {
-    expect(kick(0, 0)).toBeCloseTo(0.6, 12);
-  });
-
-  it('kick is mirror-symmetric', () => {
-    expect(kick(0.15, 0.1)).toBeCloseTo(-kick(-0.15, -0.1), 12);
-  });
-
-  it('steering still works on the following ticks', () => {
-    const run = (steer: number): number => {
-      const s = setup(P(0.8, -0.1), [{ z: 10, x: 0, speed: 0.5 }]); // kick = -0.6
-      stepOnce(s);
-      expect(s.cars[0]!.vx).toBeCloseTo(-0.6, 12);
-      const right: InputFrame = { steer, brake: false, drift: false };
-      stepOnce(s, [right, IDLE]);
-      return s.cars[0]!.vx;
-    };
-    // After the kick vx = -0.6; steering right pulls vx up faster than no steering (R11/R12 still run).
-    expect(run(1)).toBeGreaterThan(run(0));
-    expect(run(1)).toBeGreaterThan(-0.6);
-  });
-});
-
 describe('R43 invulnerability window', () => {
   it('bumpTicks = round(bumpInvulnTime / DT) = 96 after a contact', () => {
     const s = setup(P(0.8), [{ z: 10.9, x: 0.1, speed: 0.5 }]);
@@ -239,56 +190,5 @@ describe('R43 invulnerability window', () => {
     stepOnce(s);
     expect(p.bumpTicks).toBe(BUMP_TICKS);
     expect(p.speed).toBeCloseTo(speedBefore - 0.05, 12); // side loss, above the floor 0.3
-  });
-});
-
-describe('R44 contact in a drift', () => {
-  const drifting = (dir: 1 | -1, angle: number) => {
-    // Pre-step: DRIFT, dir, |angle| = angle, steer = angle * dir so that the R22 chase target equals
-    // the current angle (no change from the chase); speed 0.8 is below the cap
-    // 1 * (1 - 0.15 * 0.5) = 0.925 and above driftExitSpeed 0.3; drift input held.
-    const s = setup(P(0.8), [{ z: 10.9, x: 0.05, speed: 0.5 }]);
-    const p = s.cars[0]!;
-    p.state = 'DRIFT';
-    p.dir = dir;
-    p.angle = dir * angle;
-    p.steer = dir * angle;
-    p.driftHeld = true;
-    const input: InputFrame = { steer: dir * angle, brake: false, drift: true };
-    stepOnce(s, [input, IDLE]);
-    return p;
-  };
-
-  it('right drift: state and dir kept, |angle| 0.5 -> 0.5 - 0.3 = 0.2', () => {
-    const p = drifting(1, 0.5);
-    expect(p.bumpTicks).toBe(BUMP_TICKS);
-    expect(p.state).toBe('DRIFT');
-    expect(p.dir).toBe(1);
-    expect(p.angle).toBeCloseTo(0.2, 9);
-  });
-
-  it('left drift: mirror, angle -0.5 -> -0.2', () => {
-    const p = drifting(-1, 0.5);
-    expect(p.bumpTicks).toBe(BUMP_TICKS);
-    expect(p.state).toBe('DRIFT');
-    expect(p.dir).toBe(-1);
-    expect(p.angle).toBeCloseTo(-0.2, 9);
-  });
-
-  it('|angle| does not go below 0 (0.2 - 0.3 -> 0), both directions, state and dir kept', () => {
-    for (const dir of [1, -1] as const) {
-      const p = drifting(dir, 0.2);
-      expect(p.bumpTicks).toBe(BUMP_TICKS);
-      expect(Math.abs(p.angle)).toBeLessThan(1e-12);
-      expect(p.state).toBe('DRIFT');
-      expect(p.dir).toBe(dir);
-    }
-  });
-
-  it('a contact in GRIP leaves angle 0 and state GRIP', () => {
-    const s = setup(P(0.8), [{ z: 10, x: 0.1, speed: 0.5 }]);
-    stepOnce(s);
-    expect(s.cars[0]!.state).toBe('GRIP');
-    expect(Math.abs(s.cars[0]!.angle)).toBe(0);
   });
 });

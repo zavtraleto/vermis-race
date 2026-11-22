@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { baseCar } from '../../src/data/cars';
-import { NO_H17_H18 } from './pinH17H18';
-import { ENTRY_A } from './pinEntryA';
-import { NO_GRIP_LEAD } from './pinGripLead';
-import { NO_T68 } from './pinT68';
 import { createRace, placeRivals, placeTraffic, step } from '../../src/sim/race';
 import type { InputFrame, RaceState, TrafficConfig } from '../../src/sim/types';
 import { BP, LANES, RC, TRACK, mkRace, stepAll } from './rivals_helpers';
@@ -139,8 +135,9 @@ describe('R60-R66 whole race: state stays flat JSON and deterministic', () => {
   const N = 8 + 5;
   const inputs: InputFrame[] = Array.from({ length: N }, () => ({
     steer: 0,
-    brake: false,
-    drift: false,
+    gas: 1,
+    brake: 0,
+    driftTap: false,
   }));
 
   function fresh(seed: number): RaceState {
@@ -150,13 +147,13 @@ describe('R60-R66 whole race: state stays flat JSON and deterministic', () => {
     return s;
   }
   function advance(s: RaceState, from: number, to: number): void {
-    const params = s.cars.map(() => ({ ...baseCar, model: 1, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD, ...NO_T68 })); // H17/H18 off, flick entry: this test is about R66
+    const params = s.cars.map(() => ({ ...baseCar })); // [ADR 0005] one driving model
     for (let t = from; t < to; t++) {
       for (let i = 0; i < N; i++) {
         const f = inputs[i]!;
         f.steer = Math.sin(t / 17 + i);
-        f.brake = false;
-        f.drift = i % 2 === 0 && t % 90 > 40;
+        f.brake = 0;
+        f.driftTap = i % 2 === 0 && t % 90 === 40;
       }
       step(s, inputs, TRACK, params, TC, RC);
     }

@@ -1,15 +1,9 @@
 import { Vector4 } from 'three';
-import type { Car } from '../sim/types';
-import { approach } from './driftVisual';
 
-/** R27 drift camera roll (render only; numbers in src/data/sprites.json "driftCamera"). */
+/** Overscan of the game layer (numbers in src/data/sprites.json "driftCamera"). */
 export interface ScreenRollConfig {
-  rollDeg: number; // picture roll at sim drift angle 1, degrees; > 0 = counter-clockwise in a right drift
-  rollTau: number; // s, smoothing time constant in and out
-  overscanPx: number; // ground drawn past the screen edges so a rolled picture shows no empty corners
+  overscanPx: number; // ground drawn past the screen edges
 }
-
-const DEG = Math.PI / 180;
 
 /**
  * GLSL helper shared by the NDC shaders of the game layer (road, sprites, traffic): rotates an
@@ -29,35 +23,15 @@ export interface RollUniform {
 }
 
 /**
- * R27: the whole game picture rolls by an angle proportional to the sim drift angle, smoothed in
- * and out. One uniform object is shared by every game-layer material; the 3D car camera reads
- * `deg`. The UI (DOM) is not touched. Reads sim state, never writes it.
+ * Picture roll uniform shared by every game-layer material. The R27 drift roll was removed with
+ * ADR 0005 (R213: the camera follows without tilts), so the roll stays 0. The UI is not touched.
  */
 export class ScreenRoll {
-  /** Degrees, > 0 = picture counter-clockwise (the R27 part). */
-  deg = 0;
-  /** Degrees of the whole picture roll: R27 plus the R27c horizon roll; what the uniform holds. */
-  total = 0;
+  /** Degrees of the whole picture roll (always 0, R213). */
+  readonly total = 0;
   readonly uniform: RollUniform;
 
-  constructor(
-    private readonly cfg: ScreenRollConfig,
-    aspect: number,
-  ) {
+  constructor(aspect: number) {
     this.uniform = { value: new Vector4(1, 0, aspect, 0) };
-  }
-
-  /**
-   * `angle` = sim drift angle interpolated between the prev and curr states (0 in GRIP);
-   * `extraDeg` = R27c roll added on top (already smoothed by its caller, same sense as deg).
-   */
-  update(dt: number, car: Car, angle: number, extraDeg = 0): void {
-    const drifting = car.state === 'DRIFT' && car.dir !== 0;
-    this.deg = approach(this.deg, drifting ? angle * this.cfg.rollDeg : 0, dt, this.cfg.rollTau);
-    this.total = this.deg + extraDeg;
-    const r = this.total * DEG;
-    const u = this.uniform.value;
-    u.x = Math.cos(r);
-    u.y = Math.sin(r);
   }
 }

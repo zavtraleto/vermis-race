@@ -1,7 +1,6 @@
 import type { Palette } from '../data/render';
 import type { CarView } from './carModel';
 import type { HudLayout, SpeedometerConfig } from '../ui/speedometer';
-import type { CarWeightConfig } from './carWeight';
 import type { CrashTumbleConfig } from './crashTumble';
 import type { RivalDrawConfig } from './rivalModels';
 import type { TailLightsConfig } from './tailLights';
@@ -83,7 +82,6 @@ export interface SpritesConfig {
   traffic: TrafficDrawConfig;
   bump: BumpFeedbackConfig;
   crash: CrashTumbleConfig;
-  weight: CarWeightConfig;
   rivals: RivalDrawConfig;
   driftCamera: ScreenRollConfig;
   speedometer: SpeedometerConfig;

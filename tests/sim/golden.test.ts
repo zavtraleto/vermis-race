@@ -12,8 +12,9 @@ describe('golden example (brief section 5)', () => {
     expect(Math.abs(c.z - 6.655)).toBeLessThan(1e-6);
     // exact zeros (abs avoids -0)
     expect(Math.abs(c.x)).toBe(0);
-    expect(Math.abs(c.vx)).toBe(0);
+    expect(Math.abs(c.travel)).toBe(0);
     expect(Math.abs(c.heading)).toBe(0);
+    expect(c.driftTimer).toBe(0);
     expect(s.tick).toBe(120);
   });
 });

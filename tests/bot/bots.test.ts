@@ -1,15 +1,12 @@
 // T16 driver bots. Written from the task spec before the implementation; do not edit to pass.
 // Bots see only the car and the track ahead and answer with an InputFrame (R4).
+// [ADR 0005] the old drift / brake / hold-limit / skill-ordering parts went with the old model; the
+// R212 driver brings its own tests.
 import { describe, expect, it } from 'vitest';
 import { botParams, BOT_NAMES } from '../../src/data/bots';
 import { baseCar } from '../../src/data/cars';
-import { baseCarA } from '../sim/baseCarA';
-import { NO_H17_H18 } from '../sim/pinH17H18';
-import { ENTRY_A } from '../sim/pinEntryA';
-import { NO_GRIP_LEAD } from '../sim/pinGripLead';
-import { NO_T68 } from '../sim/pinT68';
-import { curveClasses, loadTestTwisty } from '../../src/data/tracks';
-import { botInput, createBot, holdSpeedLimit } from '../../src/bot/driver';
+import { loadTestTwisty } from '../../src/data/tracks';
+import { botInput, createBot } from '../../src/bot/driver';
 import { SEG_PER_UNIT } from '../../src/sim/constants';
 import { createRace, step } from '../../src/sim/race';
 import { buildTrack } from '../../src/sim/track';
@@ -19,7 +16,7 @@ const twisty = (): Track => buildTrack(loadTestTwisty().def);
 
 interface Trace {
   steer: number[];
-  brake: boolean[];
+  brake: number[];
   drift: boolean[];
   curve: number[]; // curve of the segment under the car when the input was chosen
   x: number[];
@@ -36,13 +33,13 @@ function drive(
   laps: number,
   track: Track,
   maxTicks: number,
-  carParams: CarParams = { ...baseCar, model: 1, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD, ...NO_T68 }, // H17/H18 off, flick entry, R85b off, T68 off: older rules
+  carParams: CarParams = { ...baseCar },
 ): Trace {
   const race = createRace(seed, 1);
   const car = race.cars[0]!;
   const bot = createBot(seed);
   const bp = botParams[name as keyof typeof botParams];
-  const frame: InputFrame = { steer: 0, brake: false, drift: false };
+  const frame: InputFrame = { steer: 0, gas: 1, brake: 0, driftTap: false };
   const inputs = [frame];
   const params = [carParams];
   const goal = laps * track.segments.length;
@@ -61,7 +58,7 @@ function drive(
     botInput(bot, bp, car, track, carParams, frame);
     t.steer.push(frame.steer);
     t.brake.push(frame.brake);
-    t.drift.push(frame.drift);
+    t.drift.push(frame.driftTap);
     t.curve.push(track.segments[Math.floor(car.z) % track.segments.length]!.curve);
     step(race, inputs, track, params);
     t.x.push(car.x);
@@ -84,43 +81,10 @@ describe('T16 bot set', () => {
   });
 });
 
-describe('T16 hold speed limit from R11/R13', () => {
-  const p = baseCar;
-  const k = p.centrifugal * p.kCurve;
-  it('full steer, no width allowance: sp* = steerRate / (0.25*steerRate + centrifugal*kCurve*|c|)', () => {
-    const want = p.steerRate / (0.25 * p.steerRate + k * curveClasses.hard);
-    expect(holdSpeedLimit(curveClasses.hard, 1, 0, p)).toBeCloseTo(want, 9);
-    expect(holdSpeedLimit(-curveClasses.hard, 1, 0, p)).toBeCloseTo(want, 9);
-  });
-  it('at the limit, steady R11 lateral speed equals the R13 push', () => {
-    for (const c of [curveClasses.easy, curveClasses.medium, curveClasses.hard]) {
-      for (const s of [0.6, 0.85, 1]) {
-        const sp = holdSpeedLimit(c, s, 0, p);
-        if (sp >= 1) continue;
-        const vx = s * p.steerRate * sp * (1 - 0.25 * sp);
-        const push = c * sp * sp * k;
-        expect(vx).toBeCloseTo(push, 9);
-      }
-    }
-  });
-  it('is monotonic: steeper curve -> lower limit; more steer or more allowance -> higher', () => {
-    const e = holdSpeedLimit(curveClasses.easy, 0.9, 0, p);
-    const m = holdSpeedLimit(curveClasses.medium, 0.9, 0, p);
-    const h = holdSpeedLimit(curveClasses.hard, 0.9, 0, p);
-    expect(e).toBeGreaterThan(m);
-    expect(m).toBeGreaterThan(h);
-    expect(holdSpeedLimit(curveClasses.hard, 1, 0, p)).toBeGreaterThan(h);
-    expect(holdSpeedLimit(curveClasses.hard, 0.9, 0.5, p)).toBeGreaterThan(h);
-  });
-  it('a straight imposes no limit (>= 1)', () => {
-    expect(holdSpeedLimit(0, 1, 0, p)).toBeGreaterThanOrEqual(1);
-  });
-});
-
 describe('T16 bots output valid InputFrames (R4)', () => {
   const track = twisty();
   for (const name of BOT_NAMES) {
-    it(`${name}: steer finite in [-1, 1], brake and drift boolean`, () => {
+    it(`${name}: steer finite in [-1, 1], brake in [0, 1], driftTap boolean (R201)`, () => {
       const t = drive(name, 7, 1, track, MAX_TICKS_3_LAPS);
       expect(t.steer.length).toBeGreaterThan(1000);
       for (let i = 0; i < t.steer.length; i++) {
@@ -128,7 +92,8 @@ describe('T16 bots output valid InputFrames (R4)', () => {
         expect(Number.isFinite(s)).toBe(true);
         expect(s).toBeGreaterThanOrEqual(-1);
         expect(s).toBeLessThanOrEqual(1);
-        expect(typeof t.brake[i]).toBe('boolean');
+        expect(t.brake[i]).toBeGreaterThanOrEqual(0);
+        expect(t.brake[i]).toBeLessThanOrEqual(1);
         expect(typeof t.drift[i]).toBe('boolean');
       }
     });
@@ -137,26 +102,9 @@ describe('T16 bots output valid InputFrames (R4)', () => {
     const t = drive('novice', 7, 1, track, MAX_TICKS_3_LAPS);
     expect(t.drift.some((d) => d)).toBe(false);
   });
-  it('average: drifts on some ticks', () => {
-    const t = drive('average', 7, 1, track, MAX_TICKS_3_LAPS);
-    expect(t.drift.some((d) => d)).toBe(true);
-  });
-  it('expert: drifts on some ticks, never brakes inside a corner with |curve| >= driftMinCurve', () => {
-    const t = drive('expert', 7, 1, track, MAX_TICKS_3_LAPS);
-    const minCurve = botParams.expert.driftMinCurve;
-    expect(t.drift.some((d) => d)).toBe(true);
-    let sharpTicks = 0;
-    for (let i = 0; i < t.curve.length; i++) {
-      if (Math.abs(t.curve[i]!) >= minCurve) {
-        sharpTicks++;
-        expect(t.brake[i]).toBe(false);
-      }
-    }
-    expect(sharpTicks).toBeGreaterThan(0);
-  });
   it('novice never brakes', () => {
     const t = drive('novice', 3, 1, track, MAX_TICKS_3_LAPS);
-    expect(t.brake.some((b) => b)).toBe(false);
+    expect(t.brake.some((b) => b > 0)).toBe(false);
   });
 });
 
@@ -185,34 +133,5 @@ describe('T16 average bot on the twisty loop', () => {
     const t = drive('average', 1, 3, twisty(), MAX_TICKS_3_LAPS);
     expect(t.finished).toBe(true);
     expect(t.offroadTicks / t.ticks).toBeLessThanOrEqual(AVERAGE_MAX_OFFROAD_FRACTION);
-  });
-});
-
-describe('T16 skill ordering', () => {
-  it('3-lap time: novice >= 10% slower than average; expert at most 1% slower than average', () => {
-    const track = twisty();
-    const n = drive('novice', 1, 3, track, MAX_TICKS_3_LAPS);
-    const a = drive('average', 1, 3, track, MAX_TICKS_3_LAPS);
-    const e = drive('expert', 1, 3, track, MAX_TICKS_3_LAPS);
-    expect(n.finished && a.finished && e.finished).toBe(true);
-    expect(n.ticks).toBeGreaterThanOrEqual(1.1 * a.ticks);
-    expect(e.ticks).toBeLessThanOrEqual(1.01 * a.ticks);
-  });
-});
-
-describe('T16 model A bots (baseCarA, the data default is model B)', () => {
-  it('expert completes 3 laps of the twisty loop, off asphalt <= 5% of the time', () => {
-    const t = drive('expert', 1, 3, twisty(), MAX_TICKS_3_LAPS, baseCarA);
-    expect(t.finished).toBe(true);
-    expect(t.offroadTicks / t.ticks).toBeLessThanOrEqual(AVERAGE_MAX_OFFROAD_FRACTION);
-  });
-  it('3-lap time with model A: novice >= 10% slower than average; expert at most 1% slower than average', () => {
-    const track = twisty();
-    const n = drive('novice', 1, 3, track, MAX_TICKS_3_LAPS, baseCarA);
-    const a = drive('average', 1, 3, track, MAX_TICKS_3_LAPS, baseCarA);
-    const e = drive('expert', 1, 3, track, MAX_TICKS_3_LAPS, baseCarA);
-    expect(n.finished && a.finished && e.finished).toBe(true);
-    expect(n.ticks).toBeGreaterThanOrEqual(1.1 * a.ticks);
-    expect(e.ticks).toBeLessThanOrEqual(1.01 * a.ticks);
   });
 });

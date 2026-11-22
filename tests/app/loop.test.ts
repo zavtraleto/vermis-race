@@ -13,8 +13,9 @@ const FRAME120 = 1 / 120;
 const gasSource: InputSource = (_t, out) => {
   for (const f of out) {
     f.steer = 0;
-    f.brake = false;
-    f.drift = false;
+    f.gas = 1;
+    f.brake = 0;
+    f.driftTap = false;
   }
 };
 
@@ -34,8 +35,9 @@ function direct(cars: number, n: number, readInput: InputSource): RaceState {
   const params = Array.from({ length: cars }, () => baseCar);
   const inputs: InputFrame[] = Array.from({ length: cars }, () => ({
     steer: 0,
-    brake: false,
-    drift: false,
+    gas: 1,
+    brake: 0,
+    driftTap: false,
   }));
   for (let i = 0; i < n; i++) {
     readInput(s.tick, inputs);
@@ -190,8 +192,9 @@ describe('R1 input reading', () => {
   it('input reaches step: brake on ticks 50..99 matches direct run', () => {
     const src: InputSource = (t, out) => {
       out[0]!.steer = 0;
-      out[0]!.drift = false;
-      out[0]!.brake = t >= 50 && t < 100;
+      out[0]!.driftTap = false;
+      out[0]!.gas = t >= 50 && t < 100 ? 0 : 1;
+      out[0]!.brake = t >= 50 && t < 100 ? 1 : 0;
     };
     const loop = mk(1, src);
     for (let i = 0; i < 75; i++) loop.advance(FRAME60); // 150 ticks
@@ -204,11 +207,13 @@ describe('R1 input reading', () => {
 describe('R1/R2 determinism', () => {
   const src: InputSource = (t, out) => {
     out[0]!.steer = Math.sin(t / 17);
-    out[0]!.drift = t % 90 > 60;
-    out[0]!.brake = t % 200 > 180;
+    out[0]!.driftTap = t % 90 === 60;
+    out[0]!.gas = t % 200 > 180 ? 0 : 1;
+    out[0]!.brake = t % 200 > 180 ? 1 : 0;
     out[1]!.steer = -Math.sin(t / 23);
-    out[1]!.drift = false;
-    out[1]!.brake = false;
+    out[1]!.gas = 1;
+    out[1]!.brake = 0;
+    out[1]!.driftTap = false;
   };
   const frames = [0.016, 0.017, 0.004, 0.033, 0.0083, 0.02, 0.001, 0.25, 0.0167];
   it('two loops with the same frame sequence are identical', () => {
@@ -239,8 +244,9 @@ describe('golden example (brief section 5) through the loop', () => {
     expect(Math.abs(c.speed - 0.22)).toBeLessThan(1e-9);
     expect(Math.abs(c.z - 6.655)).toBeLessThan(1e-6);
     expect(Math.abs(c.x)).toBe(0);
-    expect(Math.abs(c.vx)).toBe(0);
+    expect(Math.abs(c.travel)).toBe(0);
     expect(Math.abs(c.heading)).toBe(0);
+    expect(c.driftTimer).toBe(0);
   });
 });
 
@@ -267,11 +273,11 @@ describe('copyRaceState', () => {
     const src = createRace(42, 2);
     const params = [baseCar, baseCar];
     const inputs: InputFrame[] = [
-      { steer: 0.7, brake: false, drift: true },
-      { steer: -0.4, brake: false, drift: false },
+      { steer: 0.7, gas: 1, brake: 0, driftTap: false },
+      { steer: -0.4, gas: 1, brake: 0, driftTap: false },
     ];
     for (let i = 0; i < 400; i++) {
-      inputs[0]!.drift = i % 150 > 40;
+      inputs[0]!.driftTap = i % 150 === 40;
       step(src, inputs, track, params);
     }
     const before = JSON.stringify(src);

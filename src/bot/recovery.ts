@@ -13,7 +13,7 @@ export interface RecoveryScenario {
 
 /**
  * Car on a constant curve, `depth` beyond the OUTER edge (R19: a right curve pushes left),
- * steer already at full lock toward the centre, drift input held, vx = 0. Returns seconds until |x| <= 1,
+ * steer already at full lock toward the centre, full gas. Returns seconds until |x| <= 1,
  * or Infinity if it does not return within maxSeconds.
  */
 export function recoverySeconds(sc: RecoveryScenario, p: CarParams): number {
@@ -27,9 +27,7 @@ export function recoverySeconds(sc: RecoveryScenario, p: CarParams): number {
   car.x = -inward * (1 + sc.depth);
   car.speed = sc.speed * p.vmax;
   car.steer = inward;
-  // Medium and hard are drift-only (R22b): the driver holds drift with full steer into the corner;
-  // with H11 B (R21b) the drift starts and holds off road.
-  const input: InputFrame = { steer: inward, brake: false, drift: true };
+  const input: InputFrame = { steer: inward, gas: 1, brake: 0, driftTap: false };
   const maxTicks = Math.ceil(sc.maxSeconds / DT);
   while (race.tick < maxTicks) {
     step(race, [input], track, [p]);

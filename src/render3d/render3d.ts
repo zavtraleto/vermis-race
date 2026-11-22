@@ -19,8 +19,6 @@ import {
 } from 'three';
 import type { Palette } from '../data/render';
 import { Builder, buildCarGeometry, type Car3dConfig } from '../render/carModel';
-import type { CamLag } from '../render/cameraLag';
-import type { CarWeight } from '../render/carWeight';
 import { approach, type DriftVisual } from '../render/driftVisual';
 import type { RoadMeshConfig } from '../render/roadMesh';
 import {
@@ -29,7 +27,6 @@ import {
   ROADSIDE_LAMP,
   type Roadside,
 } from '../render/roadside';
-import type { ScreenRoll } from '../render/screenRoll';
 import type { BumpFeedback } from '../render/bumpFeedback';
 import type { SpritesConfig } from '../render/worldSprites';
 import type { Car, Track } from '../sim/types';
@@ -48,9 +45,6 @@ export interface Render3dDeps {
   screenWidth: number;
   screenHeight: number;
   drift: DriftVisual;
-  camLag: CamLag; // R27b
-  weight: CarWeight;
-  roll: ScreenRoll;
   bump: BumpFeedback;
   roadside: Roadside;
   roadsideIndex: Int32Array;
@@ -124,7 +118,7 @@ function shadedBox(shade: Car3dConfig['shade']): BoxGeometry {
  * Spike E1 (?render=3d): the same game drawn as one real 3D scene with one PerspectiveCamera.
  * Road ribbon from a sliding window of the track, player car and traffic standing on it with
  * their contact shadows, roadside objects as instanced boxes, smoke as camera-facing quads,
- * distance fog. Reads sim and the shared visual state (drift, weight, roll, bump), never writes
+ * distance fog. Reads sim and the shared visual state (drift smoke, bump), never writes
  * them. No allocations per frame.
  */
 export class Render3d {
@@ -263,8 +257,8 @@ export class Render3d {
     const pt = this.pt;
     this.win.sample(pt, z, 0);
     const carRoadY = pt.y;
-    // R27b: the camera sits on the lagging camPosX, the car on its own x.
-    const camLat = (d.camLag.posX + d.drift.cameraX + d.bump.shake) * hw;
+    // R213: the camera simply follows the car x (plus the R45 bump shake).
+    const camLat = (x + d.bump.shake) * hw;
     this.win.sample(pt, camZ, camLat);
     // Hills: pitch toward the car's road height so the car keeps its screen line (R33 strip).
     const slopePitch = cc.slopeFollow * Math.atan((carRoadY - pt.y) / cc.distance);
@@ -295,12 +289,7 @@ export class Render3d {
       cam.updateProjectionMatrix();
     }
     cam.position.set(pt.x, pt.y + cc.height, pt.z);
-    // R27: camera roll = picture roll (sign as in CarView).
-    cam.rotation.set(
-      -cc.pitchDeg * DEG + slopePitch,
-      -(pt.heading + this.lagYaw),
-      -d.roll.deg * DEG,
-    );
+    cam.rotation.set(-cc.pitchDeg * DEG + slopePitch, -(pt.heading + this.lagYaw), 0);
     cam.updateMatrixWorld();
     const roadLen = cfg.drawDistance * segLen;
     this.fog.near = cfg.fog.near * roadLen;
@@ -312,7 +301,7 @@ export class Render3d {
     this.ground.position.set(pt.x, minY - cfg.groundDrop, pt.z);
     this.ground.scale.set(far * 2.2, 1, far * 2.2);
 
-    this.placePlayer(z, x);
+    this.placePlayer(z, x, p.heading + (c.heading - p.heading) * alpha);
     this.placeTraffic(prev, curr, alpha);
     this.placeRoadside();
     this.placeSmoke();
@@ -336,7 +325,7 @@ export class Render3d {
     };
   }
 
-  private placePlayer(z: number, x: number): void {
+  private placePlayer(z: number, x: number, heading: number): void {
     const d = this.d;
     const pt = this.pt;
     const k = d.cfg.playerWidth / d.car3d.width;
@@ -346,9 +335,8 @@ export class Render3d {
     root.rotation.set(Math.atan(pt.slope), -pt.heading, 0);
     root.scale.setScalar(k);
     this.playerHeading = pt.heading;
-    // R24/R26 pose: yaw (drift angle or lateral motion), weight roll and pitch, as in CarView.
-    const w = d.weight;
-    this.carPivot.rotation.set(-w.pitch * DEG, -w.yaw * DEG, -w.roll * DEG);
+    // R213: body yaw = the sim heading (> 0 = nose right), no roll or pitch.
+    this.carPivot.rotation.set(0, -heading, 0);
     this.carMesh.visible = d.bump.visible; // R45 blink
     root.updateMatrixWorld(true);
   }

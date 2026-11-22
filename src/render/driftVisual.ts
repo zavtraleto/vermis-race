@@ -1,12 +1,8 @@
 import type { Car } from '../sim/types';
 import type { CameraConfig, RoadConfig } from './projection';
 
-/** R24 drift look (render only; numbers in src/data/sprites.json "drift"). */
+/** R24b drift smoke (render only; numbers in src/data/sprites.json "drift"). */
 export interface DriftVisualConfig {
-  yawMaxDeg: number; // R24 car yaw at sim drift angle 1, degrees about the vertical axis
-  yawTau: number; // s, light smoothing time constant of the yaw
-  cameraOffset: number; // road half-widths the camera moves toward the inside of the drift
-  cameraTau: number; // s, smoothing time constant of the camera offset
   smoke: string; // "on" | "off"
   smokeCapacity: number; // particles, fixed
   smokeRate: number; // wheel pairs emitted per second in DRIFT
@@ -95,16 +91,24 @@ export class SmokePool {
   }
 }
 
+/** R208: a car is in a drift while its drift timer runs. */
+export function inDrift(car: Car): boolean {
+  return car.driftTimer > 0;
+}
+
+/** R200: side of the slip (heading - travel): 1 right, -1 left, 0 none. */
+export function slipSide(car: Car): number {
+  const s = car.heading - car.travel;
+  return s > 0 ? 1 : s < 0 ? -1 : 0;
+}
+
 /**
- * Smoothed drift look of the player car: yaw, camera x offset and smoke. Driven by update(dt)
- * with the frame time (live) or a fixed dt (screenshot path). Reads sim state, never writes it.
- * Jitter comes from a local LCG, so the same call sequence gives the same picture.
+ * R24b drift smoke of the player car, driven by update(dt) with the frame time (live) or a fixed
+ * dt (screenshot path). Reads sim state, never writes it. Jitter comes from a local LCG, so the
+ * same call sequence gives the same picture.
  */
 export class DriftVisual {
-  /** Degrees; > 0 = nose to the right. */
-  yaw = 0;
-  cameraX = 0;
-  /** dir of the last drift that emitted smoke: the puffs drift outward of it. */
+  /** Slip side of the last drift that emitted smoke: the puffs drift outward of it. */
   smokeDir = 0;
   readonly smoke: SmokePool;
   private emitAcc = 0;
@@ -114,18 +118,10 @@ export class DriftVisual {
     this.smoke = new SmokePool(cfg.smokeCapacity);
   }
 
-  /** `angle` = sim drift angle interpolated between the prev and curr states (0 in GRIP). */
-  update(dt: number, car: Car, angle: number): void {
+  update(dt: number, car: Car): void {
     const cfg = this.cfg;
-    const drifting = car.state === 'DRIFT' && car.dir !== 0;
-    // R24: yaw comes from the sim angle (yawMaxDeg read live for the dev panel); render only smooths.
-    this.yaw = approach(this.yaw, drifting ? angle * cfg.yawMaxDeg : 0, dt, cfg.yawTau);
-    this.cameraX = approach(
-      this.cameraX,
-      drifting ? car.dir * cfg.cameraOffset : 0,
-      dt,
-      cfg.cameraTau,
-    );
+    const side = slipSide(car);
+    const drifting = inDrift(car) && side !== 0;
     const pool = this.smoke;
     if (cfg.smoke !== 'on') {
       pool.clear();
@@ -137,7 +133,7 @@ export class DriftVisual {
       this.emitAcc = 0;
       return;
     }
-    this.smokeDir = car.dir;
+    this.smokeDir = side;
     this.emitAcc += cfg.smokeRate * dt;
     while (this.emitAcc >= 1) {
       this.emitAcc -= 1;

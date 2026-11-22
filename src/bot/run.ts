@@ -34,8 +34,8 @@ export interface RunResult {
   offroadEventsByClass: Record<Exclude<CurveClass, 'sharp'>, number> & { sharp?: number }; // sharp: R31b
   saturationTicks: number;
   brakeTicks: number;
-  driftTicks: number; // ticks ending in DRIFT (R20-R22)
-  driftEntries: number; // GRIP -> DRIFT transitions
+  driftTicks: number; // ticks ending in a drift (R208 driftTimer > 0)
+  driftEntries: number; // drift starts
   straightTicks: number;
   deadTicks: number;
   speedSum: number; // sum of speed/vmax per tick
@@ -114,8 +114,8 @@ export function runBot(
   if (traffic) placeTraffic(race, traffic, p.vmax);
   const car = race.cars[0]!;
   const bot = createBot(seed);
-  const frame: InputFrame = { steer: 0, brake: false, drift: false };
-  const idle: InputFrame = { steer: 0, brake: false, drift: false };
+  const frame: InputFrame = { steer: 0, gas: 1, brake: 0, driftTap: false };
+  const idle: InputFrame = { steer: 0, gas: 1, brake: 0, driftTap: false };
   const inputs = race.cars.map((_, i) => (i === 0 ? frame : idle));
   const params = race.cars.map(() => p);
   const cars = race.cars;
@@ -142,7 +142,7 @@ export function runBot(
       // R43: bumpTicks only rises on a contact.
       if (car.bumpTicks > bumpBefore) {
         tr.bumps++;
-        if (car.state === 'DRIFT') tr.bumpsInDrift++;
+        if (car.driftTimer > 0) tr.bumpsInDrift++;
       }
       // R52 (H5 B): boostTicks only rises when a boost starts.
       if (car.boostTicks > boostBefore) tr.boosts++;
@@ -158,19 +158,19 @@ export function runBot(
       r.nan = true;
       break;
     }
-    hash = mix(mix(mix(mix(hash, x), car.speed), car.vx), frame.steer);
+    hash = mix(mix(mix(mix(hash, x), car.speed), car.travel), frame.steer);
 
     const as = frame.steer < 0 ? -frame.steer : frame.steer;
     if (as > m.saturationSteer) r.saturationTicks++;
-    if (frame.brake) r.brakeTicks++;
-    const drifting = car.state === 'DRIFT';
+    if (frame.brake > 0) r.brakeTicks++;
+    const drifting = car.driftTimer > 0; // R208
     if (drifting) r.driftTicks++;
     if (drifting && !wasDrift) r.driftEntries++;
     wasDrift = drifting;
     const c = track.segments[segBefore]!.curve;
     if ((c < 0 ? -c : c) <= m.straightCurveMax) {
       r.straightTicks++;
-      if (as < m.deadSteer && !frame.brake) r.deadTicks++;
+      if (as < m.deadSteer && frame.brake === 0) r.deadTicks++;
     }
     r.speedSum += sp;
 

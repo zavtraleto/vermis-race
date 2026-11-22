@@ -1,5 +1,3 @@
-import type { CamLagConfig } from '../render/cameraLag';
-import type { CamDriftConfig } from '../render/cameraDrift';
 import type { Car3dConfig } from '../render/carModel';
 import type { CameraConfig } from '../render/projection';
 import type { RibbonMapRenderConfig } from '../render/ribbonMapMesh';
@@ -48,7 +46,7 @@ export interface Palette {
   mapMarker: string;
 }
 
-export const cameraConfig: CameraConfig & CamLagConfig & CamDriftConfig = camera;
+export const cameraConfig: CameraConfig = camera;
 export const roadConfig: RoadMeshConfig = road;
 export const paletteConfig: Palette = palette;
 export const spritesConfig: SpritesConfig = sprites;

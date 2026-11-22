@@ -1,30 +1,8 @@
 {
-  "keyboard": { "steerRampMs": 120 },
-  "touch": {
-    "stickRadiusFrac": 0.2,
-    "deadZone": 0.05,
-    "responseExp": 1.4,
-    "releaseMs": 100,
-    "steerZoneFrac": 0.35,
-    "driftPullDownPx": 40,
-    "autoDriftSteer": 0.85,
-    "autoDriftRelease": 0.1,
-    "retouchWindowMs": 450,
-    "retouchSwipePx": 14,
-    "flickDelta": 0.5,
-    "flickWindowMs": 120,
-    "stickRadius": 0.16,
-    "driftEdge": 0,
-    "driftPull": 0.6,
-    "zoneReleaseMs": 0,
-    "flickMs": 200,
-    "flickDist": 0.6,
-    "driftZoneFrac": 0.5,
-    "thrDead": 0.5,
-    "thrFull": 1.3,
-    "thrExp": 1.4,
-    "edgeMargin": 8,
-    "thrTauMs": 25,
-    "driftSteerMul": 1.5
+  "pad": {
+    "steerSpan": 0.7,
+    "steerDead": 0.08,
+    "padHalfH": 0.4,
+    "liftZone": 0.3333
   }
 }

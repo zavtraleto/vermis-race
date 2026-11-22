@@ -59,10 +59,6 @@
     }
   },
   "drift": {
-    "yawMaxDeg": 42,
-    "yawTau": 0.05,
-    "cameraOffset": 0,
-    "cameraTau": 0.2,
     "smoke": "on",
     "smokeCapacity": 48,
     "smokeRate": 24,
@@ -123,26 +119,7 @@
     "shakeTime": 0.5,
     "shakeHz": 14
   },
-  "weight": {
-    "yawGain": 2,
-    "yawMaxDeg": 14,
-    "yawTau": 0.08,
-    "minSpeed": 0.1,
-    "blendTau": 0.08,
-    "rollGain": 1,
-    "rollMaxDeg": 5,
-    "rollTau": 0.12,
-    "pitchGain": 2.5,
-    "pitchMaxDeg": 4,
-    "pitchTau": 0.15,
-    "slipDeg": 17,
-    "velDeg": 5,
-    "leadDeg": 8,
-    "bodyMul": 1
-  },
   "driftCamera": {
-    "rollDeg": 0,
-    "rollTau": 0.25,
     "overscanPx": 80
   },
   "tailLights": {

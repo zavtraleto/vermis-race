@@ -50,37 +50,21 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.z = s.z;
     d.x = s.x;
     d.speed = s.speed;
-    d.vx = s.vx;
-    d.steer = s.steer;
+    // R200 driving state.
+    d.travel = s.travel;
     d.heading = s.heading;
-    d.state = s.state;
-    d.dir = s.dir;
-    d.offTicks = s.offTicks;
-    d.angle = s.angle;
-    d.driftHeld = s.driftHeld;
-    d.armTicks = s.armTicks;
-    d.lowTicks = s.lowTicks;
+    d.steer = s.steer;
+    d.slipRate = s.slipRate;
+    d.counter = s.counter;
+    d.driftTimer = s.driftTimer;
+    d.edge = s.edge;
+    d.refAngle = s.refAngle;
+    d.wallTicks = s.wallTicks;
+    d.prevGas = s.prevGas;
+    d.prevBrake = s.prevBrake;
     d.bumpTicks = s.bumpTicks;
     d.draft = s.draft;
     d.boostTicks = s.boostTicks;
-    // Model B (R80-R88): the ring buffer is copied element by element (no allocation).
-    d.yaw = s.yaw;
-    d.yawRate = s.yawRate;
-    d.vel = s.vel;
-    d.carry = s.carry;
-    const sh = s.steerHist;
-    const dh = d.steerHist;
-    for (let j = 0; j < sh.length; j++) dh[j] = sh[j]!;
-    d.steerHistHead = s.steerHistHead;
-    d.steerHistCount = s.steerHistCount;
-    d.deflectTicks = s.deflectTicks; // R81b C
-    d.autoTicks = s.autoTicks; // R81e
-    d.turbo = s.turbo; // R86c
-    d.turboTicks = s.turboTicks;
-    d.driftTicks = s.driftTicks;
-    d.scrubDebt = s.scrubDebt;
-    d.relSide = s.relSide; // R85f
-    d.relV = s.relV;
     // R48 crash.
     d.crashTicks = s.crashTicks;
     d.crashSpeed0 = s.crashSpeed0;
@@ -98,16 +82,6 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.nemesis = s.nemesis;
     d.band = s.band;
     d.joinTicks = s.joinTicks;
-    // Model C (R152).
-    d.beta = s.beta;
-    d.betaI = s.betaI;
-    d.refA = s.refA;
-    d.winTicks = s.winTicks;
-    d.winDir = s.winDir;
-    d.wBeta = s.wBeta;
-    d.liftArmed = s.liftArmed;
-    d.endTicks = s.endTicks;
-    d.exitTicks = s.exitTicks;
   }
 }
 
@@ -120,7 +94,7 @@ export function createLoop(initial: RaceState, opts: LoopOptions): Loop {
   const curr = JSON.parse(JSON.stringify(initial)) as RaceState;
   const inputs: InputFrame[] = [];
   for (let i = 0; i < initial.cars.length; i++)
-    inputs.push({ steer: 0, brake: false, drift: false });
+    inputs.push({ steer: 0, gas: 1, brake: 0, driftTap: false });
   const { track, params, readInput, traffic, rivals } = opts;
   const maxSteps = opts.maxStepsPerFrame ?? MAX_STEPS_PER_FRAME;
   let acc = 0;

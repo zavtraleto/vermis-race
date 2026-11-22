@@ -16,7 +16,6 @@ import { BP, IDLE, TRACK, dz, setup } from './traffic_helpers';
  */
 const DP: CarParams = {
   ...BP, // accel 0 (constant speed), explicit bump params
-  driftAutoExit: 0,
   draftLength: 40,
   draftWidth: 0.2, // half-width 0.1
   draftChargeTime: 1.0,
@@ -165,15 +164,13 @@ describe('R51 charge', () => {
   ])('R51 frozen in DRIFT, %s: draft 0.5 stays 0.5 for 10 ticks', (_n, tz) => {
     const s = setup({ z: 100, x: 0, speed: 0.8 }, [{ z: tz, x: 0, speed: PS }]);
     const c = player(s);
-    c.state = 'DRIFT';
-    c.dir = 1;
-    c.angle = 0.5;
+    // [ADR 0005] in a drift = driftTimer > 0 (R208); 100 ticks outlive the 10 ticks below.
+    c.driftTimer = 100;
     c.steer = 0.5;
-    c.driftHeld = true;
     c.draft = 0.5;
     const wide: CarParams = { ...DP, draftWidth: 1 }; // keep the lead inside the cone as x moves
-    run(s, 10, wide, { steer: 0.5, brake: false, drift: true });
-    expect(c.state).toBe('DRIFT');
+    run(s, 10, wide, { steer: 0.5, gas: 1, brake: 0, driftTap: false });
+    expect(c.driftTimer).toBeGreaterThan(0);
     expect(c.draft).toBe(0.5);
   });
   it('R51 a bump (R40) zeroes draft and boostTicks on that step', () => {
@@ -257,23 +254,6 @@ describe('R52 H5 A (draftBoost 0): cap and acceleration only while draft = 1 and
     run(s, 5, DA);
     expect(player(s).boostTicks).toBe(0);
   });
-  it('R52 in DRIFT the R22 cap applies, not the draft cap (angle 0.5: cap 1 - 0.15 * 0.5 = 0.925)', () => {
-    const s = setup({ z: 100, x: 0, speed: 1 }, [{ z: 138, x: 0, speed: 0.5 }]);
-    const c = player(s);
-    c.state = 'DRIFT';
-    c.dir = 1;
-    c.angle = 0.5;
-    c.steer = 0.5;
-    c.driftHeld = true;
-    c.draft = 1;
-    const p: CarParams = { ...DA, draftWidth: 1, driftSpeedLoss: 0.15, driftBrake: 0.3 };
-    for (let i = 0; i < 60; i++) {
-      one(s, p, { steer: 0.5, brake: false, drift: true });
-      expect(c.speed).toBeLessThanOrEqual(1 + 1e-9);
-    }
-    expect(c.state).toBe('DRIFT');
-    expect(c.speed).toBeCloseTo(0.925, 6);
-  });
 });
 
 describe('R52 H5 B (draftBoost 1): the boost outlives the cone', () => {
@@ -333,23 +313,6 @@ describe('R52 H5 B (draftBoost 1): the boost outlives the cone', () => {
     expect(player(s).draft).toBe(0);
     expect(player(s).boostTicks).toBeLessThan(BOOST);
   });
-  it('R52 B in DRIFT the R22 cap applies, not the boost cap (boostTicks 100, angle 0.5 -> 0.925)', () => {
-    const s = createRace(1, 1);
-    const c = player(s);
-    c.state = 'DRIFT';
-    c.dir = 1;
-    c.angle = 0.5;
-    c.steer = 0.5;
-    c.driftHeld = true;
-    c.speed = 1;
-    c.boostTicks = 100;
-    const p: CarParams = { ...DAB, driftSpeedLoss: 0.15, driftBrake: 0.3 };
-    for (let i = 0; i < 60; i++) {
-      one(s, p, { steer: 0.5, brake: false, drift: true });
-      expect(c.speed).toBeLessThanOrEqual(1 + 1e-9);
-    }
-    expect(c.speed).toBeCloseTo(0.925, 6);
-  });
 });
 
 describe('R2/R3 determinism and serialization of draft state', () => {
@@ -376,7 +339,7 @@ describe('R2/R3 determinism and serialization of draft state', () => {
   it('R51 draft stays in [0, 1] over a long mixed run', () => {
     const s = scenario();
     for (let i = 0; i < 600; i++) {
-      one(s, DAB, { steer: 0, brake: i % 200 > 150, drift: false });
+      one(s, DAB, { steer: 0, gas: i % 200 > 150 ? 0 : 1, brake: i % 200 > 150 ? 1 : 0, driftTap: false });
       expect(player(s).draft).toBeGreaterThanOrEqual(0);
       expect(player(s).draft).toBeLessThanOrEqual(1);
     }

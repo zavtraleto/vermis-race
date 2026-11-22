@@ -3,8 +3,8 @@ import { createRace, step } from '../../src/sim/race';
 import { makeStraightTrack } from '../../src/sim/track';
 import type { CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 
-export const GAS: InputFrame = { steer: 0, brake: false, drift: false };
-export const BRAKE: InputFrame = { steer: 0, brake: true, drift: false };
+export const GAS: InputFrame = { steer: 0, gas: 1, brake: 0, driftTap: false };
+export const BRAKE: InputFrame = { steer: 0, gas: 0, brake: 1, driftTap: false };
 
 /** Steps the race n times on a straight track; inputsAt gets the current tick. */
 export function run(

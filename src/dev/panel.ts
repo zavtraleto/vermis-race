@@ -131,7 +131,7 @@ export class DevPanel {
     const parsed = parseView(saved, this.viewport());
     this.layout = parsed.layout;
     this.view = {
-      model: this.model(),
+      model: 'A', // ADR 0005: one driving model, the meta model filter has nothing to hide
       query: '',
       onlyChanged: parsed.state.onlyChanged,
       showMore: parsed.state.showMore,
@@ -353,11 +353,6 @@ export class DevPanel {
     this.setMode(this.mode === 'open' ? 'hidden' : 'open');
   }
 
-  private model(): 'A' | 'B' | 'C' {
-    const m = this.t.get('car.model');
-    return m === 2 ? 'C' : m === 1 ? 'B' : 'A';
-  }
-
   private viewport(): Viewport {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -378,8 +373,7 @@ export class DevPanel {
     if (this.pinned !== null && (path === null || path === this.pinned.path))
       this.pinned.row.update();
     this.updateCounter();
-    if (path === null || path === 'car.model') {
-      this.view.model = this.model();
+    if (path === null) {
       this.refilter();
     } else {
       // Membership may change (a changed value is always shown); re-filter after the drag ends.

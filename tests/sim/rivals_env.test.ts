@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { step } from '../../src/sim/race';
 import type { CarParams, InputFrame } from '../../src/sim/types';
 import { baseCarA } from './baseCarA';
-import { PB } from './modelb_helpers';
 import {
   BP,
   BUMP_TICKS,
@@ -15,30 +14,27 @@ import {
   stepAll,
 } from './rivals_helpers';
 
-const WILD: InputFrame = { steer: 1, brake: true, drift: true };
+const WILD: InputFrame = { steer: 1, gas: 0, brake: 1, driftTap: true };
 
 describe('R64 a rival is driven by the same step as the player', () => {
-  for (const [label, p] of [
-    ['model A', baseCarA],
-    ['model B', PB],
-  ] as const) {
-    it(`${label}: same state and same input give the same motion (x, vx, speed, z, angle, yaw, state)`, () => {
+  // [ADR 0005] one driving model; the R200 fields replace vx / angle / yaw / state.
+  for (const [label, p] of [['R200 model', baseCarA]] as const) {
+    it(`${label}: same state and same input give the same motion (x, travel, speed, z, heading, driftTimer)`, () => {
       const s = mkRace(1, 0, [
         { z: 0, x: 0.2, speed: 0.6 },
         { z: 400, x: 0.2, speed: 0.6 }, // far apart: no contact, no band (no rival config)
       ]);
       for (let t = 0; t < 400; t++) {
-        const f: InputFrame = { steer: Math.sin(t / 15), brake: false, drift: t % 120 > 40 };
+        const f: InputFrame = { steer: Math.sin(t / 15), gas: 1, brake: 0, driftTap: false };
         step(s, [f, f], TRACK, [p, p]);
         const a = s.cars[0]!;
         const b = s.cars[1]!;
         expect(b.x, `tick ${t}`).toBe(a.x);
-        expect(b.vx).toBe(a.vx);
+        expect(b.travel).toBe(a.travel);
         expect(b.speed).toBe(a.speed);
         expect(b.z - 400).toBeCloseTo(a.z, 9);
-        expect(b.angle).toBe(a.angle);
-        expect(b.yaw).toBe(a.yaw);
-        expect(b.state).toBe(a.state);
+        expect(b.heading).toBe(a.heading);
+        expect(b.driftTimer).toBe(a.driftTimer);
       }
     });
   }
@@ -87,11 +83,10 @@ describe('R64 rival and traffic: R40-R43 numbers', () => {
     const r = s.cars[1]!;
     expect(r.speed).toBeCloseTo(0.7, 12);
     expect(r.bumpTicks).toBe(BUMP_TICKS);
-    expect(r.vx).toBeCloseTo(-0.6, 12); // R42: side = sign(x - xT) = sign(-0.3) = -1
     expect(s.cars[2]!.speed).toBeCloseTo(0.9, 12); // R41 push
     expect(s.cars[2]!.bumpTicks).toBe(0);
   });
-  it('side contact: speed 0.8 - 0.05 = 0.75, kick toward the side away from the traffic car', () => {
+  it('side contact: speed 0.8 - 0.05 = 0.75', () => {
     const s = mkRace(1, 1, [
       FAR_PLAYER,
       after1({ z: 10, x: 0.1, speed: 0.8 }),
@@ -100,7 +95,6 @@ describe('R64 rival and traffic: R40-R43 numbers', () => {
     stepAll(s, BP, RC);
     const r = s.cars[1]!;
     expect(r.speed).toBeCloseTo(0.75, 12);
-    expect(r.vx).toBeCloseTo(0.6, 12);
     expect(r.bumpTicks).toBe(BUMP_TICKS);
   });
   it('R43: no second contact while bumpTicks > 0 (the counter just counts down)', () => {

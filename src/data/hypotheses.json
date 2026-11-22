@@ -1,20 +1,9 @@
 {
-  "H1_driftBoost": "A",
-  "H2_touchSteering": "A",
-  "H3_driftEntry": "E",
-  "H4_fingerVertical": "A",
   "H5_slipstream": "B",
   "H6_trackFormat": "P2P",
   "H7_rubberBand": "off",
   "H8_worldRotation": "off",
   "H9_nearPerspective": "off",
   "H10_offroad": "B",
-  "H14_model": "C",
-  "H15_rubberBand": "A",
-  "H16_driftEntry": "D",
-  "H17_gripScrub": "B",
-  "H18_driftTurbo": "A",
-  "H19_touchDrift": "A",
-  "H20_releaseHold": "B",
-  "H21_driftRail": "B"
+  "H15_rubberBand": "A"
 }

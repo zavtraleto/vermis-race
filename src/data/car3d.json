@@ -5,7 +5,6 @@
   "width": 1.9,
   "rearAxleZ": 1.35,
   "yawPivotZ": 0.8,
-  "driftRollDeg": 4,
   "shade": { "top": 1, "front": 0.9, "side": 0.76, "rear": 0.62, "bottom": 0.35 },
   "boxes": [
     { "color": "player", "x": 0, "wb": 0.9, "wt": 0.84, "y0": 0.34, "zf": -2.15, "zr": 0.7, "tzf": -2.1, "tzr": 0.7, "yf": 0.56, "yr": 0.86 },

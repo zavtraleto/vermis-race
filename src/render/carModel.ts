@@ -68,7 +68,6 @@ export interface Car3dConfig {
   width: number; // car width in model units, fitted to sprites.player.width of the screen
   rearAxleZ: number; // rear axle, model units behind the car centre; anchored at sprites.player.baseY
   yawPivotZ: number; // vertical yaw axis, model units behind the car centre
-  driftRollDeg: number; // roll outward of the drift at yawMaxDeg
   shade: { top: number; front: number; side: number; rear: number; bottom: number };
   boxes: CarBox[];
   wheels: {

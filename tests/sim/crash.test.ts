@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { createRace, step } from '../../src/sim/race';
-import type { Car, CarParams, InputFrame, RaceState } from '../../src/sim/types';
+import { makeStraightTrack } from '../../src/sim/track';
+import type { Car, CarParams, InputFrame, RaceState, Track } from '../../src/sim/types';
 import { baseCarA } from './baseCarA';
-import { PB, STRAIGHT, car, inp, mk, stepB } from './modelb_helpers';
+
+// [ADR 0005] the model B helpers are gone with model B; the same small helpers, local.
+const STRAIGHT: Track = makeStraightTrack(4000);
+const car = (s: RaceState): Car => s.cars[0]!;
+function mk(over: Partial<Car> = {}): RaceState {
+  const s = createRace(1, 1);
+  Object.assign(s.cars[0]!, over);
+  return s;
+}
+function stepB(s: RaceState, input: InputFrame, p: CarParams): void {
+  step(s, [input], STRAIGHT, [p]);
+}
+/** R201 frame: `drift` = a drift tap, `brake` = brake 1 and gas 0. */
+function inp(steer: number, brake = false, drift = false): InputFrame {
+  return { steer, gas: brake ? 0 : 1, brake: brake ? 1 : 0, driftTap: drift };
+}
 
 // Geometry: z advances by speed * DT * SEG_PER_UNIT = speed * 0.5 per tick. Speed 0.5 gives dz = 0.25
 // (exact in binary), so z 15.75 -> 16.0 stands exactly on the boundary 16 and 15.7 -> 15.95 does not
@@ -26,9 +42,9 @@ const LAMP = {
 const CRASH_TICKS = 192;
 const BUMP_TICKS = 96;
 
+// [ADR 0005] one driving model (the model A / B variants of these tests are gone).
 const MODELS: ReadonlyArray<readonly [string, CarParams]> = [
-  ['model B', { ...PB, ...LAMP, accel: 0, slipDrag: 0 }],
-  ['model A', { ...baseCarA, ...LAMP, accel: 0 }],
+  ['R200 model', { ...baseCarA, ...LAMP, accel: 0 }],
 ];
 
 const IDLE: InputFrame = inp(0);
@@ -166,46 +182,38 @@ for (const [label, P] of MODELS) {
       expect(c.crashX0).toBeCloseTo(1.37, 9);
     });
 
-    it('GRIP, dir, vel, yaw, yawRate, carry, angle, vx, draft, boost, steer buffer are zeroed', () => {
+    it('the driving state (R200 fields), draft and boost are zeroed', () => {
       const s = mk({
         z: 15.75,
         x: 1.4,
         speed: 0.5,
-        state: 'DRIFT',
-        dir: 1,
-        angle: 0.5,
         steer: 0.5,
-        driftHeld: true,
-        vel: 0.3,
-        yaw: 0.4,
-        yawRate: 0.2,
-        carry: 0.1,
-        vx: 0.05,
+        heading: 0.3,
+        slipRate: 0.2,
+        counter: 0.4,
+        driftTimer: 50,
+        edge: 0.3,
+        refAngle: 0.1,
         draft: 0.7,
         boostTicks: 50,
-        steerHist: new Array<number>(16).fill(0.5),
-        steerHistHead: 3,
-        steerHistCount: 10,
       });
-      stepB(s, inp(0.5, true), P);
+      // full gas on the hit tick (R204: a brake would slow the car short of the boundary)
+      stepB(s, inp(0.5, false, true), P);
       const c = car(s);
       expect(c.crashTicks).toBe(CRASH_TICKS);
-      expect(c.state).toBe('GRIP');
-      expect(c.dir).toBe(0);
-      expect(c.vel).toBe(0);
-      expect(c.yaw).toBe(0);
-      expect(c.yawRate).toBe(0);
-      expect(c.carry).toBe(0);
-      expect(c.angle).toBe(0);
-      expect(c.vx).toBe(0);
+      expect(c.travel).toBe(0);
+      expect(c.heading).toBe(0);
+      expect(c.slipRate).toBe(0);
+      expect(c.counter).toBe(0);
+      expect(c.driftTimer).toBe(0);
+      expect(c.edge).toBe(0);
+      expect(c.refAngle).toBe(0);
       expect(c.draft).toBe(0);
       expect(c.boostTicks).toBe(0);
-      expect(c.steerHistCount).toBe(0);
-      // one more crash tick: steer 0 and the drift is not held
+      // one more crash tick: steer 0, no drift
       stepB(s, inp(0.5, true), P);
       expect(c.steer).toBe(0);
-      expect(c.driftHeld).toBe(false);
-      expect(c.state).toBe('GRIP');
+      expect(c.driftTimer).toBe(0);
     });
   });
 
@@ -281,12 +289,13 @@ for (const [label, P] of MODELS) {
         step(s, [IDLE, IDLE], STRAIGHT, [P, P]);
         const f = pl.crashTicks / CRASH_TICKS;
         expect(pl.bumpTicks).toBe(0);
-        expect(pl.vx).toBe(0);
+        expect(pl.travel).toBe(0);
         expect(pl.speed).toBeCloseTo(pl.crashSpeed0 * f, 9);
       }
     });
 
-    it('after the crash: bumpTicks counts down, normal driving accelerates and steering works', () => {
+    // [ADR 0005] steering moves the car again only with the new model (R206-R210); not checked here.
+    it('after the crash: bumpTicks counts down, normal driving accelerates', () => {
       const run = (steer: number): Car => {
         const s = startCrash(P);
         for (let i = 0; i < CRASH_TICKS; i++) stepB(s, IDLE, P);
@@ -301,12 +310,9 @@ for (const [label, P] of MODELS) {
         return car(s);
       };
       const straight = run(0);
-      const right = run(1);
       expect(straight.speed).toBeGreaterThan(0.05);
       expect(straight.crashTicks).toBe(0);
       expect(straight.bumpTicks).toBe(0); // 96 - 100 -> floored at 0
-      expect(Math.abs(right.x - straight.x)).toBeGreaterThan(0.01);
-      expect(right.x).toBeGreaterThan(straight.x);
     });
 
     it('bumpTicks after the last crash tick counts 96, 95, ...', () => {

@@ -117,8 +117,9 @@ describe('R30 hills are visual only: sim state unchanged', () => {
     const th = buildTrack(hilly);
     const input = (tick: number): InputFrame => ({
       steer: tick < 300 ? 0.8 : -0.6,
-      brake: tick > 500,
-      drift: tick > 150,
+      gas: tick > 500 ? 0 : 1,
+      brake: tick > 500 ? 1 : 0,
+      driftTap: tick === 150,
     });
     for (let i = 0; i < 600; i++) {
       step(a, [input(a.tick)], tf, [baseCar]);
