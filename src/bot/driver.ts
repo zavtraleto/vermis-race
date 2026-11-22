@@ -3,8 +3,9 @@
 // allocation-free per tick (same boundary as src/sim).
 // R212 minimal (slice 1): the bot steers at full gas toward its line, aiming at where the car will be
 // in aimTime s (its travel angle and the road curving away, R210) plus the steer that holds the
-// curve ahead in grip (R203/R207); it never drifts yet (drift entry, counter-steer come later).
-import { DT, SEG_PER_UNIT } from '../sim/constants';
+// curve ahead in grip (R203/R207), and brakes before a corner its speed cannot hold in grip (R206
+// front limit vs the curvature ahead); it never drifts yet (drift entry, counter-steer come later).
+import { DT, G, SEG_PER_UNIT } from '../sim/constants';
 import type { Car, CarParams, InputFrame, Track } from '../sim/types';
 
 /** Where the bot puts the car laterally: road centre, or the inside of the corner ahead. */
@@ -19,6 +20,7 @@ export interface BotParams {
   insideFullCurve: number; // |mean curve ahead| at which the full insideX is used
   steerGain: number; // steer per half-width of error to the target line
   aimTime: number; // s ahead at which the lateral position is predicted (R212)
+  cornerShare: number; // R212 brake when a corner ahead needs more than this share of the R206 limit; 0 = never
   noiseAmp: number; // std of the low-passed steering noise, steer units; 0 = off
   noiseTau: number; // s, low-pass time constant of the noise
   reactionDelay: number; // s between deciding a steer value and applying it, <= MAX_DELAY_TICKS*DT
@@ -164,6 +166,31 @@ function humanize(bot: BotState, bp: BotParams, decided: number): number {
   return q[wrap(bot.head - delay, qn)]!;
 }
 
+/**
+ * R212: true when a segment within braking distance needs a path curvature above cornerShare of
+ * what the car holds in grip there at the current speed: the R206 front limit
+ * tan(atan(gripFront*g*wheelBase/v^2))/wheelBase = gripFront*g/v^2 and the full lock
+ * tan(wheelMax)/wheelBase. Braking distance from v to the speed that segment allows, at brakeDecel.
+ */
+function mustBrake(bp: BotParams, car: Car, track: Track, p: CarParams, seg0: number): boolean {
+  const segs = track.segments;
+  const n = segs.length;
+  const segM = p.vmaxKmh / 3.6 / SEG_PER_UNIT;
+  const v = (car.speed * p.vmaxKmh) / 3.6;
+  const decel = (p.brakeDecel * p.vmaxKmh) / 3.6; // m/s^2
+  const lock = (bp.cornerShare * Math.tan((p.wheelMax * Math.PI) / 180)) / p.wheelBase;
+  const reach = Math.ceil((v * v) / (2 * decel) / segM) + 1;
+  for (let i = 0; i <= reach; i++) {
+    const c = segs[wrap(seg0 + i, n)]!.curve;
+    const k = ((c < 0 ? -c : c) * p.roadTurn) / segM; // road curvature, 1/m
+    if (k <= 0) continue;
+    if (k > lock) return true; // no speed holds it in grip: slow down as much as possible
+    const va2 = (bp.cornerShare * p.gripFront * G) / k; // allowed v^2 there
+    if (v * v > va2 && (v * v - va2) / (2 * decel) >= i * segM) return true;
+  }
+  return false;
+}
+
 /** Writes the bot's InputFrame for this tick into `out` (R201): steer to the line, full gas. */
 export function botInput(
   bot: BotState,
@@ -202,7 +229,8 @@ export function botInput(
   // R206/R207 in grip: yaw = v*tan(wheel)/wheelBase, so holding omega needs this steer.
   const hold = v > 0 ? Math.atan((omega * p.wheelBase) / v) / ((p.wheelMax * Math.PI) / 180) : 0;
   out.steer = humanize(bot, bp, hold + bp.steerGain * (xTarget - xAhead));
-  out.gas = 1;
-  out.brake = 0;
+  const brake = bp.cornerShare > 0 && mustBrake(bp, car, track, p, seg0);
+  out.gas = brake ? 0 : 1;
+  out.brake = brake ? 1 : 0;
   out.driftTap = false;
 }

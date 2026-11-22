@@ -29,6 +29,7 @@ export function parseBot(name: string, v: unknown): BotParams {
     insideFullCurve: num(r, 'insideFullCurve', name),
     steerGain: num(r, 'steerGain', name),
     aimTime: num(r, 'aimTime', name),
+    cornerShare: num(r, 'cornerShare', name),
     noiseAmp: num(r, 'noiseAmp', name),
     noiseTau: num(r, 'noiseTau', name),
     reactionDelay: num(r, 'reactionDelay', name),
