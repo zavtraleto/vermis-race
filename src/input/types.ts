@@ -8,6 +8,10 @@ export interface PadConfig {
   padHalfH: number;
   /** R202 bottom share of the rectangle half-height where the gas falls (below it: brake). */
   liftZone: number;
+  /** R202 drift entry: seconds from the lift to the re-touch, and from the re-touch to the steer. */
+  retouchWindow: number;
+  /** R202 drift entry: |steer| needed within retouchWindow after the re-touch. */
+  retouchSteer: number;
 }
 
 export interface InputConfig {

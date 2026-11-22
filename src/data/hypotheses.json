@@ -5,5 +5,9 @@
   "H8_worldRotation": "off",
   "H9_nearPerspective": "off",
   "H10_offroad": "B",
-  "H15_rubberBand": "A"
+  "H15_rubberBand": "A",
+  "H23_assist": "A",
+  "H24_edge": "A",
+  "H25_ref": "A",
+  "H26_brakeTap": "A"
 }

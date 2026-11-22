@@ -3,6 +3,8 @@
     "steerSpan": 0.7,
     "steerDead": 0.08,
     "padHalfH": 0.4,
-    "liftZone": 0.3333
+    "liftZone": 0.3333,
+    "retouchWindow": 0.3,
+    "retouchSteer": 0.5
   }
 }

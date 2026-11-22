@@ -84,6 +84,10 @@
     "hypotheses.H9_nearPerspective": ["off", "on"],
     "hypotheses.H10_offroad": ["A", "B"],
     "hypotheses.H15_rubberBand": ["A", "B"],
+    "hypotheses.H23_assist": ["A", "B"],
+    "hypotheses.H24_edge": ["A", "B"],
+    "hypotheses.H25_ref": ["A", "B"],
+    "hypotheses.H26_brakeTap": ["A", "B"],
     "sprites.drift.smoke": ["on", "off"],
     "sprites.tailLights.enabled": ["on", "off"]
   },
@@ -626,6 +630,34 @@
       "tier": "more",
       "group": "Соперники",
       "rule": "H15"
+    },
+    "hypotheses.H23_assist": {
+      "title": "Помощь контррулю",
+      "hint": "A — в заносе колёса доводятся по движению (R205), B — контрруль только пальцем",
+      "tier": "more",
+      "group": "Переключатели",
+      "rule": "H23"
+    },
+    "hypotheses.H24_edge": {
+      "title": "Отбойник в дрифте",
+      "hint": "A — у внешнего края дрифт мягко заворачивает внутрь (R209), B — нет",
+      "tier": "more",
+      "group": "Переключатели",
+      "rule": "H24"
+    },
+    "hypotheses.H25_ref": {
+      "title": "Опорный угол",
+      "hint": "A — сцепление зада растёт за углом, естественным для поворота впереди (R209), B — нет",
+      "tier": "more",
+      "group": "Переключатели",
+      "rule": "H25"
+    },
+    "hypotheses.H26_brakeTap": {
+      "title": "Дрифт тапом тормоза",
+      "hint": "A — тап тормоза открывает окно дрифта (R208), B — только отрыв и касание",
+      "tier": "more",
+      "group": "Переключатели",
+      "rule": "H26"
     },
     "car.engineBrake": {
       "title": "Торможение двигателем",

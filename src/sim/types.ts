@@ -68,6 +68,28 @@ export interface CarParams {
   driftTraction: number; // R204 traction when |slip| >= slipGrip
   railGrip: number; // R209 outside drift c = railGrip*sin^2(slip), share per OR2 tick
   roadTurn: number; // R210 rad per segment at curve 1
+  driftWindow: number; // R208 seconds the window stays open after an opening
+  driftHold: number; // R208 seconds the latch keeps the drift after |slip| <= slipLatch
+  gripDrift: number; // R208 rear grip share in drift before the drops
+  dropFull: number; // R208 grip drop at full gas
+  dropLift: number; // R208 grip drop with the gas lifted (scaled by cs)
+  brakeTapOn: number; // R208 brake level of a brake tap
+  gasTapMax: number; // R208 gas below this counts as lifted for a brake tap
+  assistSpeed: number; // R205 km/h above which the countersteer assist works
+  assistLead: number; // R205 seconds the wheels lead the slip rate
+  assistFull: number; // R205 |steer| at which the assist puts the wheels fully on wheelGo
+  assistMax: number; // R205 |wheelGo| limit, degrees
+  railDrift: number; // R209 in drift c = railDrift*|sin(slip)|, share per OR2 tick
+  edgePull: number; // R209 edge pull strength (H24)
+  edgeFall: number; // R209 edge falls no faster than this per OR2 tick
+  refRateMax: number; // R209 refAngle moves at most this many degrees per OR2 tick
+  refGain: number; // R209 refAngle target per radian of road turn ahead (H25)
+  refLook: number; // R209 segments ahead summed for the reference angle
+  refGrip: number; // R208 rear grip added beyond refAngle (H25)
+  hypAssist: number; // H23 R205: 1 = A (on), 0 = B (off)
+  hypEdge: number; // H24 R209 edge: 1 = A, 0 = B
+  hypRef: number; // H25 R209 reference angle: 1 = A, 0 = B
+  hypBrakeTap: number; // H26 R208 brake tap: 1 = A, 0 = B
   wallKillAngle: number; // R211 impact angle above which the wall kills the slip, degrees
   wallTime: number; // R211 seconds the slip is held 0 after such a hit
   accel: number; // R204 vmax per second at gas 1
