@@ -618,15 +618,26 @@ describe('R207 drift with gripRear < 1 (R215 criteria)', () => {
     }
   });
 
-  it('R215(5): full countersteer ends the drift within 1.5 s', () => {
+  it('R215(5): full countersteer until |slip| < slipLatch, then steer 0: drift ends within 1.5 s, no re-latch', () => {
     for (const side of [1, -1]) {
       const s = race1({ speed: P.vmax });
       expect(enterDrift(s, side)).toBeGreaterThanOrEqual(0);
       stepN(s, 30, frame(side), STRAIGHT, P, true);
+      // 1.5 s = 180 ticks from the start of countersteer; target -side while |slip| >= 8.4 deg, then 0
+      let centred = false;
       let end = -1;
-      stepN(s, 180, frame(-side), STRAIGHT, P, true, (c, i) => {
+      for (let i = 0; i < 180; i++) {
+        if (!centred && Math.abs(slipOf(car0(s))) < rad(8.4)) centred = true;
+        stepN(s, 1, frame(centred ? 0 : -side), STRAIGHT, P, true);
+        const c = car0(s);
+        // no latch to the other side: never |slip| > 8.4 deg on -side while the timer is alive
+        expect(-side * slipOf(c) > rad(8.4) && c.driftTimer > 0, `side ${side} tick ${i}`).toBe(
+          false,
+        );
         if (end < 0 && c.driftTimer === 0) end = i;
-      });
+        if (end >= 0) expect(c.driftTimer, `side ${side} tick ${i} after end`).toBe(0);
+      }
+      expect(centred, `side ${side}`).toBe(true);
       expect(end, `side ${side}`).toBeGreaterThanOrEqual(0);
     }
   });
