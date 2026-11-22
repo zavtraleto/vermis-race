@@ -674,6 +674,37 @@ describe('R207 drift with gripRear < 1 (R215 criteria)', () => {
     expect(right).toBeGreaterThanOrEqual(0);
   });
 
+  it('R215(11): from any drift (0.6..1 vmax, |slip| up to slipMax) countersteer then centre ends it within 2 s', () => {
+    for (const speed of [0.6, 0.8, 1.0]) {
+      for (const deg of [20, 45, 73]) {
+        for (const side of [1, -1]) {
+          // consistent start: travel 0, heading = slip, latched drift (driftTimer = driftHold), finger at 0
+          const s = race1({ speed, heading: side * rad(deg), driftTimer: HOLD });
+          let centred = false;
+          let end = -1;
+          for (let i = 0; i < 240 && end < 0; i++) {
+            if (!centred && Math.abs(slipOf(car0(s))) < rad(8.4)) centred = true;
+            stepN(s, 1, frame(centred ? 0 : -side), STRAIGHT, P, true);
+            if (car0(s).driftTimer === 0) end = i;
+          }
+          expect(end, `speed ${speed} slip ${deg} side ${side}`).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
+  });
+
+  it('R215(12): after a latch at vmax, finger released for 3 s -> |slip| stays within 8.4..45 deg', () => {
+    for (const side of [1, -1]) {
+      const s = race1({ speed: P.vmax });
+      expect(enterDrift(s, side)).toBeGreaterThanOrEqual(0);
+      stepN(s, 360, frame(0), STRAIGHT, P, true, (c, i) => {
+        const a = Math.abs(slipOf(c));
+        expect(a, `side ${side} tick ${i}`).toBeGreaterThanOrEqual(rad(8.4));
+        expect(a, `side ${side} tick ${i}`).toBeLessThanOrEqual(rad(45));
+      });
+    }
+  });
+
   it('R215(2) stays: without driftTap full steer at vmax never drifts (gripRear = 1)', () => {
     const s = race1({ speed: P.vmax });
     stepN(s, 360, frame(1), STRAIGHT, P, true, (c) => {
