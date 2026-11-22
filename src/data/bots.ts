@@ -31,6 +31,7 @@ export function parseBot(name: string, v: unknown): BotParams {
     aimTime: num(r, 'aimTime', name),
     cornerShare: num(r, 'cornerShare', name),
     driftLook: num(r, 'driftLook', name),
+    brakeShare: num(r, 'brakeShare', name),
     driftSlip: num(r, 'driftSlip', name),
     slipGain: num(r, 'slipGain', name),
     slipLead: num(r, 'slipLead', name),

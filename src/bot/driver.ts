@@ -5,8 +5,8 @@
 // travel angle; the road turn is covered by the hold steer) plus the steer that holds the curve ahead
 // in grip (R203/R207). Before a corner its speed cannot hold in grip (R206 front limit vs the
 // curvature ahead) it taps drift (driftTap, steer into the corner), holds a slip angle with the steer
-// in the drift, and on the exit countersteers the slip back to 0, fading to centre (R215(5)).
-// It never brakes (R212 allows driftTap or brake), so R212(e) "brake means gas 0" always holds.
+// in the drift, and on the exit countersteers until |slip| < slipLatch, then centres (R215(5)).
+// Before a corner too sharp for its drift (brakeShare) it brakes with gas 0 (pad bottom third).
 import { DT, G, SEG_PER_UNIT } from '../sim/constants';
 import type { Car, CarParams, InputFrame, Track } from '../sim/types';
 
@@ -24,6 +24,7 @@ export interface BotParams {
   aimTime: number; // s ahead at which the lateral position is predicted (R212)
   cornerShare: number; // R212 drift when a corner ahead needs more than this share of the R206 limit; 0 = never
   driftLook: number; // s of road ahead scanned for a corner that needs a drift (R212)
+  brakeShare: number; // R212 brake before a corner needing more than this times the R206 limit; 0 = never
   driftSlip: number; // deg, largest slip the bot asks for in a drift (R212)
   slipGain: number; // steer per deg of slip error in a drift (R212)
   slipLead: number; // s ahead at which the slip is predicted from slipRate in a drift (R212)
@@ -46,12 +47,14 @@ export interface BotState {
   /** Ring buffer of decided steer values, so a delayed bot outputs what it decided reactionDelay ago. */
   steerQueue: number[];
   head: number;
+  /** R212 drift entry side (+1 / -1) held from the tap until the latch; 0 = not entering. */
+  entry: number;
 }
 
 export function createBot(seed: number): BotState {
   const steerQueue: number[] = [];
   for (let i = 0; i < MAX_DELAY_TICKS + 1; i++) steerQueue.push(0);
-  return { rng: seed | 0, noise: 0, steerQueue, head: 0 };
+  return { rng: seed | 0, noise: 0, steerQueue, head: 0, entry: 0 };
 }
 
 /** mulberry32, same algorithm as nextRandom in src/sim/rng.ts, on the bot's own state. */
@@ -150,9 +153,9 @@ function avoidX(
 
 /**
  * Adds the bot's steering noise to the decided steer, clamps it, and returns the steer decided
- * reactionDelay ago (the one applied now).
+ * reactionDelay ago (the one applied now), or this one when `now`.
  */
-function humanize(bot: BotState, bp: BotParams, decided: number): number {
+function humanize(bot: BotState, bp: BotParams, decided: number, now: boolean): number {
   let steer = decided;
   if (bp.noiseAmp > 0) {
     // Low-passed uniform noise, scaled so its stationary std equals noiseAmp.
@@ -167,6 +170,7 @@ function humanize(bot: BotState, bp: BotParams, decided: number): number {
   const qn = q.length;
   bot.head = (bot.head + 1) % qn;
   q[bot.head] = steer;
+  if (now) return steer; // R212 drift entry: the steer into the corner comes with the tap
   let delay = Math.round(bp.reactionDelay / DT);
   if (delay > qn - 1) delay = qn - 1;
   return q[wrap(bot.head - delay, qn)]!;
@@ -191,6 +195,44 @@ function driftSide(bp: BotParams, car: Car, track: Track, p: CarParams, seg0: nu
     if (((c < 0 ? -c : c) * p.roadTurn) / segM > kMax) return c > 0 ? 1 : -1;
   }
   return 0;
+}
+
+/**
+ * R212 speed: 2 = brake, 1 = lift the gas, 0 = full gas. Too fast for a segment ahead means it needs
+ * a path curvature above brakeShare times the R206 grip limit gripFront*g/v^2 at this speed (the
+ * sharpest this level trusts its drift with). The bot presses the brake (gas 0, an H26 tap) only
+ * while that corner is more than a drift window away and within braking distance (brake 1, gas 0,
+ * R204) and the wheel is inside the R206 grip steer (`press`: a tap with the wheel turned latches a
+ * drift), holds a started brake until the speed is down, and otherwise only lifts the gas.
+ */
+function speedCall(
+  bp: BotParams,
+  car: Car,
+  track: Track,
+  p: CarParams,
+  seg0: number,
+  press: boolean,
+): number {
+  const segs = track.segments;
+  const n = segs.length;
+  const segM = p.vmaxKmh / 3.6 / SEG_PER_UNIT;
+  const v = (car.speed * p.vmaxKmh) / 3.6;
+  const decel = ((p.brakeDecel + p.engineBrake) * p.vmaxKmh) / 3.6; // m/s^2
+  const early = v * p.driftWindow; // m the window of a brake tap lasts
+  const reach = Math.ceil(((v * v) / (2 * decel) + early) / segM) + 1;
+  let call = 0;
+  for (let i = 0; i <= reach; i++) {
+    const c = segs[wrap(seg0 + i, n)]!.curve;
+    const k = ((c < 0 ? -c : c) * p.roadTurn) / segM; // road curvature, 1/m
+    if (k <= 0) continue;
+    const va2 = (bp.brakeShare * p.gripFront * G) / k; // v^2 this level drifts through there
+    if (v * v <= va2) continue;
+    if (car.prevBrake > 0) return 2;
+    const d = i * segM;
+    if (press && d >= early && (v * v - va2) / (2 * decel) + early >= d) return 2;
+    call = 1;
+  }
+  return call;
 }
 
 /** Writes the bot's InputFrame for this tick into `out` (R201): steer to the line, full gas. */
@@ -232,30 +274,51 @@ export function botInput(
   // R206/R207 in grip: yaw = v*tan(wheel)/wheelBase, so holding omega needs this steer.
   const hold = v > 0 ? Math.atan((omega * p.wheelBase) / v) / ((p.wheelMax * Math.PI) / 180) : 0;
   let steer = hold + bp.steerGain * (xTarget - xAhead);
+  // R212: steer at which the R206 front limit binds. A drift starts only when the corner ahead needs
+  // one and the line asks for more turn into it than that (a car heading inside its line does not).
+  const gripSteer =
+    Math.atan((p.gripFront * G * p.wheelBase) / (v * v)) / (p.wheelMax * (Math.PI / 180));
   const side = bp.cornerShare > 0 ? driftSide(bp, car, track, p, seg0) : 0;
+  const turnIn = side !== 0 && steer * side >= gripSteer;
   const slip = car.heading - car.travel;
   const deg = Math.PI / 180;
   let tap = false;
-  if (car.driftTimer > 0) {
-    // R212 in a drift: travel turns toward the body at slipDecayDrift*slip (R207), so the yaw rate the
-    // line steer asks for becomes a slip angle (at most driftSlip), held by the steer on the slip
-    // predicted slipLead s ahead (neutral steer keeps rotating, countersteer straightens). On the exit
-    // (no corner ahead needs a drift) the wanted slip is 0: countersteer that fades to centre as the
-    // slip goes (R215(5)).
-    let want = 0;
-    if (side !== 0) {
-      const max = bp.driftSlip * deg;
-      want = (v * steer * p.wheelMax * deg) / p.wheelBase / p.slipDecayDrift;
-      if (want > max) want = max;
-      if (want < -max) want = -max;
-    }
-    steer = (bp.slipGain * (want - slip - car.slipRate * bp.slipLead)) / deg;
-  } else if (side !== 0) {
+  let now = false;
+  const aslip = slip < 0 ? -slip : slip;
+  const latch = p.slipLatch * deg;
+  const ahead = slip + car.slipRate * bp.slipLead; // slip predicted slipLead s ahead
+  // R212 entry: from the tap, through the window (driftTimer above driftHold), steer into the corner
+  // until the slip predicted slipLead s ahead reaches the latch (the countersteer needs that long).
+  const holdTicks = Math.round(p.driftHold / DT);
+  if (car.driftTimer <= holdTicks || ahead * bot.entry >= latch) bot.entry = 0;
+  if (bot.entry !== 0) {
+    steer = bot.entry;
+    now = true;
+  } else if (car.driftTimer > 0 && (side !== 0 || (car.driftTimer > holdTicks && aslip < latch))) {
+    // R212 in a drift (or a brake-tap window, H26, not latched yet): travel turns toward the body at
+    // slipDecayDrift*slip (R207), so the yaw rate the line steer asks for becomes a slip angle (at most
+    // driftSlip), held by the steer on the slip predicted slipLead s ahead (neutral steer keeps
+    // rotating, countersteer straightens).
+    const max = bp.driftSlip * deg;
+    let want = (v * steer * p.wheelMax * deg) / p.wheelBase / p.slipDecayDrift;
+    if (want > max) want = max;
+    if (want < -max) want = -max;
+    steer = (bp.slipGain * (want - ahead)) / deg;
+  } else if (car.driftTimer > 0) {
+    // R212 exit (R215(5)): countersteer (damped, on the predicted slip) until |slip| < slipLatch,
+    // then the wheel to centre.
+    steer = aslip < latch ? 0 : (-bp.slipGain * ahead) / deg;
+  } else if (turnIn) {
     tap = true; // R212 entry: driftTap with the steer into the corner
     steer = side;
+    now = true;
+    bot.entry = side;
   }
-  out.steer = humanize(bot, bp, steer);
-  out.gas = 1;
-  out.brake = 0;
+  out.steer = humanize(bot, bp, steer, now);
+  // R212: before a corner too sharp for this level's drift, brake as the pad bottom third: gas 0.
+  const press = (car.steer < 0 ? -car.steer : car.steer) < gripSteer;
+  const call = bp.brakeShare > 0 ? speedCall(bp, car, track, p, seg0, press) : 0;
+  out.gas = call > 0 ? 0 : 1;
+  out.brake = call === 2 ? 1 : 0;
   out.driftTap = tap;
 }
