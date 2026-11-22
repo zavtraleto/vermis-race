@@ -520,7 +520,11 @@ function poseFrame(): void {
   const carDx = (p.x + (c.x - p.x) * a - camX) * roadHalfWidthPxAt(carY, view, roadConfig);
   // R213: body yaw = the sim heading (degrees, > 0 = nose right), no roll or pitch of its own.
   // R49: while crashTicks > 0 the car tumbles (roll and spin) and hops above the road.
-  const yawDeg = ((p.heading + (c.heading - p.heading) * a) * 180) / Math.PI;
+  // R209 keeps travel (and heading with it) in -pi..pi: interpolate across a 2*pi wrap.
+  let dh = c.heading - p.heading;
+  if (dh > Math.PI) dh -= 2 * Math.PI;
+  else if (dh < -Math.PI) dh += 2 * Math.PI;
+  const yawDeg = ((p.heading + dh * a) * 180) / Math.PI;
   carView.update(
     yawDeg + tumble.yawDeg,
     0,

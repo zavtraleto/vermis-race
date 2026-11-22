@@ -273,7 +273,9 @@ function drive(
   const drift = car.driftTimer > 0;
   const sn = Math.sin(s2);
   const c = drift ? p.railDrift * (sn < 0 ? -sn : sn) : p.railGrip * sn * sn;
-  car.travel *= 1 - perTick(c);
+  // R209: only while the velocity points forward along the road (|travel| < 90 deg, OR2 CC:815).
+  const forward = car.travel < Math.PI / 2 && car.travel > -Math.PI / 2;
+  if (forward) car.travel *= 1 - perTick(c);
   // R209 (H24): edge pull in drift toward the side the car is carried to.
   let edgeT = 0;
   if (p.hypEdge === 1 && drift) {
@@ -286,7 +288,7 @@ function drive(
   }
   const fall = p.edgeFall * OR2_HZ * DT;
   car.edge = edgeT >= car.edge ? edgeT : car.edge - fall > edgeT ? car.edge - fall : edgeT;
-  if (car.edge > 0) car.travel *= 1 - perTick(car.edge);
+  if (forward && car.edge > 0) car.travel *= 1 - perTick(car.edge);
   // R209 (H25): reference angle from the road turn over refLook segments ahead.
   let turnAhead = 0;
   for (let i = 0; i < p.refLook; i++) turnAhead += track.segments[(si + i) % n]!.curve;
@@ -330,6 +332,14 @@ function drive(
   const turn = curve * p.roadTurn * dz;
   car.travel -= turn;
   car.heading -= turn;
+  // R209: travel is kept in -pi..pi; heading moves by the same turn, so slip is unchanged.
+  if (car.travel > Math.PI) {
+    car.travel -= 2 * Math.PI;
+    car.heading -= 2 * Math.PI;
+  } else if (car.travel < -Math.PI) {
+    car.travel += 2 * Math.PI;
+    car.heading += 2 * Math.PI;
+  }
 
   // R18/R211: clamp to xLimit; travel and travelRate toward the border are zeroed, then
   // |slip| <= slipMax by pulling heading; an impact steeper than wallKillAngle kills the slip.

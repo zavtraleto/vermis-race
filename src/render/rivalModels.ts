@@ -29,6 +29,11 @@ import type { TailLights } from './tailLights';
 import type { BumpFeedbackConfig, TrafficDrawConfig } from './worldSprites';
 
 /** R67 rival cars on screen (sprites.json "rivals"). */
+/** R209: heading moves by 2*pi when travel wraps; interpolate the shorter way. */
+function wrapPi(d: number): number {
+  return d > Math.PI ? d - 2 * Math.PI : d < -Math.PI ? d + 2 * Math.PI : d;
+}
+
 export interface RivalDrawConfig {
   capacity: number; // most rivals drawn per frame (instance buffer size)
   widthLanes: number; // car width on the road, lanes
@@ -273,7 +278,7 @@ export class RivalModels {
       const t = snap ? 1 : alpha;
       // R213: body yaw = the sim heading (radians -> degrees), interpolated.
       const yawDeg =
-        ((snap ? bc.heading : ac.heading + (bc.heading - ac.heading) * t) * 180) / Math.PI;
+        ((snap ? bc.heading : ac.heading + wrapPi(bc.heading - ac.heading) * t) * 180) / Math.PI;
       // R45 blink: same on/off rule as the player.
       if (bc.bumpTicks > 0 && Math.floor(bc.bumpTicks * DT * blinkHz * 2) % 2 !== 0) continue;
 
