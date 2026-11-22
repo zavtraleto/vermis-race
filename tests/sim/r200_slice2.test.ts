@@ -61,6 +61,22 @@ function heading1(speed: number, slip: number, wheel: number, p: CarParams = P):
   return slip + ((v * Math.cos(rear) * (Math.tan(wheel) - Math.tan(rear))) / p.wheelBase) * DT;
 }
 
+/** R208 "набор дрифта": while driftTimer > 0, R206 uses gripFrontDrift and R207 slipDecayDrift. */
+const dp = (p: CarParams = P): CarParams => ({
+  ...p,
+  gripFront: p.gripFrontDrift,
+  slipDecay: p.slipDecayDrift,
+});
+
+/** R206/R207 one tick from travel 0, slip = heading, counter 0: heading with the aFront clamp. */
+function heading1c(speed: number, slip: number, wheel: number, p: CarParams = P): number {
+  const v = vMs(p, speed);
+  const rear = -slip;
+  const a = Math.atan((p.gripFront * G * p.wheelBase) / (v * v));
+  const front = rear + Math.max(-a, Math.min(a, wheel - rear));
+  return slip + ((v * Math.cos(rear) * (Math.tan(front) - Math.tan(rear))) / p.wheelBase) * DT;
+}
+
 /** R206 aFront with counter 0. */
 const aFront0 = (speed: number, p: CarParams = P): number => {
   const v = vMs(p, speed);
@@ -98,6 +114,8 @@ describe('R208 drift parameters and flags exist', () => {
       'assistLead',
       'brakeTapOn',
       'gasTapMax',
+      'gripFrontDrift',
+      'slipDecayDrift',
       'hypAssist',
       'hypEdge',
       'hypRef',
@@ -117,6 +135,7 @@ describe('R208 drift parameters and flags exist', () => {
     expect(P.gasTapMax).toBe(0.98); // R208
     expect(P.assistSpeed).toBe(20); // R205 km/h
     expect(P.assistLead).toBe(0.133); // R205 seconds (8 OR2 ticks / 60.2)
+    expect(P.dropLift).toBeLessThan(P.dropFull); // R208
   });
 
   it('H23-H26: flags exist in src/data/hypotheses.json with A, and the car data is A (on)', () => {
@@ -252,7 +271,7 @@ describe('R208 gripRear (seen through the R207 first-tick travelRate)', () => {
         const g = gripDriftOf(steer, gas, slip, noRef);
         expect(g).toBeLessThan(1);
         expect(car0(s).travelRate, `steer ${steer} gas ${gas}`).toBeCloseTo(
-          rate1(speed, slip, g),
+          rate1(speed, slip, g, dp(noRef)),
           12,
         );
       }
@@ -270,7 +289,7 @@ describe('R208 gripRear (seen through the R207 first-tick travelRate)', () => {
   });
 
   it('R208: property: less gas with countersteer never raises rear grip (dropLift vs dropFull)', () => {
-    // with dropLift >= dropFull the lift drop is larger; direction follows the data, so compare to formula
+    // R208: dropLift < dropFull -> lifting the gas with countersteer gives grip back (g0 > g1)
     const g1 = gripDriftOf(-1, 1, rad(20));
     const g0 = gripDriftOf(-1, 0, rad(20));
     expect(Math.sign(g1 - g0)).toBe(Math.sign(P.dropLift - P.dropFull));
@@ -280,7 +299,7 @@ describe('R208 gripRear (seen through the R207 first-tick travelRate)', () => {
     const slip = rad(20);
     const s = race1({ speed, heading: slip, driftTimer: 50, refAngle: 0 });
     stepN(s, 1, frame(0, 0.5));
-    expect(car0(s).travelRate).toBeCloseTo(rate1(speed, slip, gripDriftOf(0, 0.5, slip)), 12);
+    expect(car0(s).travelRate).toBeCloseTo(rate1(speed, slip, gripDriftOf(0, 0.5, slip), dp()), 12);
   });
 
   it('R208: outside drift (driftTimer 0) gripRear = 1 at the same slip', () => {
@@ -294,9 +313,61 @@ describe('R208 gripRear (seen through the R207 first-tick travelRate)', () => {
     const slip = rad(3);
     const s = race1({ speed, heading: slip, driftTimer: 50 });
     stepN(s, 1, frame(0, 0.5), STRAIGHT, noRef);
-    expect(car0(s).travelRate).toBeCloseTo(rate1(speed, slip, 1), 12);
-    // and it differs from the drift grip at this slip (T-limited both ways)
-    expect(rate1(speed, slip, 1)).not.toBeCloseTo(rate1(speed, slip, gripDriftOf(0, 0.5, slip)), 6);
+    // drift set: slipDecayDrift (R208 "набор дрифта")
+    expect(car0(s).travelRate).toBeCloseTo(rate1(speed, slip, 1, dp(noRef)), 12);
+  });
+});
+
+describe('R208 drift coefficient set (gripFrontDrift, slipDecayDrift while driftTimer > 0)', () => {
+  // vmax (v = 50 m/s), full steer preset, slip 0.5 deg (< slipGrip -> gripRear 1 either way):
+  // wheel 5 deg vs rear -0.5 deg -> the R206 aFront clamp binds (grip: atan(3.33*9.81*3/2500) = 2.25 deg);
+  // the R207 catch-up is slipDecay-limited (|slip|*slipDecay = 0.00873*120 = 1.05 < T).
+  // R205: wheelGo = -0.5 deg is opposite to the wheel, slipRate 0 -> no change; counter stays 0.
+  const slip = rad(0.5);
+  const wheel = rad(P.wheelMax);
+  const gripH = heading1c(P.vmax, slip, wheel);
+  const driftH = heading1c(P.vmax, slip, wheel, dp());
+  const gripR = rate1(P.vmax, slip, 1);
+  const driftR = rate1(P.vmax, slip, 1, dp());
+
+  it('R208: the two sets differ at this state (precondition of the tests below)', () => {
+    expect(Math.abs(driftH - gripH)).toBeGreaterThan(1e-9);
+    expect(Math.abs(driftR - gripR)).toBeGreaterThan(1e-9);
+  });
+
+  it('R208: driftTimer 0 -> grip set (gripFront, slipDecay)', () => {
+    const s = race1({ speed: P.vmax, steer: 1, heading: slip });
+    stepN(s, 1, frame(1));
+    expect(car0(s).heading).toBeCloseTo(gripH, 12);
+    expect(car0(s).travelRate).toBeCloseTo(gripR, 12);
+  });
+
+  it('R208: opening the window (driftTap) switches both coefficients on that same tick', () => {
+    const s = race1({ speed: P.vmax, steer: 1, heading: slip });
+    stepN(s, 1, frame(1, 1, 0, true));
+    expect(car0(s).driftTimer).toBe(WIN);
+    expect(car0(s).heading).toBeCloseTo(driftH, 12);
+    expect(car0(s).travelRate).toBeCloseTo(driftR, 12);
+  });
+
+  it('R208/H26: a brake tap opening switches them on that tick too', () => {
+    const s = race1({ speed: P.vmax, steer: 1, heading: slip, prevGas: 0, prevBrake: 0 });
+    stepN(s, 1, frame(1, 0, 0.5));
+    expect(car0(s).heading).toBeCloseTo(driftH, 12);
+    expect(car0(s).travelRate).toBeCloseTo(driftR, 12);
+  });
+
+  it('R208: driftTimer 2 -> 1 keeps the drift set; 1 -> 0 switches back to the grip set on that tick', () => {
+    const a = race1({ speed: P.vmax, steer: 1, heading: slip, driftTimer: 2 });
+    stepN(a, 1, frame(1));
+    expect(car0(a).driftTimer).toBe(1);
+    expect(car0(a).heading).toBeCloseTo(driftH, 12);
+    expect(car0(a).travelRate).toBeCloseTo(driftR, 12);
+    const b = race1({ speed: P.vmax, steer: 1, heading: slip, driftTimer: 1 });
+    stepN(b, 1, frame(1));
+    expect(car0(b).driftTimer).toBe(0);
+    expect(car0(b).heading).toBeCloseTo(gripH, 12);
+    expect(car0(b).travelRate).toBeCloseTo(gripR, 12);
   });
 });
 
@@ -341,7 +412,8 @@ describe('R205 countersteer assist (H23)', () => {
     const steer = 0.5; // wheel +2.5 deg, wheelGo < 0: opposite signs -> else branch
     const sr = 0.6;
     const wheel = steer * rad(P.wheelMax) - sr / 60.2; // 2.5 deg - 0.5711 deg = 1.9289 deg
-    expect(Math.abs(wheel + slip)).toBeLessThan(0.9 * aFront0(speed));
+    expect(Math.abs(wheel + slip)).toBeLessThan(0.9 * aFront0(speed, dp())); // gripFrontDrift
+    expect(Math.abs(steer * rad(P.wheelMax) + slip)).toBeLessThan(0.9 * aFront0(speed));
     const s = race1({ speed, steer, heading: slip, slipRate: sr, driftTimer: 50 });
     stepN(s, 1, frame(steer));
     expect(car0(s).heading).toBeCloseTo(heading1(speed, slip, wheel), 12);
@@ -363,6 +435,7 @@ describe('R205 countersteer assist (H23)', () => {
     const a = race1({ speed: 0.5, steer: -0.5, heading: slip });
     stepN(a, 1, frame(-0.5), STRAIGHT, off);
     expect(car0(a).heading).toBeCloseTo(heading1(0.5, slip, -0.5 * rad(P.wheelMax)), 12);
+    expect(0.5 * rad(P.wheelMax) + slip).toBeLessThan(0.9 * aFront0(0.3, dp())); // gripFrontDrift
     const b = race1({ speed: 0.3, steer: 0.5, heading: slip, slipRate: 0.6, driftTimer: 50 });
     stepN(b, 1, frame(0.5), STRAIGHT, off);
     expect(car0(b).heading).toBeCloseTo(heading1(0.3, slip, 0.5 * rad(P.wheelMax)), 12);
@@ -486,11 +559,11 @@ describe('R209 rail, edge pull, reference angle', () => {
     );
     const s = race1({ speed: 0.5, heading: slip, driftTimer: 50, refAngle: ref });
     stepN(s, 1, frame(0));
-    expect(car0(s).travelRate).toBeCloseTo(rate1(0.5, slip, withRef), 12);
+    expect(car0(s).travelRate).toBeCloseTo(rate1(0.5, slip, withRef, dp()), 12);
     // H25 off: no bonus
     const o = race1({ speed: 0.5, heading: slip, driftTimer: 50, refAngle: ref });
     stepN(o, 1, frame(0), STRAIGHT, withP({ hypRef: 0 }));
-    expect(car0(o).travelRate).toBeCloseTo(rate1(0.5, slip, base), 12);
+    expect(car0(o).travelRate).toBeCloseTo(rate1(0.5, slip, base, dp()), 12);
   });
 
   it('R208/R209 H25: no bonus when refAngle is on the other side or beyond |slip|', () => {
@@ -499,7 +572,7 @@ describe('R209 rail, edge pull, reference angle', () => {
     for (const ref of [rad(-5), rad(30)]) {
       const s = race1({ speed: 0.5, heading: slip, driftTimer: 50, refAngle: ref });
       stepN(s, 1, frame(0));
-      expect(car0(s).travelRate, `ref ${ref}`).toBeCloseTo(rate1(0.5, slip, base), 12);
+      expect(car0(s).travelRate, `ref ${ref}`).toBeCloseTo(rate1(0.5, slip, base, dp()), 12);
     }
   });
 
