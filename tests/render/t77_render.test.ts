@@ -44,7 +44,7 @@ const CAM = camera as unknown as Record<string, number>;
 const W = (sprites as unknown as { weight: Record<string, number> }).weight;
 const WCFG = { slipDeg: W.slipDeg!, velDeg: W.velDeg!, leadDeg: W.leadDeg!, minSpeed: W.minSpeed! };
 const CFG = { slipDeg: 17, velDeg: 5, leadDeg: 8, minSpeed: 0.1 };
-const P: CarParams = { ...baseCar, driftTurbo: 0, driftEntry: 3 };
+const P: CarParams = { ...baseCar, model: 1, driftTurbo: 0, driftEntry: 3 }; // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
 const PX = roadHalfWidthPxAt(
   spritesConfig.player.baseY * cameraConfig.screenHeight,
   cameraConfig,

@@ -525,6 +525,7 @@ describe('R81e tick order: R80 -> R81e (start-of-step speed, z, state) -> R82', 
 describe('R81e properties', () => {
   const RP: CarParams = {
     ...baseCar,
+    model: 1, // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
     ...T70_NUMBERS, // T71: variant 4 keeps the numbers it was written with
     ...AUTO,
     driftTurbo: 0,

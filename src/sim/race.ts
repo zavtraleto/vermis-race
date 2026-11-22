@@ -138,6 +138,8 @@ export function step(
     const off = car.x > 1 || car.x < -1;
     car.offTicks = off ? car.offTicks + 1 : 0;
 
+    // H14 = C (R150-R164): not implemented yet (tests first).
+    if (p.model === 2) throw new Error('not implemented: model C (R150-R164)');
     // H14: model B (R80-R87) replaces R10-R15b and R20-R22; R16/R17 below are shared.
     if (p.model === 1) {
       const speedB = stepModelB(car, input, p, cars, segments, seg, off, vcap);

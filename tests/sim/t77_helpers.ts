@@ -10,7 +10,7 @@ import { Lcg } from './corner_helpers';
 
 export const C = curveClasses as Record<string, number>;
 /** The spike's car: the real base car, drift exit turbo off, variant 3 (H16 D). */
-export const P0: CarParams = { ...baseCar, driftTurbo: 0, driftEntry: 3 };
+export const P0: CarParams = { ...baseCar, model: 1, driftTurbo: 0, driftEntry: 3 }; // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
 /** "дорога без края" of the criteria: no walls, no off-road loss, no lamps. */
 export const free = (p: CarParams): CarParams => ({
   ...p,

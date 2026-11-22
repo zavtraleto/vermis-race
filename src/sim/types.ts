@@ -2,6 +2,9 @@ export interface InputFrame {
   steer: number;
   brake: boolean;
   drift: boolean;
+  /** R151 (model C) second axis in [-1, 1]: +1 up ("gas"), -1 down ("lift"), 0 centre / released.
+   * Optional [директор 2026-11-22]: absent = 0; model C reads `throttle ?? 0`, A and B ignore it. */
+  throttle?: number;
 }
 
 export interface Car {
@@ -61,7 +64,40 @@ export interface RaceState {
 }
 
 export interface CarParams {
-  model: number; // H14: 0 = model A (R10-R22d), 1 = model B (R80-R89)
+  model: number; // H14: 0 = model A (R10-R22d), 1 = model B (R80-R89), 2 = model C (R150-R164)
+  // Model C parameters (R153-R159), angles in degrees. Optional until cars/base.json carries them
+  // (the implementer adds the data and may make them required).
+  liftOn?: number; // R154 throttle <= -liftOn is the lift edge
+  liftOff?: number; // R154 throttle > -liftOff re-arms the edge
+  driftWindow?: number; // R154 s, entry window after a lift
+  switchWindow?: number; // R158 s, window after a drift end (other side only)
+  betaEntry?: number; // R154 deg, window angle at full steer
+  winTau?: number; // R154 s, window angle filter
+  betaOn?: number; // R154/R158 deg, drift threshold
+  driftEndDelay?: number; // R158 s below betaOn before the drift ends
+  entryFloor?: number; // R155 deg, floor of the angle target while the window lives
+  betaPerA?: number; // R153 deg of hold angle per unit of A
+  refLook?: number; // R153 s of road ahead averaged
+  refTau?: number; // R153 s, reference smoothing
+  uHold?: number; // R155 finger share that holds the reference angle
+  betaMax?: number; // R155 deg, slip limit
+  betaTau?: number; // R155/R157 s, angle chase
+  latPerDeg?: number; // R156 half-widths/s per degree over the hold angle
+  thrLat?: number; // R156 half-widths/s per unit throttle (up = wider)
+  velGripC?: number; // R156 1/s, course chase in DRIFT
+  railK?: number; // R156 1/s, rails times sin(beta)
+  bumpFrom?: number; // R156 cushion start, share of the half-width
+  bumpGain?: number; // R156 half-widths/s inward at the edge
+  outSlide?: number; // R156 half-widths/s^2, outward course turn limit
+  missFree?: number; // R157 deg
+  missLoss?: number; // R157 share of vmax per degree
+  missCap?: number; // R157 deg
+  missBrake?: number; // R157 vmax/s
+  liftDecelDrift?: number; // R157 vmax/s at throttle -1 in DRIFT
+  thrAccelUp?: number; // R157 accel gain at throttle +1 in DRIFT
+  liftDecel?: number; // R159 vmax/s at throttle -1 in GRIP
+  exitRamp?: number; // R159 s, GRIP lead ramp after a drift end
+  slipDeg?: number; // R156/R158 degrees per lateral unit of yaw (R89, copied from sprites.json weight)
   // Model B parameters (R80-R89b), see docs/research/calm-drift-spike.md section 3.
   kYaw: number;
   latScale: number;

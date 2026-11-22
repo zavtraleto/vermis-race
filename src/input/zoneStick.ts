@@ -19,7 +19,17 @@ import type { TouchStickConfig } from './types';
  *   In A and C driftPull and driftEdge do not act.
  * - brake is always false.
  */
-export function createZoneStick(cfg: TouchStickConfig): TouchStick {
+/**
+ * The car the zone stick serves, read live (R151, R155): model 2 (C) adds the throttle axis, drops
+ * the drift latches, and in state DRIFT steers over driftSteerMul*R.
+ */
+export interface ZoneStickCar {
+  readonly model: number;
+  readonly state?: 'GRIP' | 'DRIFT';
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function createZoneStick(cfg: TouchStickConfig, car?: ZoneStickCar): TouchStick {
   let width = 0;
   let height = 0;
   let active: number | null = null;

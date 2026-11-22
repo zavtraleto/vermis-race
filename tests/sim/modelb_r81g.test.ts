@@ -23,7 +23,7 @@ import { STRAIGHT, car, constTrack, inp, mk, slipOf } from './modelb_helpers';
 // Steady drift (R83 critically damped to slipT): angle = slip/slipFull = dir*uc.
 
 const C = curveClasses as Record<'easy' | 'medium' | 'hard' | 'sharp', number>;
-const P: CarParams = { ...baseCar, crashMinSpeed: 1e9 };
+const P: CarParams = { ...baseCar, model: 1, crashMinSpeed: 1e9 }; // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
 const FREE: CarParams = { ...P, xLimit: 1e9, offroadMul: 1, offroadSteerMul: 1 };
 const ucB = (u: number): number => Math.max(0.5, Math.min(1, Math.max(0, u)));
 

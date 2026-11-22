@@ -66,6 +66,13 @@ export interface BotParams {
   bDipTime: number; // s of counter-steer
   bKickTime: number; // s of full steer into the corner after the counter-steer
   bTrafficGain: number; // line gain multiplier while steering to a gap beside traffic (R46)
+  // Model C driver (R162). Optional until bots.json carries them.
+  cLead?: number; // s before the corner start to lift (< 0: -cLead s after the start)
+  cErr?: number; // relative finger error around uHold
+  cErrPeriod?: number; // s, period of the finger error
+  cUseThr?: boolean; // line by throttle in DRIFT
+  cKx?: number; // line by steer in DRIFT
+  cRelease?: boolean; // lets the finger go at the corner end
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -425,6 +432,7 @@ export function botInput(
   cars?: readonly Car[],
 ): void {
   // H14: the driver follows the car's driving model.
+  if (p.model === 2) throw new Error('not implemented: model C driver (R162)');
   if (p.model === 1) {
     botInputB(bot, bp, car, track, p, out, cars);
     return;
