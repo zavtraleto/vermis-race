@@ -674,20 +674,31 @@ describe('R207 drift with gripRear < 1 (R215 criteria)', () => {
     expect(right).toBeGreaterThanOrEqual(0);
   });
 
-  it('R215(11): from any drift (0.6..1 vmax, |slip| up to slipMax) countersteer then centre ends it within 2 s', () => {
+  it('R215(11): from any drift (0.6..1 vmax, |slip| up to slipMax) the exit driver ends it within 2 s', () => {
+    // Driver of R215(11): phase 0 full countersteer (-side) at gas 1 until |slip| < slipLatch, then centre;
+    // if the drift re-latches to the other side ("отдача"), ONE short countersteer against the new slip
+    // (steer -sign(slip) = +side) until |slip| < slipGrip, then centre for good.
     for (const speed of [0.6, 0.8, 1.0]) {
       for (const deg of [20, 45, 73]) {
         for (const side of [1, -1]) {
+          const tag = `speed ${speed} slip ${deg} side ${side}`;
           // consistent start: travel 0, heading = slip, latched drift (driftTimer = driftHold), finger at 0
           const s = race1({ speed, heading: side * rad(deg), driftTimer: HOLD });
-          let centred = false;
-          let end = -1;
-          for (let i = 0; i < 240 && end < 0; i++) {
-            if (!centred && Math.abs(slipOf(car0(s))) < rad(8.4)) centred = true;
-            stepN(s, 1, frame(centred ? 0 : -side), STRAIGHT, P, true);
-            if (car0(s).driftTimer === 0) end = i;
+          let phase = 0; // 0 countersteer, 1 centre, 2 corrective flick, 3 centre (final)
+          let lastAlive = -1;
+          for (let i = 0; i < 360; i++) {
+            const c = car0(s);
+            const slip = slipOf(c);
+            if (phase === 0 && Math.abs(slip) < rad(8.4)) phase = 1;
+            if (phase === 1 && -side * slip > rad(8.4) && c.driftTimer > 0) phase = 2;
+            if (phase === 2 && Math.abs(slip) < rad(P.slipGrip)) phase = 3;
+            const target = phase === 0 ? -side : phase === 2 ? side : 0;
+            stepN(s, 1, frame(target), STRAIGHT, P, true);
+            if (car0(s).driftTimer > 0) lastAlive = i;
           }
-          expect(end, `speed ${speed} slip ${deg} side ${side}`).toBeGreaterThanOrEqual(0);
+          // the drift is over (driftTimer 0) by 2 s = 240 ticks and stays 0 for the extra 1 s
+          expect(lastAlive, tag).toBeLessThan(239);
+          expect(car0(s).driftTimer, tag).toBe(0);
         }
       }
     }
