@@ -54,6 +54,7 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.travel = s.travel;
     d.heading = s.heading;
     d.steer = s.steer;
+    d.travelRate = s.travelRate;
     d.slipRate = s.slipRate;
     d.counter = s.counter;
     d.driftTimer = s.driftTimer;

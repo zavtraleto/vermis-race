@@ -15,6 +15,7 @@ function clearDrive(c: Car): void {
   c.travel = 0;
   c.heading = 0;
   c.steer = 0;
+  c.travelRate = 0;
   c.slipRate = 0;
   c.counter = 0;
   c.driftTimer = 0;
@@ -37,6 +38,7 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       travel: 0,
       heading: 0,
       steer: 0,
+      travelRate: 0,
       slipRate: 0,
       counter: 0,
       driftTimer: 0,

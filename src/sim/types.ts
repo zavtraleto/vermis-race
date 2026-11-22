@@ -15,7 +15,8 @@ export interface Car {
   travel: number; // R200 direction of the velocity relative to the road tangent
   heading: number; // R200 body heading relative to the road tangent
   steer: number; // R200 steer after smoothing, -1..1
-  slipRate: number; // R200/R207
+  travelRate: number; // R200/R207 turn rate of travel, rad/s (lagged)
+  slipRate: number; // R200 change of slip over the last tick / DT, rad/s
   counter: number; // R200/R206 counter-steer share 0..1
   driftTimer: number; // R200/R208 drift timer, ticks
   edge: number; // R200/R209 edge push 0..1
@@ -52,6 +53,21 @@ export interface CarParams {
   vmax: number;
   vmaxKmh: number; // R200 km/h at speed 1 (copied from sprites.json speedometer, one source)
   halfWidthM: number; // R200/R210 road half-width, metres
+  steerInTime: number; // R203 seconds for steer 0 -> 1 away from zero
+  steerOutTime: number; // R203 seconds for steer 1 -> 0 toward zero
+  wheelMax: number; // R203 wheel angle at steer 1, degrees
+  wheelBase: number; // R206/R207 metres
+  gripFront: number; // R206 front axle limit atan(gripFront*g*wheelBase/v^2)
+  rearMu: number; // R207 rear grip of the car, T = slipRecover*atan(gripRear*rearMu*g*wheelBase/v^2)
+  slipRecover: number; // R207 1/s, scale of the travel catch-up limit T
+  slipDecay: number; // R207 1/s, travel catch-up per radian of slip
+  slipRateMax: number; // R207 |travelRate| limit, deg/s
+  slipMax: number; // R207 |slip| limit, degrees
+  slipGrip: number; // R204/R208 below this |slip| (degrees) traction is 1
+  slipLatch: number; // R208 drift latch angle, degrees
+  driftTraction: number; // R204 traction when |slip| >= slipGrip
+  railGrip: number; // R209 outside drift c = railGrip*sin^2(slip), share per OR2 tick
+  roadTurn: number; // R210 rad per segment at curve 1
   accel: number; // R204 vmax per second at gas 1
   engineBrake: number; // R204 vmax per second at gas 0
   brakeDecel: number; // R204 vmax per second at brake 1
