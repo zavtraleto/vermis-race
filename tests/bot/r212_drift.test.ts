@@ -34,6 +34,8 @@ interface Trace {
   lap: number[]; // floor(z / track length) after the tick
   ticks: number;
   offroadTicks: number;
+  maxAbsX: number; // (f) largest |x| seen
+  lapEnds: number[]; // (g) race.tick at which each lap was completed
   finished: boolean;
 }
 
@@ -58,6 +60,8 @@ function drive(name: string, seed: number, laps: number, track: Track, maxTicks:
     lap: [],
     ticks: 0,
     offroadTicks: 0,
+    maxAbsX: 0,
+    lapEnds: [],
     finished: false,
   };
   while (car.z < goal && race.tick < maxTicks) {
@@ -71,6 +75,8 @@ function drive(name: string, seed: number, laps: number, track: Track, maxTicks:
     t.curve.push(track.segments[Math.floor(car.z) % n]!.curve);
     t.lap.push(Math.floor(car.z / n));
     if (car.x > 1 || car.x < -1) t.offroadTicks++;
+    t.maxAbsX = Math.max(t.maxAbsX, Math.abs(car.x));
+    while (t.lapEnds.length < laps && car.z >= (t.lapEnds.length + 1) * n) t.lapEnds.push(race.tick);
   }
   t.ticks = race.tick;
   t.finished = car.z >= goal;
@@ -188,4 +194,35 @@ describe('R212(e) braking means gas 0', () => {
       });
     }
   }
+});
+
+describe('R212(f) average and expert never reach the wall', () => {
+  for (const name of DRIFTERS) {
+    for (const tn of TRACKS) {
+      it(`${name} on ${tn}: |x| < xLimit (${baseCar.xLimit}) on every tick`, () => {
+        const { trace } = run(name, tn);
+        expect(trace.maxAbsX).toBeLessThan(baseCar.xLimit - 1e-6);
+      });
+    }
+  }
+});
+
+/** Mean lap time in seconds: lap k lasts lapEnds[k] - lapEnds[k-1] ticks (lap 0 from tick 0, standing start). */
+const meanLapS = (t: Trace): number => (t.lapEnds[t.lapEnds.length - 1]! * DT) / t.lapEnds.length;
+
+describe('R212(g) levels are distinct', () => {
+  for (const tn of TRACKS) {
+    it(`${tn}: expert mean lap time < average mean lap time`, () => {
+      const a = run('average', tn).trace;
+      const e = run('expert', tn).trace;
+      expect(a.lapEnds.length).toBe(LAPS);
+      expect(e.lapEnds.length).toBe(LAPS);
+      expect(meanLapS(e)).toBeLessThan(meanLapS(a));
+    });
+  }
+  it('reactionDelay is the old per-level value: novice 0.25 / average 0.15 / expert 0 s', () => {
+    expect(botParams.novice.reactionDelay).toBe(0.25);
+    expect(botParams.average.reactionDelay).toBe(0.15);
+    expect(botParams.expert.reactionDelay).toBe(0);
+  });
 });
