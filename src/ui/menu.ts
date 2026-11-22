@@ -9,10 +9,10 @@ export interface MenuActions {
   restart(): void;
 }
 
-// R95 start screen: how to drive (R202 control pad; the drift entry comes with a later slice).
+// R95 start screen: how to drive (R202 control pad and drift entry).
 const CONTROLS =
-  'Палец от центра экрана: влево и вправо — руль, вверх — газ, вниз — сброс газа и тормоз. Отпусти палец — полный газ, руль прямо.';
-const KEYBOARD = 'Клавиатура: стрелки влево и вправо — руль, вниз — тормоз';
+  'Палец от центра экрана: влево и вправо — руль, вверх — газ, вниз — сброс газа и тормоз. Отпусти палец — полный газ, руль прямо. Дрифт: оторви палец и сразу коснись снова, уводя вбок, или коротко притормози. Выход из дрифта — контрруль.';
+const KEYBOARD = 'Клавиатура: стрелки влево и вправо — руль, вниз — тормоз, пробел — дрифт';
 
 // Look of the HUD plates (docs/art-bible.md "HUD", as the leaderboard): flat dark plates with cut
 // corners and a hard grey edge, monospace heavy type, the warning yellow for the main action. Every touch target is at least 3em (>= 44 CSS px at 360 px width).
