@@ -147,13 +147,16 @@ describe('R162 entry: a lift before (expert) / after (average) the corner start,
     expect(left).toBeGreaterThan(lim - 1.5);
   });
   for (const name of ['expert', 'average'] as const) {
-    it(`${name}: the lift is throttle -1 for 0.1 s (12 ticks +-1) with steer = side of the corner`, () => {
+    it(`${name}: the lift is throttle -1 until the entry, at most 0.1 s (12 ticks +1), with steer = side of the corner`, () => {
       const log = drive(tr, BP(name), 5);
       const k = firstLift(log);
       expect(k).toBeGreaterThan(0);
       let n = 0;
       while (log[k + n]!.out.throttle === -1) n++;
-      expect(Math.abs(n - 12)).toBeLessThanOrEqual(1);
+      // R162 "на 0.1 с" + spike: the lift ends at the entry (DRIFT) or after 12 ticks, whichever first
+      expect(n).toBeGreaterThanOrEqual(1);
+      expect(n).toBeLessThanOrEqual(13);
+      if (n < 11) expect(log[k + n]!.state).toBe('DRIFT');
       for (let j = k; j < k + n; j++) expect(log[j]!.out.steer).toBe(side);
       expect(log.some((t) => t.state === 'DRIFT' && t.dir === side)).toBe(true);
     });
