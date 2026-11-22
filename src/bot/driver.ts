@@ -170,14 +170,15 @@ function humanize(bot: BotState, bp: BotParams, decided: number): number {
  * R212: true when a segment within braking distance needs a path curvature above cornerShare of
  * what the car holds in grip there at the current speed: the R206 front limit
  * tan(atan(gripFront*g*wheelBase/v^2))/wheelBase = gripFront*g/v^2 and the full lock
- * tan(wheelMax)/wheelBase. Braking distance from v to the speed that segment allows, at brakeDecel.
+ * tan(wheelMax)/wheelBase. Braking distance from v to the speed that segment allows, at
+ * brakeDecel - accel (brake 1 with gas 1).
  */
 function mustBrake(bp: BotParams, car: Car, track: Track, p: CarParams, seg0: number): boolean {
   const segs = track.segments;
   const n = segs.length;
   const segM = p.vmaxKmh / 3.6 / SEG_PER_UNIT;
   const v = (car.speed * p.vmaxKmh) / 3.6;
-  const decel = (p.brakeDecel * p.vmaxKmh) / 3.6; // m/s^2
+  const decel = ((p.brakeDecel - p.accel) * p.vmaxKmh) / 3.6; // m/s^2, brake 1 with gas 1 (R204)
   const lock = (bp.cornerShare * Math.tan((p.wheelMax * Math.PI) / 180)) / p.wheelBase;
   const reach = Math.ceil((v * v) / (2 * decel) / segM) + 1;
   for (let i = 0; i <= reach; i++) {
@@ -231,7 +232,8 @@ export function botInput(
   const hold = v > 0 ? Math.atan((omega * p.wheelBase) / v) / ((p.wheelMax * Math.PI) / 180) : 0;
   out.steer = humanize(bot, bp, hold + bp.steerGain * (xTarget - xAhead));
   const brake = bp.cornerShare > 0 && mustBrake(bp, car, track, p, seg0);
-  out.gas = brake ? 0 : 1;
+  // No drift yet: the bot brakes with the gas held, so the brake never counts as an H26 tap (R208).
+  out.gas = 1;
   out.brake = brake ? 1 : 0;
   out.driftTap = false;
 }

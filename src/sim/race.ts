@@ -235,7 +235,10 @@ function drive(
   const rear = -slip0;
   const counterTarget = (wheel - rear) * wheel < 0 ? as : 0;
   car.counter += (counterTarget - car.counter) * COUNTER_SHARE;
-  const aFront = (1 - car.counter) * Math.atan((p.gripFront * G * L) / (v0 * v0));
+  // R208 drift set: while driftTimer > 0 (window and drift) R206/R207 use the drift coefficients.
+  const dset = car.driftTimer > 0;
+  const gf = dset ? p.gripFrontDrift : p.gripFront;
+  const aFront = (1 - car.counter) * Math.atan((gf * G * L) / (v0 * v0));
   let dw = wheel - rear;
   if (dw > aFront) dw = aFront;
   if (dw < -aFront) dw = -aFront;
@@ -247,7 +250,7 @@ function drive(
   const slip = slip0;
   const aslip = slip < 0 ? -slip : slip;
   const T = p.slipRecover * Math.atan((gripRear * p.rearMu * G * L) / (v0 * v0));
-  const want = aslip * p.slipDecay;
+  const want = aslip * (dset ? p.slipDecayDrift : p.slipDecay);
   const desired = (slip > 0 ? 1 : slip < 0 ? -1 : 0) * (want < T ? want : T);
   let tr = car.travelRate + (desired - car.travelRate) * TRAVEL_SHARE;
   const trMax = (p.slipRateMax * Math.PI) / 180;

@@ -70,6 +70,8 @@ export interface CarParams {
   roadTurn: number; // R210 rad per segment at curve 1
   driftWindow: number; // R208 seconds the window stays open after an opening
   driftHold: number; // R208 seconds the latch keeps the drift after |slip| <= slipLatch
+  gripFrontDrift: number; // R208 drift set: R206 uses it instead of gripFront while driftTimer > 0
+  slipDecayDrift: number; // R208 drift set: R207 uses it instead of slipDecay while driftTimer > 0
   gripDrift: number; // R208 rear grip share in drift before the drops
   dropFull: number; // R208 grip drop at full gas
   dropLift: number; // R208 grip drop with the gas lifted (scaled by cs)
