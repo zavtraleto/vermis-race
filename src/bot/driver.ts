@@ -180,6 +180,7 @@ function mustBrake(bp: BotParams, car: Car, track: Track, p: CarParams, seg0: nu
   const v = (car.speed * p.vmaxKmh) / 3.6;
   const decel = ((p.brakeDecel - p.accel) * p.vmaxKmh) / 3.6; // m/s^2, brake 1 with gas 1 (R204)
   const lock = (bp.cornerShare * Math.tan((p.wheelMax * Math.PI) / 180)) / p.wheelBase;
+  if (!(decel > 0)) return false; // the car cannot slow down with brake 1 and gas 1: never brake
   const reach = Math.ceil((v * v) / (2 * decel) / segM) + 1;
   for (let i = 0; i <= reach; i++) {
     const c = segs[wrap(seg0 + i, n)]!.curve;

@@ -154,8 +154,8 @@ export function step(
 }
 
 /**
- * R200-R210 driving tick of a player or rival car (slice 1: R203, R204, R206, R207, R210, R18,
- * R15; drift R205/R208/R209/R211 not yet, so gripRear = 1). Order as in the R210 order line.
+ * R200-R211 driving tick of a player or rival car: R203, R208, R205-R207, R208 latch, R209, R204,
+ * R210, R18/R211, R15, in the order of the R210 order line.
  */
 function drive(
   car: Car,

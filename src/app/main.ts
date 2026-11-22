@@ -376,12 +376,8 @@ const render3d = use3d
       roadsideIndex,
     })
   : null;
-// R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
-// the copies follow live dev-panel edits of the player car.
-const carParams: CarParams[] = race.cars.map((c) =>
-  c.kind === 'rival' ? { ...baseCar } : baseCar,
-);
-// H23-H26 reach the sim as CarParams numbers (1 = A, 0 = B), read live from the dev panel.
+// H23-H26 reach the sim as CarParams numbers (1 = A, 0 = B), read live from the dev panel;
+// synced before the rival copies are made so every race car starts with the same flags.
 const syncHypotheses = (): void => {
   baseCar.hypAssist = hypotheses.H23_assist === 'B' ? 0 : 1;
   baseCar.hypEdge = hypotheses.H24_edge === 'B' ? 0 : 1;
@@ -389,6 +385,11 @@ const syncHypotheses = (): void => {
   baseCar.hypBrakeTap = hypotheses.H26_brakeTap === 'B' ? 0 : 1;
 };
 syncHypotheses();
+// R60: every rival drives its own copy of the car params (the sim scales vmax by pace and band);
+// the copies follow live dev-panel edits of the player car.
+const carParams: CarParams[] = race.cars.map((c) =>
+  c.kind === 'rival' ? { ...baseCar } : baseCar,
+);
 tunables.onChange(() => {
   syncHypotheses();
   for (const p of carParams) if (p !== baseCar) Object.assign(p, baseCar);
