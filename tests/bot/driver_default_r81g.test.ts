@@ -12,7 +12,7 @@ import type { CarParams, InputFrame } from '../../src/sim/types';
 // pre-T71 variant-3 behaviour (finger down with a full steer toward a corner GRIP cannot hold, released
 // otherwise); the "finger down all lap" mode is variant 5 only (tests/bot/driver_v5.test.ts pins it).
 // Not new expectations: the contrast with driver_v5.test.ts (held === ticks under variant 5).
-const P = { ...baseCar, crashMinSpeed: 1e9 } as CarParams;
+const P = { ...baseCar, model: 1, crashMinSpeed: 1e9 } as CarParams; // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
 const track = buildTrack(resolveSections(trackSections(driftRun as never), curveClasses));
 
 function drive(name: 'novice' | 'average' | 'expert', seconds: number) {

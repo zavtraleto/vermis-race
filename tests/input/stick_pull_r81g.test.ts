@@ -202,7 +202,7 @@ describe('R81g player input (default car: model B, driftEntry from cars/base.jso
   // R81g "Слой игрока": with model 1 and driftEntry 3 (the default) the touch drift is the stick's
   // pull-down latch, not "finger on the screen".
   const rig = () => {
-    const car = { model: baseCar.model, driftEntry: baseCar.driftEntry };
+    const car = { model: 1, driftEntry: baseCar.driftEntry }; // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
     const clock = { t: 0 };
     const touch = mk();
     const player = createPlayerInput(
@@ -225,7 +225,8 @@ describe('R81g player input (default car: model B, driftEntry from cars/base.jso
     return { touch, at };
   };
   it('default car is model 1 with driftEntry 3', () => {
-    expect(baseCar.model).toBe(1);
+    // H14 pin [2026-11-22]: the data default became model C (R150, tests/sim/modelc_data.test.ts);
+    // this block is pinned to model 1 in `rig` and `kb`, so only driftEntry is read from the data.
     expect(baseCar.driftEntry).toBe(3);
   });
   it('finger down and steering is not a drift; the pull down is; up keeps it; release ends it', () => {
@@ -257,7 +258,7 @@ describe('R81g player input (default car: model B, driftEntry from cars/base.jso
 describe('R81g keyboard (default car): drift = Space held, arrows / A-D at full value at once', () => {
   const kb = () =>
     createKeyboardInput(inputConfig.keyboard, {
-      model: baseCar.model,
+      model: 1, // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
       driftEntry: baseCar.driftEntry,
     });
   const rd = (k: ReturnType<typeof kb>, t: number): InputFrame => {

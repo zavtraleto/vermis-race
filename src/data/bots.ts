@@ -13,6 +13,12 @@ import raw from './bots.json';
 export const BOT_NAMES = ['novice', 'average', 'expert'] as const;
 export type BotName = (typeof BOT_NAMES)[number];
 
+function bool(r: Record<string, unknown>, f: string, name: string): boolean {
+  const v = r[f];
+  if (typeof v !== 'boolean') throw new Error(`bots.${name}.${f} must be true or false`);
+  return v;
+}
+
 function num(r: Record<string, unknown>, f: string, name: string): number {
   const v = r[f];
   if (typeof v !== 'number' || !Number.isFinite(v))
@@ -88,6 +94,28 @@ export function parseBot(name: string, v: unknown): BotParams {
     bDipTime: num(r, 'bDipTime', name),
     bKickTime: num(r, 'bKickTime', name),
     bTrafficGain: num(r, 'bTrafficGain', name),
+    cLead: num(r, 'cLead', name),
+    cErr: num(r, 'cErr', name),
+    cErrPeriod: num(r, 'cErrPeriod', name),
+    cUseThr: bool(r, 'cUseThr', name),
+    cKx: num(r, 'cKx', name),
+    cRelease: bool(r, 'cRelease', name),
+    cLook: num(r, 'cLook', name),
+    cStartCurve: num(r, 'cStartCurve', name),
+    cLiftTime: num(r, 'cLiftTime', name),
+    cKeepLook: num(r, 'cKeepLook', name),
+    cKeepCurve: num(r, 'cKeepCurve', name),
+    cEdgeX: num(r, 'cEdgeX', name),
+    cEdgeGain: num(r, 'cEdgeGain', name),
+    cVelDamp: num(r, 'cVelDamp', name),
+    cThrGain: num(r, 'cThrGain', name),
+    cThrMin: num(r, 'cThrMin', name),
+    cFfLook: num(r, 'cFfLook', name),
+    cGripGain: num(r, 'cGripGain', name),
+    cGripDamp: num(r, 'cGripDamp', name),
+    cNeedLook: num(r, 'cNeedLook', name),
+    cSmallSteer: num(r, 'cSmallSteer', name),
+    cMinSp: num(r, 'cMinSp', name),
   };
   if (bp.traffic === 'avoid' && bp.trafficSteerTime <= 0) {
     throw new Error(`bots.${name}.trafficSteerTime must be > 0`);
@@ -99,6 +127,7 @@ export function parseBot(name: string, v: unknown): BotParams {
   if (bp.driftLine === 'width' && bp.driftPlanMin <= 0) {
     throw new Error(`bots.${name}.driftPlanMin must be > 0`);
   }
+  if (bp.cErrPeriod <= 0) throw new Error(`bots.${name}.cErrPeriod must be > 0`);
   if (bp.noiseAmp > 0 && bp.noiseTau <= 0) throw new Error(`bots.${name}.noiseTau must be > 0`);
   return bp;
 }

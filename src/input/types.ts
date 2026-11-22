@@ -46,6 +46,19 @@ export interface TouchStickConfig {
   flickDist: number;
   /** R81h C: bottom fraction of the steering zone where a touch-down drifts. */
   driftZoneFrac: number;
+  // R151 (model C) vertical axis of the zone stick; optional until input.json carries them.
+  /** R151 vertical dead zone as a multiple of stickRadius*width. */
+  thrDead?: number;
+  /** R151 full vertical travel as a multiple of stickRadius*width. */
+  thrFull?: number;
+  /** R151 throttle = t^thrExp after the dead zone. */
+  thrExp?: number;
+  /** R151 px kept above the bottom edge when the travel down is short. */
+  edgeMargin?: number;
+  /** R151 ms, exponential smoothing of the throttle. */
+  thrTauMs?: number;
+  /** R155 [директор 2026-11-22] in DRIFT of model C the steer travel is driftSteerMul*R: steer = clamp(dx/(R*driftSteerMul), -1, 1). */
+  driftSteerMul?: number;
 }
 
 export interface InputConfig {

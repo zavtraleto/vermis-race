@@ -36,7 +36,7 @@ function drive(
   laps: number,
   track: Track,
   maxTicks: number,
-  carParams: CarParams = { ...baseCar, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD, ...NO_T68 }, // H17/H18 off, flick entry, R85b off, T68 off: older rules
+  carParams: CarParams = { ...baseCar, model: 1, ...NO_H17_H18, ...ENTRY_A, ...NO_GRIP_LEAD, ...NO_T68 }, // H17/H18 off, flick entry, R85b off, T68 off: older rules
 ): Trace {
   const race = createRace(seed, 1);
   const car = race.cars[0]!;

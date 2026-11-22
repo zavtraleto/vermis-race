@@ -2,6 +2,7 @@ import type { TrackDef, TrackSection } from '../../sim/types';
 import curves from './curves.json';
 import figures from './figures.json';
 import figuresSharp from './figures-sharp.json';
+import driftLab from './drift-lab.json';
 import driftRun from './drift-run.json';
 import twisty from './test-twisty.json';
 
@@ -175,7 +176,7 @@ export function loadTestTwisty(): LoadedDef {
 /** R31b: the game's main track. */
 export const DEFAULT_TRACK = 'drift-run';
 
-/** Track by name (?track=): drift-run or test-twisty; anything else is the default track. */
+/** Track by name (?track=): drift-run, test-twisty or drift-lab (model C, R162); anything else is the default track. */
 export function loadTrackByName(name: string): LoadedDef {
-  return load(name === twisty.name ? twisty : driftRun);
+  return load(name === twisty.name ? twisty : name === driftLab.name ? driftLab : driftRun);
 }

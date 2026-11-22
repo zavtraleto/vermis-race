@@ -8,4 +8,6 @@ export const baseCar: CarParams = {
   ...base,
   lampEvery: sprites.roadside.lamps.every,
   lampOffset: sprites.roadside.lamps.offset,
+  // R156/R158: model C reads the R89 slipDeg of sprites.json weight (one source of the number).
+  slipDeg: sprites.weight.slipDeg,
 };

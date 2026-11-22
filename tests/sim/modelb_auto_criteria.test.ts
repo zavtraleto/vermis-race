@@ -20,6 +20,7 @@ const AUTO = { autoSteer: 0.7, autoHold: 0.1, autoLook: 0.25, autoNeed: 1.0 };
 // T77: H20 (R85f) and H21 (R84c) off: variant 4 was measured without them (rails act in variants 0-4).
 const P4: CarParams = {
   ...baseCar,
+  model: 1, // H14 pin [2026-11-22]: model B explicitly (data default is model C, R150)
   ...T70_NUMBERS,
   driftTurbo: 0,
   ...AUTO,

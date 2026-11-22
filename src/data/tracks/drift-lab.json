@@ -1,0 +1,22 @@
+{
+  "name": "drift-lab",
+  "figures": [
+    { "figure": "straight", "side": 1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "sweeper", "side": 1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "hairpin", "side": -1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "kink", "side": 1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "esses", "side": 1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "scurve", "side": -1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "hook", "side": 1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "chicane", "side": -1 },
+    { "figure": "straight", "side": 1 },
+    { "figure": "straight", "side": 1 }
+  ]
+}

@@ -8,8 +8,8 @@ export interface PanelItemMeta {
   hint: string;
   tier: Tier;
   group: string;
-  /** Read only by this driving model (car.model 0 = A, 1 = B). */
-  model?: 'A' | 'B';
+  /** Read only by this driving model (car.model 0 = A, 1 = B, 2 = C). */
+  model?: 'A' | 'B' | 'C';
   /** The change is picked up only after a page reload. */
   reload?: boolean;
   /** Rule / hypothesis id, shown small next to the path. */
@@ -19,7 +19,7 @@ export interface PanelItemMeta {
 }
 
 export interface PanelViewState {
-  model: 'A' | 'B';
+  model: 'A' | 'B' | 'C';
   query: string;
   onlyChanged: boolean;
   showMore: boolean;
@@ -63,7 +63,7 @@ const MIN_W = 240;
 const MIN_H = 160;
 const MIN_OPACITY = 0.3;
 
-function forModel(x: PanelItemMeta, model: 'A' | 'B'): boolean {
+function forModel(x: PanelItemMeta, model: 'A' | 'B' | 'C'): boolean {
   return x.model === undefined || x.model === model;
 }
 

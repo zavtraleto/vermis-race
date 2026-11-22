@@ -12,7 +12,7 @@ import {
 import type { Palette } from '../data/render';
 import { DT } from '../sim/constants';
 import type { Car, Track } from '../sim/types';
-import type { CarWeightConfig } from './carWeight';
+import { driftBodyYawDeg, type CarWeightConfig } from './carWeight';
 import { Builder, type Car3dConfig } from './carModel';
 import { CrashTumble, type CrashTumbleConfig } from './crashTumble';
 import { approach } from './driftVisual';
@@ -233,7 +233,7 @@ export class RivalModels {
 
   /**
    * Places every 'rival' car of `curr` (interpolated from `prev`) at z + zOffset, as traffic.
-   * dt = frame seconds for the yaw smoothing; model = H14 driving model (0 A, 1 B); crashTicks =
+   * dt = frame seconds for the yaw smoothing; model = H14 driving model (0 A, 1 B, 2 C); crashTicks =
    * crashTime in ticks; driftYawMaxDeg = R24 yaw at full angle (model A); nameDistance =
    * rivalNameDistance in segments ahead of the player (labels). R45b: the tail lights of every
    * drawn rival go to `lights`.
@@ -286,7 +286,15 @@ export class RivalModels {
       const t = snap ? 1 : alpha;
       // R89 (model B) body yaw, smoothed like CarWeight; model A: the R24 drift yaw.
       let target: number;
-      if (model === 1) {
+      if (model === 2 && bc.state === 'DRIFT') {
+        // R160: model C DRIFT, the slip angle beta (interpolated within one drift).
+        const vel = (snap ? bc.vel : ac.vel + (bc.vel - ac.vel) * t) || 0;
+        const beta =
+          !snap && ac.state === 'DRIFT' && ac.dir === bc.dir
+            ? ac.beta + (bc.beta - ac.beta) * t
+            : bc.beta;
+        target = driftBodyYawDeg(bc.dir, beta, vel, w);
+      } else if (model === 1 || model === 2) {
         const vel = (snap ? bc.vel : ac.vel + (bc.vel - ac.vel) * t) || 0;
         const vis =
           (snap ? bc.yaw : ac.yaw + (bc.yaw - ac.yaw) * t) -

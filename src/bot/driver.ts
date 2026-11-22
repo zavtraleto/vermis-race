@@ -66,6 +66,29 @@ export interface BotParams {
   bDipTime: number; // s of counter-steer
   bKickTime: number; // s of full steer into the corner after the counter-steer
   bTrafficGain: number; // line gain multiplier while steering to a gap beside traffic (R46)
+  // Model C driver (R162).
+  cLead: number; // s before the corner start to lift (< 0: -cLead s after the start)
+  cErr: number; // relative finger error around uHold
+  cErrPeriod: number; // s, period of the finger error
+  cUseThr: boolean; // line by throttle in DRIFT
+  cKx: number; // line by steer in DRIFT
+  cRelease: boolean; // lets the finger go at the corner end
+  cLook: number; // s of road ahead searched for the next drift corner
+  cStartCurve: number; // |curve| of the corner start (same side) before the drift corner
+  cLiftTime: number; // s of throttle -1 on entry
+  cKeepLook: number; // s ahead: a same-side curve >= cKeepCurve keeps the drift (else release)
+  cKeepCurve: number;
+  cEdgeX: number; // |x*dir| past which the finger steers back toward the centre
+  cEdgeGain: number; // finger share per half-width past cEdgeX
+  cVelDamp: number; // finger share per unit of vel*dir (with cKx > 0)
+  cThrGain: number; // throttle per half-width of x*dir (cUseThr)
+  cThrMin: number; // lowest throttle of the line by throttle
+  cFfLook: number; // s ahead of the GRIP feed-forward segment
+  cGripGain: number; // GRIP: steer per half-width of error to the line
+  cGripDamp: number; // GRIP: steer per unit of vel, subtracted
+  cNeedLook: number; // s ahead scanned by the no-drift lift (need > 1)
+  cSmallSteer: number; // no-drift: lift only below this |steer|, and |steer| at most this in a window
+  cMinSp: number; // lowest sp used by the driver's look-ahead
 }
 
 /** Longest supported reaction delay, ticks (0.5 s at DT = 1/120). Structural: sizes the ring buffer. */
@@ -82,8 +105,18 @@ export interface BotState {
   flick: number;
   /** Model B: side of the planned flick. */
   flickDir: number;
-  /** Model B: decided drift input (1/0), same ring and delay as steerQueue. */
+  /** Model B: decided drift input (1/0); model C: decided throttle. Same ring and delay as steerQueue. */
   driftQueue: number[];
+  /** Model C (R162): ticks driven (finger wobble clock). */
+  cTicks: number;
+  /** Model C: lift ticks left. */
+  cLift: number;
+  /** Model C: side of the entry in progress, 0 = none. */
+  cSide: number;
+  /** Model C: ticks at the corner start (late entry, cLead < 0). */
+  cInSince: number;
+  /** Model C: drifts started (phase of the finger wobble). */
+  cNDrift: number;
 }
 
 export function createBot(seed: number): BotState {
@@ -97,6 +130,11 @@ export function createBot(seed: number): BotState {
     flick: 0,
     flickDir: 0,
     driftQueue: steerQueue.slice(),
+    cTicks: 0,
+    cLift: 0,
+    cSide: 0,
+    cInSince: 0,
+    cNDrift: 0,
   };
 }
 
@@ -412,6 +450,145 @@ function botInputB(
 }
 
 /**
+ * Model C driver (R162). Writes steer and throttle; a drift is a lift (throttle -1 for cLiftTime)
+ * with the steer toward the corner, the angle then held by the finger law around uHold and the line
+ * by the throttle (cUseThr). Novice (drift 'never') stays in GRIP and lifts before a corner GRIP
+ * cannot hold. Noise and reaction delay (humanize) and the R46 weaving (GRIP) on top.
+ */
+function botInputC(
+  bot: BotState,
+  bp: BotParams,
+  car: Car,
+  track: Track,
+  p: CarParams,
+  out: InputFrame,
+  cars: readonly Car[] | undefined,
+): void {
+  const segs = track.segments;
+  const n = segs.length;
+  const z = car.z;
+  const seg0 = wrap(Math.floor(z), n);
+  let sp = car.speed / p.vmax;
+  if (sp < bp.cMinSp) sp = bp.cMinSp;
+  const t = bot.cTicks * DT;
+  bot.cTicks++;
+  // R162: in GRIP the entry side is kept only while the lift or the window lives.
+  if (car.state !== 'DRIFT' && car.winTicks <= 0 && bot.cLift <= 0) bot.cSide = 0;
+  let steer = 0;
+  let thr = 0;
+  if (car.state === 'DRIFT') {
+    // R162 (spike): the latch ends the entry; DRIFT ticks follow the finger law.
+    bot.cLift = 0;
+    bot.cSide = 0;
+    const dir = car.dir;
+    // Exit: no same-side curve >= cKeepCurve within cKeepLook s -> release (cRelease).
+    const kk = Math.ceil(sp * SEG_PER_UNIT * bp.cKeepLook);
+    let keep = false;
+    for (let i = 0; i <= kk; i++)
+      if (segs[wrap(seg0 + i, n)]!.curve * dir >= bp.cKeepCurve) keep = true;
+    if (!keep && bp.cRelease) {
+      steer = 0;
+      thr = 0;
+    } else {
+      // Finger law: a slow wobble of +-cErr around uHold, line by steer (cKx) and edge guard.
+      const e = bp.cErr * Math.sin((2 * Math.PI * t) / bp.cErrPeriod + bot.cNDrift);
+      const xi = car.x * dir; // > 0 = inside
+      const edge =
+        xi > bp.cEdgeX
+          ? -(xi - bp.cEdgeX) * bp.cEdgeGain
+          : xi < -bp.cEdgeX
+            ? (-xi - bp.cEdgeX) * bp.cEdgeGain
+            : 0;
+      const u =
+        p.uHold * (1 + e) - bp.cKx * xi - (bp.cKx > 0 ? bp.cVelDamp * car.vel * dir : 0) + edge;
+      steer = dir * (u < 0 ? 0 : u > 1 ? 1 : u);
+      if (bp.cUseThr) {
+        const th = bp.cThrGain * xi;
+        thr = th < bp.cThrMin ? bp.cThrMin : th > 1 ? 1 : th;
+      }
+    }
+  } else {
+    // GRIP: feed-forward of the R83/R84 hold steer cFfLook s ahead plus feedback to the line.
+    let xT = 0;
+    if (bp.traffic === 'avoid' && cars !== undefined) {
+      const xa = avoidX(bp, car, cars, p, 0);
+      if (xa === xa) xT = xa;
+    }
+    const A = segs[wrap(Math.floor(z + sp * SEG_PER_UNIT * bp.cFfLook), n)]!.curve * sp * p.kYaw;
+    let f = sp / p.yawFullSpeed;
+    if (f > 1) f = 1;
+    let sG = A / p.velGrip;
+    if (sG > p.slipGripMax) sG = p.slipGripMax;
+    if (sG < -p.slipGripMax) sG = -p.slipGripMax;
+    const ff = (A + p.yawAlign * sG) / (p.yawRateMax * f);
+    steer = ff + bp.cGripGain * (xT - car.x) - bp.cGripDamp * car.vel;
+    if (steer > 1) steer = 1;
+    if (steer < -1) steer = -1;
+    if (bp.drift !== 'corners') {
+      // No drift: lift before a corner GRIP cannot hold (need > 1), only with a small steer;
+      // inside a lift window the steer stays small (no drift latches).
+      const gripA = p.yawRateMax / (1 + p.yawAlign / p.velGrip);
+      const k = Math.ceil(sp * SEG_PER_UNIT * bp.cNeedLook);
+      let need = 0;
+      for (let i = 0; i <= k; i++) {
+        const c = segs[wrap(seg0 + i, n)]!.curve;
+        const v = ((c < 0 ? -c : c) * sp * p.kYaw) / gripA;
+        if (v > need) need = v;
+      }
+      const lim = bp.cSmallSteer;
+      if (need > 1 && steer < lim && steer > -lim) thr = -1;
+      if (car.winTicks > 0) steer = steer > lim ? lim : steer < -lim ? -lim : steer;
+    } else if ((bot.cLift > 0 || car.winTicks > 0) && bot.cSide !== 0) {
+      // Entry in progress: steer to the corner side, the lift for its ticks.
+      if (bot.cLift > 0) bot.cLift--;
+      steer = bot.cSide;
+      thr = bot.cLift > 0 ? -1 : 0;
+    } else {
+      if (bot.cLift > 0) bot.cLift--;
+      // The next drift corner within cLook s (|curve| >= driftMinCurve) and its start (|curve| >= cStartCurve).
+      const k = Math.ceil(sp * SEG_PER_UNIT * bp.cLook);
+      let ds = -1;
+      let side = 0;
+      for (let i = 0; i <= k; i++) {
+        const c = segs[wrap(Math.floor(z + i), n)]!.curve;
+        if (c >= bp.driftMinCurve || c <= -bp.driftMinCurve) {
+          ds = i;
+          side = c > 0 ? 1 : -1;
+          break;
+        }
+      }
+      if (ds < 0) bot.cInSince = 0;
+      else {
+        let d1 = ds;
+        for (let i = 0; i <= ds; i++) {
+          if (segs[wrap(Math.floor(z + i), n)]!.curve * side >= bp.cStartCurve) {
+            d1 = i;
+            break;
+          }
+        }
+        bot.cInSince = d1 === 0 ? bot.cInSince + 1 : 0;
+        const go =
+          bp.cLead >= 0 ? d1 <= bp.cLead * sp * SEG_PER_UNIT : bot.cInSince * DT >= -bp.cLead;
+        if (go) {
+          bot.cLift = Math.round(bp.cLiftTime / DT);
+          bot.cSide = side;
+          bot.cNDrift++;
+          steer = side;
+          thr = -1;
+        }
+      }
+    }
+  }
+  out.steer = humanize(bot, bp, steer);
+  // The throttle goes through the same reaction delay as the steer.
+  const dq = bot.driftQueue;
+  dq[bot.head] = thr;
+  out.throttle = dq[wrap(bot.head - delayTicks(bp, dq.length), dq.length)]!;
+  out.brake = false;
+  out.drift = false;
+}
+
+/**
  * Writes this tick's input for `car` into `out`. Reads car + track ahead only, and (traffic =
  * avoid) the positions of the traffic cars in `cars`, read-only.
  */
@@ -425,6 +602,10 @@ export function botInput(
   cars?: readonly Car[],
 ): void {
   // H14: the driver follows the car's driving model.
+  if (p.model === 2) {
+    botInputC(bot, bp, car, track, p, out, cars);
+    return;
+  }
   if (p.model === 1) {
     botInputB(bot, bp, car, track, p, out, cars);
     return;

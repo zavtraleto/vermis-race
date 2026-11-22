@@ -58,6 +58,11 @@ function resetBot(b: BotState, seed: number): void {
   b.head = 0;
   b.flick = 0;
   b.flickDir = 0;
+  b.cTicks = 0; // R162
+  b.cLift = 0;
+  b.cSide = 0;
+  b.cInSince = 0;
+  b.cNDrift = 0;
 }
 
 function resetMistakes(m: MistakeState, seed: number): void {
