@@ -27,6 +27,11 @@ const CONTROLS: Record<TouchDrift, string> = {
   C: 'Нижняя половина зоны — дрифт, верхняя — обычный руль. Отпусти — выход',
 };
 const KEYBOARD = 'Клавиатура: стрелки — руль, пробел — дрифт';
+// R151 (model C, H14 = C): one way to drift, the H19 choice is hidden.
+const CONTROLS_C =
+  'Веди пальцем вбок — руль. Потяни вниз и поверни — дрифт. В дрифте: вбок — угол, вверх — шире, вниз — круче. Отпусти — машина выпрямится.';
+const KEYBOARD_C =
+  'Клавиатура: стрелки влево/вправо — руль, вниз + поворот — дрифт, вверх/вниз в дрифте — шире/круче';
 
 // Look of the HUD plates (docs/art-bible.md "HUD", as the leaderboard): flat dark plates with cut
 // corners and a hard grey edge, monospace heavy type, the warning yellow for the main action and the
@@ -81,6 +86,10 @@ export class GameMenu {
   private readonly startPlate: HTMLDivElement;
   private readonly pausePlate: HTMLDivElement;
   private readonly ctrl: HTMLDivElement;
+  private readonly kb: HTMLDivElement;
+  /** R151: the H19 labels and lists, hidden in model C. */
+  private readonly modeParts: HTMLElement[] = [];
+  private mode: TouchDrift;
   private readonly lists: ModeList[] = [];
   private readonly pauseBtn: HTMLButtonElement;
   private readonly fit: HudFontFit;
@@ -92,7 +101,10 @@ export class GameMenu {
     private readonly layoutCfg: HudLayout,
     actions: MenuActions,
     mode: TouchDrift,
+    /** R151, read live: model C has no touch drift modes (H19). */
+    private readonly modelC: () => boolean = () => false,
   ) {
+    this.mode = mode;
     const style = document.createElement('style');
     style.textContent = STYLE;
     document.head.appendChild(style);
@@ -109,8 +121,10 @@ export class GameMenu {
     sp.dataset.screen = 'start';
     sp.append(div('title', 'VERMIS RACE'));
     this.ctrl = div('ctrl', '');
-    sp.append(this.ctrl, div('kb', KEYBOARD), div('label', 'Способ дрифта'));
-    sp.append(this.modeList(actions).root);
+    this.kb = div('kb', KEYBOARD);
+    const startLabel = div('label', 'Способ дрифта');
+    const startList = this.modeList(actions).root;
+    sp.append(this.ctrl, this.kb, startLabel, startList);
     sp.append(mainButton('Старт', 'start', () => actions.start()));
 
     // Pause panel.
@@ -118,8 +132,10 @@ export class GameMenu {
     pp.dataset.screen = 'pause';
     pp.append(div('head', 'Пауза'));
     pp.append(mainButton('Продолжить', 'resume', () => actions.resume()));
-    pp.append(div('label', 'Способ дрифта'));
-    pp.append(this.modeList(actions).root);
+    const pauseLabel = div('label', 'Способ дрифта');
+    const pauseList = this.modeList(actions).root;
+    pp.append(pauseLabel, pauseList);
+    this.modeParts.push(startLabel, startList, pauseLabel, pauseList);
     pp.append(textButton('Заново', 'restart', () => actions.restart()));
 
     root.append(sp, pp);
@@ -149,11 +165,16 @@ export class GameMenu {
     this.startPlate.style.display = phase === 'menu' ? 'flex' : 'none';
     this.pausePlate.style.display = phase === 'pause' ? 'flex' : 'none';
     this.pauseBtn.style.display = phase === 'run' ? 'block' : 'none';
+    this.setMode(this.mode);
   }
 
   /** Highlights the current drift mode in both lists and rewrites the controls text. */
   setMode(m: TouchDrift): void {
-    this.ctrl.textContent = CONTROLS[m];
+    this.mode = m;
+    const c = this.modelC();
+    this.ctrl.textContent = c ? CONTROLS_C : CONTROLS[m];
+    this.kb.textContent = c ? KEYBOARD_C : KEYBOARD;
+    for (const e of this.modeParts) e.style.display = c ? 'none' : '';
     for (const l of this.lists)
       for (let i = 0; i < MODES.length; i++) l.buttons[i]!.classList.toggle('on', MODES[i] === m);
   }

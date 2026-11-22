@@ -98,6 +98,16 @@ export function copyRaceState(src: RaceState, dst: RaceState): void {
     d.nemesis = s.nemesis;
     d.band = s.band;
     d.joinTicks = s.joinTicks;
+    // Model C (R152).
+    d.beta = s.beta;
+    d.betaI = s.betaI;
+    d.refA = s.refA;
+    d.winTicks = s.winTicks;
+    d.winDir = s.winDir;
+    d.wBeta = s.wBeta;
+    d.liftArmed = s.liftArmed;
+    d.endTicks = s.endTicks;
+    d.exitTicks = s.exitTicks;
   }
 }
 

@@ -18,6 +18,7 @@ export interface CarWeightConfig {
   slipDeg: number; // R89 model B: degrees on screen per unit of visible slip (yaw - vel + carry)
   velDeg: number; // R89 model B: degrees on screen per unit of vel
   leadDeg: number; // R89 model B: degrees on screen per unit of lead vx/(sp*latScale) - vel
+  bodyMul: number; // R160 model C: visible share of the DRIFT slip angle beta
 }
 
 /**
@@ -38,6 +39,19 @@ export function bodyYawDeg(
   let lead = sp < cfg.minSpeed ? 0 : vx / (sp * latScale) - vel;
   if (!(lead * vx > 0)) lead = 0; // R89d: only a lead toward the motion turns the nose
   return (yaw - vel + carry) * cfg.slipDeg + vel * cfg.velDeg + cfg.leadDeg * lead;
+}
+
+/**
+ * R160 model C body yaw in DRIFT, degrees: dir*beta*bodyMul + vel*velDeg (beta = slip angle in
+ * degrees, interpolated by the caller). In GRIP model C uses bodyYawDeg (R89, R89d). Pure.
+ */
+export function driftBodyYawDeg(
+  dir: number,
+  beta: number,
+  vel: number,
+  cfg: { velDeg: number; bodyMul: number },
+): number {
+  return dir * beta * cfg.bodyMul + vel * cfg.velDeg;
 }
 
 const RAD = 180 / Math.PI;

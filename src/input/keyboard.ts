@@ -5,7 +5,7 @@ import type { KeyboardConfig } from './types';
  * Pure keyboard model (no DOM). Time is explicit, in ms, monotonic.
  * Codes are KeyboardEvent.code values (layout independent):
  * steer left: KeyA, ArrowLeft; steer right: KeyD, ArrowRight; brake: KeyS, ArrowDown;
- * drift: ShiftLeft, ShiftRight, Space.
+ * drift: ShiftLeft, ShiftRight, Space; R151 (model C) gas up: KeyW, ArrowUp (down = the brake keys).
  */
 export interface KeyboardInput {
   /** Returns true if the code is one of ours (the DOM adapter then calls preventDefault). Repeats are harmless. */
@@ -31,6 +31,9 @@ const BRAKE_ARROW = 32;
 const DRIFT_SHIFT_L = 64;
 const DRIFT_SHIFT_R = 128;
 const DRIFT_SPACE = 256;
+const UP_W = 512;
+const UP_ARROW = 1024;
+const UP = UP_W | UP_ARROW;
 const LEFT = LEFT_A | LEFT_ARROW;
 const RIGHT = RIGHT_D | RIGHT_ARROW;
 const BRAKE = BRAKE_S | BRAKE_ARROW;
@@ -56,6 +59,10 @@ function codeBit(code: string): number {
       return DRIFT_SHIFT_R;
     case 'Space':
       return DRIFT_SPACE;
+    case 'KeyW':
+      return UP_W;
+    case 'ArrowUp':
+      return UP_ARROW;
     default:
       return 0;
   }
@@ -70,6 +77,8 @@ function codeBit(code: string): number {
  * Model 1 with `car.driftEntry` 4 (R81e, read live): steer as in variant 3; drift = a steer key held
  * (control held); the drift keys do not matter.
  * Model 1 with `car.driftEntry` 5 (R81f, read live): as variant 3 (drift = Space or Shift held).
+ * Model 2 (C, R151, read live): steer = held keys at full value at once; throttle = up (W / ArrowUp)
+ * +1, down (S / ArrowDown) -1, both or none 0; no brake and no drift input.
  */
 export function createKeyboardInput(
   cfg: KeyboardConfig,
@@ -140,6 +149,16 @@ export function createKeyboardInput(
       if (v4 || (car?.model === 1 && (car.driftEntry === 3 || car.driftEntry === 5))) {
         zeroNext = snapNext = false;
         steer = target();
+      }
+      if (car?.model === 2) {
+        // R151: model C, steer at once, the vertical keys are the throttle axis.
+        zeroNext = snapNext = false;
+        out.steer = target();
+        out.throttle = ((held & UP) !== 0 ? 1 : 0) - ((held & BRAKE) !== 0 ? 1 : 0);
+        out.brake = false;
+        out.drift = false;
+        steer = out.steer;
+        return;
       }
       if (snapNext) {
         snapNext = false;

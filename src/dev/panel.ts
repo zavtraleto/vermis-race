@@ -353,8 +353,9 @@ export class DevPanel {
     this.setMode(this.mode === 'open' ? 'hidden' : 'open');
   }
 
-  private model(): 'A' | 'B' {
-    return this.t.get('car.model') === 1 ? 'B' : 'A';
+  private model(): 'A' | 'B' | 'C' {
+    const m = this.t.get('car.model');
+    return m === 2 ? 'C' : m === 1 ? 'B' : 'A';
   }
 
   private viewport(): Viewport {

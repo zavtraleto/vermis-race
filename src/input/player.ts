@@ -25,7 +25,7 @@ export interface DriftEntryOptions {
   retouch?: RetouchDrift;
   /** H3 E: flick detector fed by the pointer adapter / the poll. */
   flick?: FlickDrift;
-  /** H14, read live: in model B (model 1) touch drift = the pointer is held, H3 does not apply (R81). */
+  /** H14, read live: in model B (model 1) touch drift = the pointer is held, H3 does not apply (R81); model C (2) has no drift input (R151). */
   car?: { readonly model: number; readonly driftEntry?: number };
   warn: (message: string) => void;
 }
@@ -55,8 +55,9 @@ export function createPlayerInput(
           entry = resolveDriftEntry(f, drift.warn);
           drift.autoDrift.reset();
         }
+        // R151 (model C): the stick reports steer and throttle, no drift input (H3 does not apply).
         // R81c (model B, driftEntry 3): touch drift = the zone stick's latch, as the stick reports it.
-        if (drift.car?.model === 1 && drift.car.driftEntry === 3) {
+        if (drift.car?.model === 2 || (drift.car?.model === 1 && drift.car.driftEntry === 3)) {
           // keep touchFrame.drift
         }
         // R81 (model B): drift input = finger on the screen or mouse button held; the sim finds the flick.
@@ -73,6 +74,7 @@ export function createPlayerInput(
       last.steer = out.steer;
       last.brake = out.brake;
       last.drift = out.drift;
+      if (out.throttle !== undefined) last.throttle = out.throttle; // R151
     },
   };
 }

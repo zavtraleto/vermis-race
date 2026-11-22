@@ -137,7 +137,8 @@
     "pitchTau": 0.15,
     "slipDeg": 17,
     "velDeg": 5,
-    "leadDeg": 8
+    "leadDeg": 8,
+    "bodyMul": 1
   },
   "driftCamera": {
     "rollDeg": 0,

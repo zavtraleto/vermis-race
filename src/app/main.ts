@@ -32,7 +32,7 @@ import { createTouchStick } from '../input/touchStick';
 import { createZoneStick } from '../input/zoneStick';
 import { BumpFeedback, playerLineOffset } from '../render/bumpFeedback';
 import { CarView } from '../render/carModel';
-import { bodyYawDeg, CarWeight } from '../render/carWeight';
+import { bodyYawDeg, CarWeight, driftBodyYawDeg } from '../render/carWeight';
 import { stepCamOffset, type CamLag } from '../render/cameraLag';
 import { CrashTumble } from '../render/crashTumble';
 import { ScreenRoll } from '../render/screenRoll';
@@ -89,7 +89,7 @@ const MAX_VISUAL_DT = 0.1;
 const errors: string[] = [];
 installErrorCollectors(errors);
 const params = parseParams(window.location.search);
-// H14: ?model=a|b picks the driving model before the dev registry reads its defaults (so it is not
+// H14: ?model=a|b|c picks the driving model before the dev registry reads its defaults (so it is not
 // saved as a tuning diff); the panel switch car.model still changes it live.
 if (params.model !== null) baseCar.model = params.model;
 // Spike E1: ?render=3d draws the same game as a true 3D scene (src/render3d).
@@ -349,10 +349,21 @@ const keyboard = createKeyboardInput(inputConfig.keyboard, baseCar);
 // input is the zone stick, chosen at load (a panel switch of H14 / H16 changes the touch stick after a
 // reload). In variants 4 and 5 the player input ignores the stick's drift latch: touch drift = finger
 // down (player.ts).
+// R151/R155 (model C): the zone stick with the throttle axis; it reads the live model and the state
+// of the player car (the curr state, read by the player input before the next tick).
+const stickCar = {
+  get model(): number {
+    return baseCar.model;
+  },
+  get state(): 'GRIP' | 'DRIFT' {
+    return loop.curr.cars[0]!.state;
+  },
+};
 const zoneStick =
-  baseCar.model === 1 &&
-  (baseCar.driftEntry === 3 || baseCar.driftEntry === 4 || baseCar.driftEntry === 5)
-    ? createZoneStick(inputConfig.touch)
+  baseCar.model === 2 ||
+  (baseCar.model === 1 &&
+    (baseCar.driftEntry === 3 || baseCar.driftEntry === 4 || baseCar.driftEntry === 5))
+    ? createZoneStick(inputConfig.touch, stickCar)
     : null;
 const touchStick = zoneStick ?? createTouchStick(inputConfig.touch);
 attachKeyboard(window, keyboard, now);
@@ -363,14 +374,22 @@ const flick = createFlickDrift(inputConfig.touch);
 attachPointer(canvas, touchStick, now, retouch, flick);
 // Constant input for screenshot scenarios so the frame does not depend on the keyboard. Drift
 // scenarios first hold `flickFrom` for `flickTicks` reads (one read per tick), then `steer`: the
-// R81 flick that enters a drift in model B (model A enters on the R20 edge as before).
-function fixedInput(steer: number, drift: boolean, flickFrom = steer, flickTicks = 0): PlayerInput {
+// R81 flick that enters a drift in model B (model A enters on the R20 edge as before). R154 (model
+// C): a drift scenario lifts (throttle -1) for its first `liftTicks` reads.
+function fixedInput(
+  steer: number,
+  drift: boolean,
+  flickFrom = steer,
+  flickTicks = 0,
+  liftTicks = 0,
+): PlayerInput {
   const last: InputFrame = { steer, brake: false, drift };
   let reads = 0;
   return {
     last,
     read(out: InputFrame): void {
       out.steer = reads < flickTicks ? flickFrom : steer;
+      out.throttle = reads < liftTicks ? -1 : 0;
       reads++;
       out.brake = false;
       out.drift = drift;
@@ -380,7 +399,13 @@ function fixedInput(steer: number, drift: boolean, flickFrom = steer, flickTicks
 const flickScenario = driftScenario ?? sharpScenario;
 const player = fixedScenario
   ? flickScenario
-    ? fixedInput(flickScenario.steer, true, flickScenario.flickFrom, flickScenario.flickTicks)
+    ? fixedInput(
+        flickScenario.steer,
+        true,
+        flickScenario.flickFrom,
+        flickScenario.flickTicks,
+        flickScenario.liftTicks,
+      )
     : fixedInput(fixedScenario.steer, false)
   : createPlayerInput(keyboard, touchStick, now, {
       // H3 read live: A = pull-down gesture, C = auto drift from the stick deflection,
@@ -777,9 +802,14 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
   camLag.posX = x - camOffset;
   const speed = p.speed + (c.speed - p.speed) * alpha;
   // R89: in model B the body yaw is vis*slipDeg + vel*velDeg + leadDeg*lead (interpolated fields,
-  // both states).
+  // both states); model C the same in GRIP, R160 in DRIFT.
   let bodyYaw: number | null = null;
-  if (baseCar.model === 1) {
+  if (baseCar.model === 2 && c.state === 'DRIFT') {
+    // R160: model C DRIFT body yaw from the slip angle beta (interpolated within one drift).
+    const beta =
+      p.state === 'DRIFT' && p.dir === c.dir ? p.beta + (c.beta - p.beta) * alpha : c.beta;
+    bodyYaw = driftBodyYawDeg(c.dir, beta, p.vel + (c.vel - p.vel) * alpha, spritesConfig.weight);
+  } else if (baseCar.model === 1 || baseCar.model === 2) {
     bodyYaw = bodyYawDeg(
       p.yaw + (c.yaw - p.yaw) * alpha,
       p.vel + (c.vel - p.vel) * alpha,
@@ -790,7 +820,8 @@ function updateVisuals(dt: number, angle: number, alpha: number): void {
       spritesConfig.weight,
     );
   }
-  // R27c: g = body angle over its full-drift value (visible slip slipFull x slipDeg, R89); in
+  // R27c: g = body angle over its full-drift value (visible slip slipFull x slipDeg, R89; model C the
+  // same scale as its R87 angle); in
   // model A the R24 drift yaw over yawMaxDeg. Picture roll > 0 is counter-clockwise, so a right
   // drift (g > 0) rolls it clockwise: the right edge of the road goes down.
   const g =
@@ -891,6 +922,7 @@ const menu = menuOn
         },
       },
       touchDriftOf(),
+      () => baseCar.model === 2, // R151: model C hides the H19 choice
     )
   : null;
 if (menu) {

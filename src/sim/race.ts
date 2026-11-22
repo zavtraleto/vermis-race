@@ -62,6 +62,15 @@ export function createRace(seed: number, carCount: number, trafficCount = 0): Ra
       nemesis: 0,
       band: 0,
       joinTicks: 0,
+      beta: 0, // R152
+      betaI: 0,
+      refA: 0,
+      winTicks: 0,
+      winDir: 0,
+      wBeta: 0,
+      liftArmed: 1,
+      endTicks: 0,
+      exitTicks: -1, // R152: round(exitRamp/DT), set from the car params on the first model C tick
     });
   }
   // R2: RNG state is a plain 32-bit int inside the state.
@@ -138,11 +147,17 @@ export function step(
     const off = car.x > 1 || car.x < -1;
     car.offTicks = off ? car.offTicks + 1 : 0;
 
-    // H14 = C (R150-R164): not implemented yet (tests first).
-    if (p.model === 2) throw new Error('not implemented: model C (R150-R164)');
+    // H14 = C (R150-R164): model C replaces the model B drift; its GRIP is model B GRIP (R159).
+    if (p.model === 2) {
+      const speedC = stepModelC(car, input, p, cars, segments, seg, off, vcap);
+      car.heading += curve * speedC * K_HEADING * DT; // R17
+      car.z += speedC * DT * SEG_PER_UNIT; // R16
+      lampHit(car, z0, p, segCount); // R47/R64: after R16, before R40
+      continue;
+    }
     // H14: model B (R80-R87) replaces R10-R15b and R20-R22; R16/R17 below are shared.
     if (p.model === 1) {
-      const speedB = stepModelB(car, input, p, cars, segments, seg, off, vcap);
+      const speedB = stepModelB(car, input, p, cars, segments, seg, off, vcap, 0, 1, true);
       car.heading += curve * speedB * K_HEADING * DT; // R17
       car.z += speedB * DT * SEG_PER_UNIT; // R16
       lampHit(car, z0, p, segCount); // R47/R64: after R16, before R40
@@ -345,6 +360,9 @@ function lampHit(car: Car, z0: number, p: CarParams, segCount: number): void {
     car.steerHistCount = 0;
     car.deflectTicks = 0;
     car.autoTicks = 0; // R81e: a crash zeroes the count
+    car.beta = 0; // R152: a crash ends the model C drift and its window
+    car.winTicks = 0;
+    car.endTicks = 0;
     return;
   }
 }
@@ -488,6 +506,9 @@ function stepModelB(
   seg: number,
   off: boolean,
   vcap: number,
+  lift: number,
+  leadMul: number,
+  relStart: boolean,
 ): number {
   const curve = segments[seg]!.curve;
   // R80: raw steer, no R10 slew. prevSteer is the raw steer of the previous tick (R81b C sign).
@@ -706,6 +727,7 @@ function stepModelB(
       !input.drift &&
       steer === 0 &&
       side !== 0 &&
+      relStart &&
       (prevSteer !== 0 || exited)
     ) {
       car.relSide = side;
@@ -791,6 +813,7 @@ function stepModelB(
     gripLead = mem
       ? p.gripLead * (car.relV - car.vel) * sp * p.latScale
       : gripLeadOf(car.vel, steer, sp, A, off, p);
+    gripLead *= leadMul; // R159 (2): model C ramps the GRIP lead in after a drift end (1 in B)
     // R85e: a lead not toward the finger (in the memory: toward sign(Y)) may only cancel the
     // course motion: vx stays between 0 and vel*sp*latScale.
     const toward = mem ? Y : steer;
@@ -865,6 +888,11 @@ function stepModelB(
   }
   const accel = boosted || turbo ? p.accel * accelMul : p.accel;
   let speed = throttle(car.speed, input.brake, cap, accel, p);
+  // R159 (1): a model C lift replaces the R86 acceleration (not below 0).
+  if (lift > 0) {
+    speed = (car.speed > cap ? speed : car.speed) - lift;
+    if (speed < 0) speed = 0;
+  }
   // R86b (H17): the scrub when the turn needs more than scrubStart of the grip limit gripA (the turn
   // full steer holds without a drift); A and sp are those of R83.
   let scrub = 0;
@@ -901,6 +929,193 @@ function stepModelB(
     car.turbo = t < 1 ? t : 1;
   }
   return speed;
+}
+
+/** R151/R159: the frame model C hands to the model B GRIP code (no drift, no brake); reused. */
+const gripInput: InputFrame = { steer: 0, brake: false, drift: false };
+
+/**
+ * Model C tick (R150-R159) of a player or rival car; returns the speed after R157 / R86 (also
+ * stored). `off` is |x| > 1 at the start of the step. input.drift and input.brake are not read.
+ */
+function stepModelC(
+  car: Car,
+  input: InputFrame,
+  p: CarParams,
+  cars: readonly Car[],
+  segments: readonly Segment[],
+  seg: number,
+  off: boolean,
+  vcap: number,
+): number {
+  const curve = segments[seg]!.curve;
+  // R80: raw steer; R151: throttle absent = 0.
+  let steer = input.steer;
+  if (steer > 1) steer = 1;
+  if (steer < -1) steer = -1;
+  let thr = input.throttle ?? 0;
+  if (thr > 1) thr = 1;
+  if (thr < -1) thr = -1;
+  const rampTicks = Math.round(p.exitRamp / DT);
+  if (car.exitTicks < 0) car.exitTicks = rampTicks; // R152: the exit ramp is full from the start
+  const sp = car.speed / p.vmax;
+  const A = curve * sp * p.kYaw;
+
+  // R153: reference = mean curve of the road of the next refLook s, as A, smoothed.
+  const n = segments.length;
+  let k = Math.ceil(sp * SEG_PER_UNIT * p.refLook);
+  if (k < 1) k = 1;
+  let sum = 0;
+  let j = seg;
+  for (let i = 0; i < k; i++) {
+    sum += segments[j]!.curve;
+    j = j + 1 >= n ? 0 : j + 1;
+  }
+  car.refA += ((sum / k) * sp * p.kYaw - car.refA) * (1 - Math.exp(-DT / p.refTau));
+
+  // R154: the lift edge with hysteresis opens the entry window (outside DRIFT).
+  if (thr <= -p.liftOn && car.liftArmed === 1) {
+    car.liftArmed = 0;
+    if (car.state !== 'DRIFT') {
+      car.winTicks = Math.round(p.driftWindow / DT);
+      car.winDir = 0;
+      car.wBeta = 0;
+    }
+  }
+  if (thr > -p.liftOff) car.liftArmed = 1;
+  if (car.state !== 'DRIFT' && car.winTicks > 0) {
+    car.winTicks--;
+    car.wBeta += (steer * p.betaEntry - car.wBeta) * (1 - Math.exp(-DT / p.winTau));
+    const side = car.wBeta > 0 ? 1 : car.wBeta < 0 ? -1 : 0;
+    const absW = car.wBeta < 0 ? -car.wBeta : car.wBeta;
+    if (
+      absW >= p.betaOn &&
+      car.speed > p.driftEnterSpeed * p.vmax &&
+      (car.winDir === 0 || side === car.winDir)
+    ) {
+      // R154: DRIFT in this tick; vel, x, speed continuous, no yaw kick.
+      car.state = 'DRIFT';
+      car.dir = side > 0 ? 1 : -1;
+      car.beta = absW;
+      car.betaI = absW;
+      car.endTicks = 0;
+      car.relSide = 0;
+      car.relV = 0;
+      car.driftTicks = 0;
+    }
+  }
+
+  if (car.state !== 'DRIFT') {
+    // R159: model B GRIP; (1) a lift replaces the acceleration, (2) the lead ramps in after a drift
+    // end; no R85f start on a GRIP steer release.
+    gripInput.steer = steer;
+    const lift = thr < 0 ? p.liftDecel * -thr * p.vmax * DT : 0;
+    const mul = car.exitTicks >= rampTicks ? 1 : (car.exitTicks * DT) / p.exitRamp;
+    if (car.exitTicks < rampTicks) car.exitTicks++;
+    return stepModelB(car, gripInput, p, cars, segments, seg, off, vcap, lift, mul, false);
+  }
+
+  // R155: the angle chases the finger around the reference angle.
+  const dir = car.dir;
+  const u = steer * dir;
+  const bRef = p.betaPerA * car.refA * dir;
+  let bT = (bRef * u) / p.uHold;
+  if (bT > p.betaMax) bT = p.betaMax;
+  if (bT < -p.betaMax) bT = -p.betaMax;
+  if (car.winTicks > 0) {
+    car.winTicks--;
+    if (u > 0 && bT < p.entryFloor) bT = p.entryFloor;
+  }
+  const kBeta = 1 - Math.exp(-DT / p.betaTau);
+  let beta = car.beta + (bT - car.beta) * kBeta;
+  if (beta < 0) beta = 0;
+  if (beta > p.betaMax) beta = p.betaMax;
+  car.beta = beta;
+
+  // R156: course and shift; the angle over the hold angle leads inside, gas up wider, down tighter.
+  const bHold = p.betaPerA * A * dir;
+  const outer = -car.x * dir;
+  let cush = (outer - p.bumpFrom) / (1 - p.bumpFrom);
+  if (cush < 0) cush = 0;
+  if (cush > 1) cush = 1;
+  const velT = dir * (p.latPerDeg * (beta - bHold) - p.thrLat * thr + p.bumpGain * cush);
+  const rate = p.velGripC + p.railK * Math.sin((beta * Math.PI) / 180);
+  const vel0 = car.vel;
+  car.vel += ((velT * p.velGripC) / rate - car.vel) * (1 - Math.exp(-rate * DT));
+  if ((car.vel - vel0) * dir < -p.outSlide * DT) car.vel = vel0 - dir * p.outSlide * DT;
+  car.x += car.vel * sp * p.latScale * DT;
+  // R18: walls zero vel toward the wall.
+  if (car.x > p.xLimit) {
+    car.x = p.xLimit;
+    if (car.vel > 0) car.vel = 0;
+  } else if (car.x < -p.xLimit) {
+    car.x = -p.xLimit;
+    if (car.vel < 0) car.vel = 0;
+  }
+  car.vx = car.vel * sp * p.latScale;
+  car.steer = steer; // R87
+  car.yaw = car.vel + (dir * beta) / p.slipDeg;
+  car.angle = (dir * beta) / (p.slipDeg * p.slipFull); // R87
+
+  // R50-R52: slipstream of the player, the charge frozen in DRIFT.
+  let boosted = false;
+  if (car.kind === 'player') boosted = slipstream(car, cars, p, true);
+
+  // R157: the angle miss against the exact finger lowers the speed cap.
+  let bI = bRef < 0 ? 0 : bRef > p.betaMax ? p.betaMax : bRef;
+  bI = car.betaI + (bI - car.betaI) * kBeta;
+  car.betaI = bI;
+  let miss = beta - bI;
+  if (miss < 0) miss = -miss;
+  if (miss > p.missCap) miss = p.missCap;
+  const over = miss - p.missFree;
+  let cap = vcap * (1 - p.missLoss * (over > 0 ? over : 0));
+  let accel = p.accel;
+  if (boosted) {
+    cap *= p.draftCapMul; // R52 in DRIFT (as in B)
+    accel *= p.draftAccelMul;
+  }
+  let v = car.speed;
+  if (v > cap) {
+    v -= p.missBrake * p.vmax * DT;
+    if (v < cap) v = cap;
+  } else if (thr >= 0) {
+    v += accel * (1 + p.thrAccelUp * thr) * DT;
+    if (v > cap) v = cap;
+  }
+  if (thr < 0) v -= p.liftDecelDrift * -thr * p.vmax * DT;
+  if (car.x > 1 || car.x < -1) v *= Math.pow(p.offroadMul, 60 * DT); // R15
+  if (v < 0) v = 0;
+  car.speed = v;
+  car.driftTicks++;
+
+  // R158: the drift ends driftEndDelay after the angle fell below betaOn, or by speed.
+  car.endTicks = beta < p.betaOn ? car.endTicks + 1 : 0;
+  if (car.endTicks * DT >= p.driftEndDelay || v < p.driftExitSpeed * p.vmax) {
+    let sG = A / p.velGrip;
+    if (sG > p.slipGripMax) sG = p.slipGripMax;
+    if (sG < -p.slipGripMax) sG = -p.slipGripMax;
+    car.state = 'GRIP';
+    car.carry = (dir * beta) / p.slipDeg - sG; // R82 effects, R82b
+    car.yaw = car.vel + sG;
+    car.yawRate = A;
+    car.angle = 0;
+    // R85f: the release memory starts on a drift end with the finger at 0.
+    const vInf = -A / p.yawAlign - sG;
+    if (steer === 0 && vInf !== 0) {
+      car.relSide = vInf > 0 ? 1 : -1;
+      car.relV = car.vel * vInf > 0 ? car.vel : 0;
+    }
+    // R158: the switch window: a slip to the other side latches without a new lift.
+    car.winTicks = Math.round(p.switchWindow / DT);
+    car.winDir = -dir;
+    car.wBeta = dir * beta;
+    car.dir = 0;
+    car.endTicks = 0;
+    car.exitTicks = 0;
+    car.driftTicks = 0;
+  }
+  return v;
 }
 
 /** R50: a traffic car ahead with 0 < zT - z <= draftLength and |x - xT| <= draftWidth / 2. */
@@ -1013,7 +1228,19 @@ function bumpTraffic(car: Car, cars: readonly Car[], p: CarParams): void {
 /** R42 lateral kick (R88 in model B), R44 drift angle loss, R43 invulnerability. */
 function kick(car: Car, side: number, p: CarParams): void {
   car.vx = side * p.bumpKick;
-  if (p.model === 1) {
+  if (p.model === 2) {
+    // R42/R44 in model C (R164 keeps R40-R44): the kick goes through vel as in R88; in DRIFT the
+    // angle loses bumpAngleLoss of the full visible angle (slipFull*slipDeg degrees), not below 0.
+    const denom = (car.speed / p.vmax) * p.latScale;
+    if (denom > 0) car.vel = car.vx / denom;
+    if (car.state === 'DRIFT') {
+      let b = car.beta - p.bumpAngleLoss * p.slipFull * p.slipDeg;
+      if (b < 0) b = 0;
+      car.beta = b;
+      car.yaw = car.vel + (car.dir * b) / p.slipDeg;
+      car.angle = (car.dir * b) / (p.slipDeg * p.slipFull);
+    }
+  } else if (p.model === 1) {
     // R88/R42: the same vx through vel, sp after R41; yaw is left alone. (sp = 0 cannot carry a kick.)
     const denom = (car.speed / p.vmax) * p.latScale;
     if (denom > 0) car.vel = car.vx / denom;
@@ -1140,6 +1367,15 @@ function poolRivals(state: RaceState, cfg: RivalConfig, player: Car): void {
     c.steerHistCount = 0;
     c.deflectTicks = 0;
     c.autoTicks = 0; // R81e: a replaced rival starts with no count
+    c.beta = 0; // R152: clean model C state
+    c.betaI = 0;
+    c.refA = 0;
+    c.winTicks = 0;
+    c.winDir = 0;
+    c.wBeta = 0;
+    c.liftArmed = 1;
+    c.endTicks = 0;
+    c.exitTicks = -1;
     c.turbo = 0;
     c.turboTicks = 0;
     c.driftTicks = 0;
