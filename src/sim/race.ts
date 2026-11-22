@@ -174,8 +174,6 @@ function drive(
   const wheel = steer * ((p.wheelMax * Math.PI) / 180); // R203
   const gas = input.gas < 0 ? 0 : input.gas > 1 ? 1 : input.gas;
   const brake = input.brake < 0 ? 0 : input.brake > 1 ? 1 : input.brake;
-  car.prevGas = gas; // R200/R208
-  car.prevBrake = brake;
   if (car.driftTimer > 0) car.driftTimer--; // R208
   const gripRear = 1; // R208: outside drift (drift is slice 2)
 
@@ -244,18 +242,36 @@ function drive(
   car.travel -= turn;
   car.heading -= turn;
 
-  // R18/R211: clamp to xLimit, travel toward the wall is zeroed.
-  if (car.x > p.xLimit) {
-    car.x = p.xLimit;
-    if (car.travel > 0) car.travel = 0;
-  } else if (car.x < -p.xLimit) {
-    car.x = -p.xLimit;
-    if (car.travel < 0) car.travel = 0;
+  // R18/R211: clamp to xLimit; travel and travelRate toward the border are zeroed, then
+  // |slip| <= slipMax by pulling heading; an impact steeper than wallKillAngle kills the slip.
+  if (car.x > p.xLimit || car.x < -p.xLimit) {
+    const side = car.x > 0 ? 1 : -1;
+    car.x = side * p.xLimit;
+    let impact = 0;
+    if (car.travel * side > 0) {
+      impact = car.travel * side;
+      car.travel = 0;
+    }
+    if (car.travelRate * side > 0) car.travelRate = 0;
+    if (car.heading - car.travel > slipMax) car.heading = car.travel + slipMax;
+    else if (car.heading - car.travel < -slipMax) car.heading = car.travel - slipMax;
+    if (impact > (p.wallKillAngle * Math.PI) / 180) {
+      car.heading = car.travel;
+      car.driftTimer = 0;
+      car.wallTicks = Math.round(p.wallTime / DT);
+    }
+  }
+  // R211: while wallTicks > 0 slip is held 0.
+  if (car.wallTicks > 0) {
+    car.heading = car.travel;
+    car.wallTicks--;
   }
   // R15: offroad slowdown (R15b inactive since 2026-11-22).
   if (car.x > 1 || car.x < -1) car.speed *= Math.pow(p.offroadMul, 60 * DT);
   // R200/R210: slipRate = change of slip over this tick / DT.
   car.slipRate = (car.heading - car.travel - slip0) / DT;
+  car.prevGas = gas; // R200/R208: input of this tick, read by the next one
+  car.prevBrake = brake;
 }
 
 /**

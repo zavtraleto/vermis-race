@@ -68,6 +68,8 @@ export interface CarParams {
   driftTraction: number; // R204 traction when |slip| >= slipGrip
   railGrip: number; // R209 outside drift c = railGrip*sin^2(slip), share per OR2 tick
   roadTurn: number; // R210 rad per segment at curve 1
+  wallKillAngle: number; // R211 impact angle above which the wall kills the slip, degrees
+  wallTime: number; // R211 seconds the slip is held 0 after such a hit
   accel: number; // R204 vmax per second at gas 1
   engineBrake: number; // R204 vmax per second at gas 0
   brakeDecel: number; // R204 vmax per second at brake 1

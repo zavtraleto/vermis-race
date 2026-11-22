@@ -16,6 +16,8 @@
   "driftTraction": 0.2,
   "railGrip": 0.05,
   "roadTurn": 0.00222,
+  "wallKillAngle": 5,
+  "wallTime": 0.5,
   "accel": 0.22,
   "engineBrake": 0.05,
   "brakeDecel": 0.6,
