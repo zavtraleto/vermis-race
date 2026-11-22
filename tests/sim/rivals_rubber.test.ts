@@ -271,23 +271,30 @@ describe('R63 off switches, player and traffic', () => {
     expect(s.cars[1]!.speed).toBe(0.5);
     expect(s.cars[1]!.band).toBe(0);
   });
-  it('only the cap changes: lateral motion of step 1 is identical with the band on and off', () => {
-    const steer: InputFrame = { steer: 0.7, gas: 1, brake: 0, driftTap: false };
-    const run = (cfg: RivalConfig): { steer: number; counter: number; speed: number } => {
+  it('only the cap changes: the control (steer, counter) is identical every tick with the band on and off', () => {
+    // R63: the band changes only the cap, not the control; in R200 x/travel depend on speed, so compare
+    // the control. 1 s with a reversal at 0.5 s (right -> left) so that counter (R206) becomes nonzero.
+    const run = (cfg: RivalConfig): { steer: number[]; counter: number[]; speed: number } => {
       const s = mkRace(1, 0, [
         { z: 0, x: 0, speed: 0 },
         { z: -240, x: 0.2, speed: 0.5, slot: 400, slotTicks: 1e6, band: 0.06, role: 1 },
       ]);
       s.tick = LATE;
-      step(s, [IDLE, steer], TRACK, [PLAYER, SNAP], undefined, cfg);
-      const c = s.cars[1]!;
-      return { steer: c.steer, counter: c.counter, speed: c.speed };
+      const steer: number[] = [];
+      const counter: number[] = [];
+      for (let i = 0; i < 120; i++) {
+        const input: InputFrame = { steer: i < 60 ? 0.7 : -0.7, gas: 1, brake: 0, driftTap: false };
+        step(s, [IDLE, input], TRACK, [PLAYER, SNAP], undefined, cfg);
+        steer.push(s.cars[1]!.steer);
+        counter.push(s.cars[1]!.counter);
+      }
+      return { steer, counter, speed: s.cars[1]!.speed };
     };
     const on = run(RC);
     const off = run({ ...RC, rubberBand: 0 });
-    // R63: the band changes only the cap, not the control; in R200 x/travel depend on speed.
-    expect(on.steer).toBe(off.steer);
-    expect(on.counter).toBe(off.counter);
+    expect(on.steer).toEqual(off.steer);
+    expect(on.counter).toEqual(off.counter);
+    expect(Math.max(...on.counter)).toBeGreaterThan(0); // the reversal really exercised counter
     expect(on.speed).toBeGreaterThan(off.speed + 0.03); // ~1.06 vs 1
   });
   it('determinism: the same race run twice gives identical JSON (band, slot included)', () => {
