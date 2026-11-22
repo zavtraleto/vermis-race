@@ -234,14 +234,27 @@ describe('R206 front axle limit and counter-steer', () => {
     }
   });
 
-  it('R206/R215(7): at vmax full steer turns the body slower than at 0.5*vmax', () => {
-    const yaw = (speed: number): number => {
-      const s = race1({ speed });
-      stepN(s, 60, frame(1), STRAIGHT, P, true);
-      return car0(s).heading;
+  it('R206/R215(7): at vmax full steer gives a wider arc (smaller path curvature) than at 0.5*vmax', () => {
+    // Straight, full steer held (preset), speed and x held fixed each tick so the arc is measured
+    // at that speed. Steady state after 1 s; curvature = |delta travel| / path length in metres over
+    // 1.0 s -> 1.5 s, path length = v*DT per tick.
+    const curvature = (speed: number): number => {
+      const s = race1({ speed, steer: 1 });
+      const c = car0(s);
+      let t0 = 0;
+      let path = 0;
+      for (let i = 0; i < 180; i++) {
+        c.speed = speed;
+        c.x = 0;
+        if (i === 120) t0 = c.travel;
+        if (i >= 120) path += vMs(P, speed) * DT;
+        stepN(s, 1, frame(1));
+      }
+      expect(c.driftTimer).toBe(0);
+      return Math.abs(c.travel - t0) / path;
     };
-    const fast = yaw(P.vmax);
-    const half = yaw(0.5 * P.vmax);
+    const fast = curvature(P.vmax);
+    const half = curvature(0.5 * P.vmax);
     expect(fast).toBeGreaterThan(0);
     expect(fast).toBeLessThan(half);
   });
