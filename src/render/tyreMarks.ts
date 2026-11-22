@@ -21,19 +21,6 @@ export interface RoadPoint {
   x: number;
 }
 
-/**
- * R24d: the front wheels also lay marks in a strong drift: state DRIFT and
- * |slip| >= frontMarkSlip * slipFull (inclusive). Pure.
- */
-export function frontMarksActive(
-  state: 'GRIP' | 'DRIFT',
-  slip: number,
-  slipFull: number,
-  frontMarkSlip: number,
-): boolean {
-  return state === 'DRIFT' && Math.abs(slip) >= frontMarkSlip * slipFull;
-}
-
 /** Segments travelled forward from track z `a` to `b` on a loop of `len` segments, in [0, len). */
 export function forwardDist(a: number, b: number, len: number): number {
   let d = (b - a) % len;
@@ -223,7 +210,7 @@ export class TyreMarks {
 
   /**
    * `found` = both wheel points were found on the road surface this frame (left / right written).
-   * `len` = track length in segments. R24d: `front` = the front wheels mark now (frontMarksActive),
+   * `len` = track length in segments. R24d: `front` = the front wheels mark now,
    * `frontFound` = both front wheel points were found (frontLeft / frontRight written); the front
    * pair is checked for the asphalt on its own. Turning the front marks off ends them at once.
    */

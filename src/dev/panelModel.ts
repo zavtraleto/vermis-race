@@ -8,8 +8,6 @@ export interface PanelItemMeta {
   hint: string;
   tier: Tier;
   group: string;
-  /** Read only by this driving model (car.model 0 = A, 1 = B, 2 = C). */
-  model?: 'A' | 'B' | 'C';
   /** The change is picked up only after a page reload. */
   reload?: boolean;
   /** Rule / hypothesis id, shown small next to the path. */
@@ -19,7 +17,6 @@ export interface PanelItemMeta {
 }
 
 export interface PanelViewState {
-  model: 'A' | 'B' | 'C';
   query: string;
   onlyChanged: boolean;
   showMore: boolean;
@@ -63,10 +60,6 @@ const MIN_W = 240;
 const MIN_H = 160;
 const MIN_OPACITY = 0.3;
 
-function forModel(x: PanelItemMeta, model: 'A' | 'B' | 'C'): boolean {
-  return x.model === undefined || x.model === model;
-}
-
 function matches(path: string, x: PanelItemMeta, q: string): boolean {
   return (
     x.title.toLowerCase().includes(q) ||
@@ -78,8 +71,7 @@ function matches(path: string, x: PanelItemMeta, q: string): boolean {
 
 /**
  * Sections to show, in group order of first appearance in `meta`.
- * Search (non-blank query): every model and tier, no favourites. Only-changed: changed paths of the
- * active model. Default: favourites first, then core (+ more with showMore) and every changed path.
+ * Search (non-blank query): every tier, no favourites. Only-changed: changed paths. Default: favourites first, then core (+ more with showMore) and every changed path.
  */
 export function buildSections(
   meta: Readonly<Record<string, PanelItemMeta>>,
@@ -95,7 +87,7 @@ export function buildSections(
     const fav: string[] = [];
     for (const p of state.favourites) {
       const x = meta[p];
-      if (x !== undefined && forModel(x, state.model) && !taken.has(p)) {
+      if (x !== undefined && !taken.has(p)) {
         fav.push(p);
         taken.add(p);
       }
@@ -115,7 +107,6 @@ export function buildSections(
     if (taken.has(path)) continue;
     let show: boolean;
     if (searching) show = matches(path, x, q) && (!state.onlyChanged || changed.has(path));
-    else if (!forModel(x, state.model)) show = false;
     else if (state.onlyChanged) show = changed.has(path);
     else show = x.tier === 'core' || (state.showMore && x.tier === 'more') || changed.has(path);
     if (show) section.paths.push(path);

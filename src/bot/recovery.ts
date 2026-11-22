@@ -1,5 +1,5 @@
-// T16 feel check for R15b: after leaving the road on a corner, how long until the car is back on
-// asphalt with full steer toward the centre, holding drift. Pure, deterministic.
+// T16 feel check of the offroad exit (R15, R210): after leaving the road on a corner, how long until
+// the car is back on asphalt with full steer toward the centre. Pure, deterministic.
 import { DT } from '../sim/constants';
 import { createRace, step } from '../sim/race';
 import type { CarParams, InputFrame, Track } from '../sim/types';
@@ -12,7 +12,7 @@ export interface RecoveryScenario {
 }
 
 /**
- * Car on a constant curve, `depth` beyond the OUTER edge (R19: a right curve pushes left),
+ * Car on a constant curve, `depth` beyond the OUTER edge (R210: on a right curve the road turns away to the right, the car drifts to -x),
  * steer already at full lock toward the centre, full gas. Returns seconds until |x| <= 1,
  * or Infinity if it does not return within maxSeconds.
  */

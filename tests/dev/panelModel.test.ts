@@ -29,14 +29,13 @@ const META: Record<string, PanelItemMeta> = {
   'a.core2': m('G1', 'core', { title: 'Gamma' }),
   'c.legacy1': m('G3', 'legacy', { title: 'Delta', hint: 'ancient knob' }),
   'b.core3': m('G2', 'core', { title: 'Epsilon' }),
-  'a.onlyA': m('G1', 'core', { model: 'A', title: 'OnlyA' }),
-  'b.onlyB': m('G2', 'core', { model: 'B', title: 'OnlyB' }),
-  'c.more2': m('G3', 'more', { model: 'B', title: 'MoreB' }),
+  'a.onlyA': m('G1', 'core', { title: 'OnlyA' }),
+  'b.onlyB': m('G2', 'core', { title: 'OnlyB' }),
+  'c.more2': m('G3', 'more', { title: 'MoreB' }),
 };
 
 function state(over: Partial<PanelViewState> = {}): PanelViewState {
   return {
-    model: 'B',
     query: '',
     onlyChanged: false,
     showMore: false,
@@ -50,38 +49,12 @@ const allPaths = (s: { paths: string[] }[]) => s.flatMap((x) => x.paths);
 const byTitle = (s: { title: string; paths: string[] }[], t: string) =>
   s.find((x) => x.title === t)?.paths;
 
-describe('P1 model filter', () => {
-  it('hides items of the other model in the default view', () => {
-    const a = allPaths(buildSections(META, state({ model: 'A' }), NONE));
-    expect(a).toContain('a.onlyA');
-    expect(a).not.toContain('b.onlyB');
-    const b = allPaths(buildSections(META, state({ model: 'B' }), NONE));
-    expect(b).toContain('b.onlyB');
-    expect(b).not.toContain('a.onlyA');
-  });
-
-  it('hides other-model items from favourites and from only-changed', () => {
-    const fav = buildSections(
-      META,
-      state({ model: 'A', favourites: ['b.onlyB', 'a.core1'] }),
-      NONE,
-    );
-    expect(fav[0]?.paths).toEqual(['a.core1']);
-    const ch = buildSections(
-      META,
-      state({ model: 'A', onlyChanged: true }),
-      new Set(['b.onlyB', 'a.core1']),
-    );
-    expect(allPaths(ch)).toEqual(['a.core1']);
-  });
-});
-
 describe('P2 default view', () => {
   it('shows only core items grouped by first appearance, meta order inside a group', () => {
     const s = buildSections(META, state(), NONE);
-    // model B: core = a.core1, a.core2 (G1), b.core3, b.onlyB (G2); G3 has no core -> omitted
+    // core = a.core1, a.core2, a.onlyA (G1), b.core3, b.onlyB (G2); G3 has no core -> omitted
     expect(s.map((x) => x.title)).toEqual(['G1', 'G2']);
-    expect(byTitle(s, 'G1')).toEqual(['a.core1', 'a.core2']);
+    expect(byTitle(s, 'G1')).toEqual(['a.core1', 'a.core2', 'a.onlyA']);
     expect(byTitle(s, 'G2')).toEqual(['b.core3', 'b.onlyB']);
   });
 
@@ -121,7 +94,7 @@ describe('P4 favourites', () => {
     expect(s[0]?.paths).toEqual(['b.core3', 'c.legacy1', 'a.core1']);
     const rest = allPaths(s.slice(1));
     for (const p of s[0]?.paths ?? []) expect(rest).not.toContain(p);
-    expect(byTitle(s, 'G1')).toEqual(['a.core2']);
+    expect(byTitle(s, 'G1')).toEqual(['a.core2', 'a.onlyA']);
   });
 
   it('has no fav section when favourites are empty or all unknown', () => {
@@ -139,12 +112,8 @@ describe('P5 search', () => {
     expect(q('b.more1')).toEqual(['b.more1']); // path
   });
 
-  it('searches both models and all tiers, returns matches in their groups, no fav', () => {
-    const s = buildSections(
-      META,
-      state({ model: 'A', query: 'only', favourites: ['a.core1'] }),
-      NONE,
-    );
+  it('searches all tiers, returns matches in their groups, no fav', () => {
+    const s = buildSections(META, state({ query: 'only', favourites: ['a.core1'] }), NONE);
     expect(ids(s)).not.toContain('fav');
     expect(byTitle(s, 'G1')).toEqual(['a.onlyA']);
     expect(byTitle(s, 'G2')).toEqual(['b.onlyB']);
@@ -162,13 +131,13 @@ describe('P5 search', () => {
 });
 
 describe('P6 only changed', () => {
-  it('shows only changed paths of the active model, any tier', () => {
+  it('shows only changed paths, any tier', () => {
     const s = buildSections(
       META,
       state({ onlyChanged: true }),
       new Set(['c.legacy1', 'b.more1', 'a.onlyA']),
     );
-    expect(allPaths(s)).toEqual(['b.more1', 'c.legacy1']);
+    expect(allPaths(s)).toEqual(['a.onlyA', 'b.more1', 'c.legacy1']);
   });
 
   it('is empty when nothing changed', () => {
@@ -183,11 +152,10 @@ describe('P6 only changed', () => {
 });
 
 describe('P7 changed values are never hidden', () => {
-  it('shows changed more/legacy items of the active model in the default view', () => {
+  it('shows changed more/legacy items in the default view', () => {
     const s = buildSections(META, state(), new Set(['b.more1', 'c.legacy1', 'a.onlyA']));
     expect(byTitle(s, 'G2')).toEqual(['b.more1', 'b.core3', 'b.onlyB']);
     expect(byTitle(s, 'G3')).toEqual(['c.legacy1']);
-    expect(allPaths(s)).not.toContain('a.onlyA');
   });
 });
 
@@ -448,26 +416,21 @@ describe('P12 every tunable has well-formed metadata', () => {
 });
 
 describe('P13 curated core set', () => {
-  for (const model of ['A', 'B'] as const) {
-    const core = specPaths.filter((p) => {
-      const x = meta[p];
-      return x && x.tier === 'core' && (!x.model || x.model === model);
-    });
+  const core = specPaths.filter((p) => meta[p]?.tier === 'core');
 
-    it(`model ${model}: 6..14 core items`, () => {
-      expect(core.length).toBeGreaterThanOrEqual(6);
-      expect(core.length).toBeLessThanOrEqual(14);
-    });
+  it('6..14 core items', () => {
+    expect(core.length).toBeGreaterThanOrEqual(6);
+    expect(core.length).toBeLessThanOrEqual(14);
+  });
 
-    it(`model ${model}: at most 8 core items per group`, () => {
-      const per = new Map<string, number>();
-      for (const p of core) {
-        const g = meta[p]?.group ?? '';
-        per.set(g, (per.get(g) ?? 0) + 1);
-      }
-      for (const n of per.values()) expect(n).toBeLessThanOrEqual(8);
-    });
-  }
+  it('at most 8 core items per group', () => {
+    const per = new Map<string, number>();
+    for (const p of core) {
+      const g = meta[p]?.group ?? '';
+      per.set(g, (per.get(g) ?? 0) + 1);
+    }
+    for (const n of per.values()) expect(n).toBeLessThanOrEqual(8);
+  });
 });
 
 // Raw text of every source file outside src/data and src/dev (vite glob, no node types needed).

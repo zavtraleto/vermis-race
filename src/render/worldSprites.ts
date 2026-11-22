@@ -77,8 +77,7 @@ export interface SpritesConfig {
   roadside: RoadsideDrawConfig;
   drift: DriftVisualConfig;
   smokeOver: SmokeOverConfig;
-  // R24d frontMarkSlip: share of slipFull from which the front wheels mark too (DRIFT only).
-  tyreMarks: TyreMarksConfig & { frontMarkSlip: number };
+  tyreMarks: TyreMarksConfig;
   traffic: TrafficDrawConfig;
   bump: BumpFeedbackConfig;
   crash: CrashTumbleConfig;

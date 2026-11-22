@@ -131,7 +131,6 @@ export class DevPanel {
     const parsed = parseView(saved, this.viewport());
     this.layout = parsed.layout;
     this.view = {
-      model: 'A', // ADR 0005: one driving model, the meta model filter has nothing to hide
       query: '',
       onlyChanged: parsed.state.onlyChanged,
       showMore: parsed.state.showMore,
@@ -147,7 +146,7 @@ export class DevPanel {
     // Safari draws its own disclosure marker on <summary>; the headers draw ▸ / ▾ themselves.
     root.appendChild(el('style', '', '#dev-panel summary::-webkit-details-marker{display:none}'));
     for (const type of ISOLATED) root.addEventListener(type, (e) => e.stopPropagation());
-    // Typing in a field must not steer (the keyboard model preventDefaults A/D/S/arrows/space).
+    // Typing in a field must not steer (the R202 keyboard preventDefaults the arrows and space).
     const stopTyping = (e: KeyboardEvent): void => {
       if (isFormControl(e.target)) e.stopPropagation();
     };

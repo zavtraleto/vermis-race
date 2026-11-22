@@ -44,7 +44,6 @@ function fmt(v: number, dec: number): string {
 function footText(path: string, m: PanelItemMeta | undefined): string {
   const parts = [path];
   if (m?.rule !== undefined) parts.push(m.rule);
-  if (m?.model !== undefined) parts.push(`только модель ${m.model}`);
   return parts.join(' · ');
 }
 

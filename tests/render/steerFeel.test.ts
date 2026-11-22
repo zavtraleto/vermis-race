@@ -1,14 +1,8 @@
-// Written from docs/brief.md "Ощущение руля: камера, колёса, следы" (R25c, R24d), not from code.
-// [ADR 0005] the R27c camera part is removed with its rule.
+// Written from docs/brief.md "Ощущение руля: камера, колёса, следы" (R25c), not from code.
+// [ADR 0005] the R27c camera part is removed with its rule; R24d (front marks) is off per brief.
 import { describe, expect, it } from 'vitest';
-import sprites from '../../src/data/sprites.json';
-import tunablesJson from '../../src/data/tunables.json';
-import type { TunableSpec } from '../../src/dev/tunables';
-import { frontMarksActive } from '../../src/render/tyreMarks';
 import { stepWheelSpin } from '../../src/render/wheelSpin';
 
-const MARKS = sprites.tyreMarks as unknown as Record<string, number>;
-const spec: TunableSpec = tunablesJson;
 const DT = 1 / 60;
 const TWO_PI = 2 * Math.PI;
 
@@ -69,54 +63,5 @@ describe('R25c wheel spin (stepWheelSpin)', () => {
     const big = stepWheelSpin(0, 5, 0.36, DT); // 5/0.36/60 = 0.231481
     const small = stepWheelSpin(0, 5, 0.18, DT); // 5/0.18/60 = 0.462963
     expect(small).toBeCloseTo(2 * big, 12);
-  });
-});
-
-describe('R24d front-wheel marks in a strong drift (frontMarksActive)', () => {
-  const SLIP_FULL = 2; // threshold = 0.7*2 = 1.4 (exact in binary: doubling)
-
-  it('data: sprites.json tyreMarks.frontMarkSlip 0.7, tunable in the dev panel', () => {
-    expect(MARKS.frontMarkSlip).toBe(0.7);
-    const r = spec.numbers['sprites.tyreMarks.frontMarkSlip'];
-    expect(r).toBeDefined();
-    expect(0.7).toBeGreaterThanOrEqual(r!.min);
-    expect(0.7).toBeLessThanOrEqual(r!.max);
-  });
-
-  it('boundary is inclusive: |slip| = 0.7*slipFull -> true, just below -> false', () => {
-    expect(frontMarksActive('DRIFT', 0.7 * SLIP_FULL, SLIP_FULL, 0.7)).toBe(true);
-    expect(frontMarksActive('DRIFT', 1.4, SLIP_FULL, 0.7)).toBe(true);
-    expect(frontMarksActive('DRIFT', 1.3999, SLIP_FULL, 0.7)).toBe(false);
-    expect(frontMarksActive('DRIFT', 2.5, SLIP_FULL, 0.7)).toBe(true);
-  });
-
-  it('sign of slip does not matter (left/right symmetry)', () => {
-    for (const slip of [0, 0.5, 1.3999, 1.4, 1.9, 3]) {
-      expect(frontMarksActive('DRIFT', -slip, SLIP_FULL, 0.7)).toBe(
-        frontMarksActive('DRIFT', slip, SLIP_FULL, 0.7),
-      );
-    }
-    expect(frontMarksActive('DRIFT', -1.4, SLIP_FULL, 0.7)).toBe(true);
-  });
-
-  it('outside DRIFT: always false', () => {
-    for (const slip of [0, 1.4, -3, 10])
-      expect(frontMarksActive('GRIP', slip, SLIP_FULL, 0.7)).toBe(false);
-    expect(frontMarksActive('GRIP', 1, SLIP_FULL, 0)).toBe(false);
-  });
-
-  it('frontMarkSlip 0 in DRIFT: always true (even slip 0)', () => {
-    for (const slip of [0, -0.01, 1, 5])
-      expect(frontMarksActive('DRIFT', slip, SLIP_FULL, 0)).toBe(true);
-  });
-
-  it('monotonic in |slip|: once true, larger |slip| stays true', () => {
-    let seen = false;
-    for (let i = 0; i <= 40; i++) {
-      const on = frontMarksActive('DRIFT', i * 0.1, SLIP_FULL, 0.7);
-      if (seen) expect(on).toBe(true);
-      if (on) seen = true;
-    }
-    expect(seen).toBe(true);
   });
 });
