@@ -1,8 +1,9 @@
 // T16 driver bots. A bot reads only what a player sees (its car and the track ahead) and
 // writes an InputFrame (R201); it goes through the same step() as a human. Pure, deterministic,
 // allocation-free per tick (same boundary as src/sim).
-// Demolition stub (ADR 0005): the bot steers toward its line with `steer` at full gas and never
-// drifts; the R212 driver (drift entry, counter-steer) comes with the new driving model.
+// R212 minimal (slice 1): the bot steers at full gas toward its line, aiming at where the car will be
+// in aimTime s (its travel angle and the road curving away, R210) plus the steer that holds the
+// curve ahead in grip (R203/R207); it never drifts yet (drift entry, counter-steer come later).
 import { DT, SEG_PER_UNIT } from '../sim/constants';
 import type { Car, CarParams, InputFrame, Track } from '../sim/types';
 
@@ -17,6 +18,7 @@ export interface BotParams {
   insideX: number; // inside line target, half-widths (aim = inside)
   insideFullCurve: number; // |mean curve ahead| at which the full insideX is used
   steerGain: number; // steer per half-width of error to the target line
+  aimTime: number; // s ahead at which the lateral position is predicted (R212)
   noiseAmp: number; // std of the low-passed steering noise, steer units; 0 = off
   noiseTau: number; // s, low-pass time constant of the noise
   reactionDelay: number; // s between deciding a steer value and applying it, <= MAX_DELAY_TICKS*DT
@@ -175,14 +177,15 @@ export function botInput(
   const segs = track.segments;
   const n = segs.length;
   const seg0 = wrap(Math.floor(car.z), n);
+  // Mean curve of the road covered in steerLookahead s at the current speed (at least 1 segment).
+  let d = Math.round(car.speed * SEG_PER_UNIT * bp.steerLookahead);
+  if (d < 1) d = 1;
+  let sum = 0;
+  for (let i = 0; i < d; i++) sum += segs[wrap(seg0 + i, n)]!.curve;
+  const curve = sum / d;
   let xTarget = 0;
   if (bp.aim === 'inside') {
-    // Mean curve of the road covered in steerLookahead s at the current speed (at least 1 segment).
-    let d = Math.round(car.speed * SEG_PER_UNIT * bp.steerLookahead);
-    if (d < 1) d = 1;
-    let sum = 0;
-    for (let i = 0; i < d; i++) sum += segs[wrap(seg0 + i, n)]!.curve;
-    let r = sum / d / bp.insideFullCurve;
+    let r = curve / bp.insideFullCurve;
     if (r > 1) r = 1;
     if (r < -1) r = -1;
     xTarget = bp.insideX * r; // + curve = right turn, inside = +x
@@ -191,7 +194,14 @@ export function botInput(
     const xa = avoidX(bp, car, cars, p, xTarget);
     if (xa === xa) xTarget = xa;
   }
-  out.steer = humanize(bot, bp, bp.steerGain * (xTarget - car.x));
+  // R210: the road turns under the car at omega; the car's path relative to the road over aimTime.
+  const v = (car.speed * p.vmaxKmh) / 3.6;
+  const omega = curve * p.roadTurn * car.speed * SEG_PER_UNIT;
+  const t = bp.aimTime;
+  const xAhead = car.x + (v * (Math.sin(car.travel) * t - 0.5 * omega * t * t)) / p.halfWidthM;
+  // R206/R207 in grip: yaw = v*tan(wheel)/wheelBase, so holding omega needs this steer.
+  const hold = v > 0 ? Math.atan((omega * p.wheelBase) / v) / ((p.wheelMax * Math.PI) / 180) : 0;
+  out.steer = humanize(bot, bp, hold + bp.steerGain * (xTarget - xAhead));
   out.gas = 1;
   out.brake = 0;
   out.driftTap = false;
