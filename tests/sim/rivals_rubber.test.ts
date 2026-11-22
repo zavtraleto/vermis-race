@@ -273,7 +273,7 @@ describe('R63 off switches, player and traffic', () => {
   });
   it('only the cap changes: lateral motion of step 1 is identical with the band on and off', () => {
     const steer: InputFrame = { steer: 0.7, gas: 1, brake: 0, driftTap: false };
-    const run = (cfg: RivalConfig): { x: number; travel: number; speed: number } => {
+    const run = (cfg: RivalConfig): { steer: number; counter: number; speed: number } => {
       const s = mkRace(1, 0, [
         { z: 0, x: 0, speed: 0 },
         { z: -240, x: 0.2, speed: 0.5, slot: 400, slotTicks: 1e6, band: 0.06, role: 1 },
@@ -281,12 +281,13 @@ describe('R63 off switches, player and traffic', () => {
       s.tick = LATE;
       step(s, [IDLE, steer], TRACK, [PLAYER, SNAP], undefined, cfg);
       const c = s.cars[1]!;
-      return { x: c.x, travel: c.travel, speed: c.speed };
+      return { steer: c.steer, counter: c.counter, speed: c.speed };
     };
     const on = run(RC);
     const off = run({ ...RC, rubberBand: 0 });
-    expect(on.x).toBe(off.x);
-    expect(on.travel).toBe(off.travel);
+    // R63: the band changes only the cap, not the control; in R200 x/travel depend on speed.
+    expect(on.steer).toBe(off.steer);
+    expect(on.counter).toBe(off.counter);
     expect(on.speed).toBeGreaterThan(off.speed + 0.03); // ~1.06 vs 1
   });
   it('determinism: the same race run twice gives identical JSON (band, slot included)', () => {
